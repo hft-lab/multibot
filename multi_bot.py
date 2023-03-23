@@ -52,6 +52,8 @@ class MultiBot:
     }
 
     def __init__(self):
+        self._loop_1 = asyncio.new_event_loop()
+        self._loop_2 = asyncio.new_event_loop()
         self.rabbit_url = f"amqp://{self.RABBIT['username']}:{self.RABBIT['password']}@{self.RABBIT['host']}:{self.RABBIT['port']}/"
         self.leverage = float(cp['SETTINGS']['leverage'])
         self.clients = {'BITMEX': bitmex_client.BitmexClient(self.cp['BITMEX'], leverage=self.leverage),
@@ -340,8 +342,10 @@ class MultiBot:
         # a = []
         # if buy_exch in self.exchanges:
             # print(buy_exch)
-        for exch, side, price in [[sell_exch, 'sell', price_sell_limit_taker], [buy_exch, 'buy', price_buy_limit_taker]]:
-            threading.Thread(target=self.run_create_order, args=[exch, max_deal_size, price, side]).start()
+        data = [[sell_exch, 'sell', price_sell_limit_taker, self._loop_1],
+                [buy_exch, 'buy', price_buy_limit_taker, self._loop_2]]
+        for exch, side, price, _loop in data:
+            threading.Thread(target=self.run_create_order, args=[exch, max_deal_size, price, side, _loop]).start()
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         # print(f"Pool call time: {time.time() - time_start - time_parser - time_choose - time_first_part - time_adding}")
         deal_time = time.time() - time_start - time_parser - time_choose
@@ -370,13 +374,11 @@ class MultiBot:
         # time_adding = time.time() - time_start - time_parser - time_choose - time_first_part
         # print(f"Pool adding time: {time_adding}")
         # self.pool.call_all()
-
-
-    async def run_create_order(self, exchange, amount, price, side):
-        asyncio.run(self.clients[exchange].create_order(amount=amount,
-                                                        price=price,
-                                                        side=side,
-                                                        session=self.session)
+    def run_create_order(self, exchange, amount, price, side, _loop):
+        _loop.run_until_complete(self.clients[exchange].create_order(amount=abs(amount),
+                                                                     price=abs(price),
+                                                                     side=side,
+                                                                     session=self.session))
 
     async def deal_details(self, buy_exch, sell_exch, expect_buy_px, expect_sell_px, deal_size, deal_time, time_parser, time_choose):
         orderbook_sell, orderbook_buy = self.get_orderbooks(self.clients[sell_exch], self.clients[buy_exch])
@@ -707,6 +709,7 @@ class MultiBot:
 #
 # bot = MultiBot()
 # bot.run()
+
 
 
 if __name__ == '__main__':
