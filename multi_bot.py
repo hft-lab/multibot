@@ -3,10 +3,10 @@ import logging
 import configparser
 import sys
 import time
-import okex_client
+# import okex_client
 import dydx_client
 import bitmex_client
-import binance_client
+# import binance_client
 import multicall
 # import database
 import telebot
@@ -52,8 +52,8 @@ class MultiBot:
     }
 
     def __init__(self):
-        self._loop_1 = asyncio.new_event_loop()
-        self._loop_2 = asyncio.new_event_loop()
+        # self._loop_1 = asyncio.new_event_loop()
+        # self._loop_2 = asyncio.new_event_loop()
         self.rabbit_url = f"amqp://{self.RABBIT['username']}:{self.RABBIT['password']}@{self.RABBIT['host']}:{self.RABBIT['port']}/"
         self.leverage = float(cp['SETTINGS']['leverage'])
         self.clients = {'BITMEX': bitmex_client.BitmexClient(self.cp['BITMEX'], leverage=self.leverage),
@@ -90,7 +90,7 @@ class MultiBot:
                 if exchange_1 != exchange_2:
                     ribs.append(exchange_1 + '|' + exchange_2)
         ribs = set(ribs)
-        print(ribs)
+        print(f"All possible angles: {ribs}")
         return ribs
 
     def server_side(self):
@@ -176,7 +176,7 @@ class MultiBot:
         return position_gap
 
     def find_balancing_elements(self):
-        time_start = time.time()
+        # time_start = time.time()
         client = self.clients[self.exchanges[-1]]
         position_gap = self.find_position_gap()
         orderbook = client.get_orderbook()[client.symbol]
@@ -207,8 +207,8 @@ class MultiBot:
         price = av_price / len(self.clients.keys())
         taker_fee = av_fee / len(self.clients.keys())
         await self.balancing_bd_update(exchanges, client, position_gap, price, side, taker_fee)
-        # self.send_message(self.chat_id, message)
-        # return message
+        self.send_message(self.chat_id, message)
+        return message
 
     def create_balancing_order(self, client, position_gap, price, side):
         self.pool.add(client.create_order, abs(position_gap), price, side)
@@ -227,11 +227,11 @@ class MultiBot:
             'size_usd': size_usd,
             'coin': coin
         }
-        # await self.publish_message(self.mq,
-        #                            to_base,
-        #                            'logger.event.insert_balancing_reports',
-        #                            'logger.event',
-        #                            'logger.event.insert_balancing_reports')
+        # await self.publish_message(self.mq,                                       #WHILE TESTS
+        #                            to_base,                                       #WHILE TESTS
+        #                            'logger.event.insert_balancing_reports',       #WHILE TESTS
+        #                            'logger.event',                                #WHILE TESTS
+        #                            'logger.event.insert_balancing_reports')       #WHILE TESTS
 
         # message = f"CREATED BALANCING ORDER\n"
         # message += f"SIZE, {coin}: {position_gap}\n"
@@ -254,11 +254,11 @@ class MultiBot:
     def cycle_parser(self):
         # avr_time = []
         for pair in self.ribs:
+            # time_start = time.time()
             buy_exch = pair.split('|')[0]
             sell_exch = pair.split('|')[1]
             client_buy = self.clients[buy_exch]
             client_sell = self.clients[sell_exch]
-            # time_start = time.time()
             self.available_balance_update(buy_exch, sell_exch)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
             shift = self.shifts[sell_exch + ' ' + buy_exch] / 2
@@ -268,7 +268,7 @@ class MultiBot:
                 # print(f"{datetime.datetime.now()}Exchanges: {sell_exch} {sell_price} | {buy_exch} {buy_price}")
                 self.taker_order_profit(sell_exch, buy_exch, sell_price, buy_price)
             self.potential_real_deals(sell_exch, buy_exch, orderbook_buy, orderbook_sell)
-                # avr_time.append(time.time() - time_start)
+            # avr_time.append(time.time() - time_start)
         # print(f"Avr cycle time: {sum(avr_time) / len(avr_time)} sec")
         # print(f"Total cycles: {len(avr_time)}")
         # print(f"Total cycles time: {sum(avr_time)}")
@@ -339,46 +339,18 @@ class MultiBot:
         # time_first_part = time.time() - time_start - time_parser - time_choose
         # print(f"First part of create orders func time: {time_first_part} sec")
         timer = time.time()
-        # a = []
-        # if buy_exch in self.exchanges:
-            # print(buy_exch)
-        data = [[sell_exch, 'sell', price_sell_limit_taker, self._loop_1],
-                [buy_exch, 'buy', price_buy_limit_taker, self._loop_2]]
-        for exch, side, price, _loop in data:
-            threading.Thread(target=self.run_create_order, args=[exch, max_deal_size, price, side, _loop]).start()
+        # data = [[sell_exch, 'sell', price_sell_limit_taker],
+        # data = [[buy_exch, 'buy', price_buy_limit_taker]]
+        # tasks = []
+        # for exch, side, price in data:
+        # tasks.append(self.loop.create_task(self.clients[exch].create_order(max_deal_size, price, side, self.session)))
+        await asyncio.gather(*[
+            self.loop.create_task(self.clients[buy_exch].create_order(max_deal_size, price_buy_limit_taker, 'buy', self.session)),
+            self.loop.create_task(self.clients[sell_exch].create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
+        ])
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
-        # print(f"Pool call time: {time.time() - time_start - time_parser - time_choose - time_first_part - time_adding}")
         deal_time = time.time() - time_start - time_parser - time_choose
         await self.deal_details(buy_exch, sell_exch, expect_buy_px, expect_sell_px, max_deal_size, deal_time, time_parser, time_choose)
-        # a.append(self.loop.create_task(self.clients[buy_exch].create_order(amount=max_deal_size,
-        #                                                                    price=price_buy_limit_taker,
-        #                                                                    side='buy',
-        #                                                                    session=self.session)))
-        # self.pool.add(self.clients[buy_exch].create_order(amount=max_deal_size,
-        #                                                   price=price_buy_limit_taker,
-        #                                                   side='buy',
-        #                                                   session=self.session))
-        # if sell_exch in self.exchanges:
-            # print(sell_exch)
-        # a.append(self.loop.create_task(self.clients[sell_exch].create_order(amount=max_deal_size,
-        #                                                                     price=price_sell_limit_taker,
-        #                                                                     side='sell',
-        #                                                                     session=self.session)))
-        # self.pool.add(self.clients[buy_exch].create_order(amount=max_deal_size,
-        #                                                   price=price_buy_limit_taker,
-        #                                                   side='buy',
-        #                                                   session=self.session))
-
-        # await asyncio.gather(*a)
-        # self.pool.add(self.clients[sell_exch].create_order(amount=max_deal_size, price=price_sell_limit_taker, side='sell'))
-        # time_adding = time.time() - time_start - time_parser - time_choose - time_first_part
-        # print(f"Pool adding time: {time_adding}")
-        # self.pool.call_all()
-    def run_create_order(self, exchange, amount, price, side, _loop):
-        _loop.run_until_complete(self.clients[exchange].create_order(amount=abs(amount),
-                                                                     price=abs(price),
-                                                                     side=side,
-                                                                     session=self.session))
 
     async def deal_details(self, buy_exch, sell_exch, expect_buy_px, expect_sell_px, deal_size, deal_time, time_parser, time_choose):
         orderbook_sell, orderbook_buy = self.get_orderbooks(self.clients[sell_exch], self.clients[buy_exch])
@@ -394,12 +366,12 @@ class MultiBot:
                                       time_parser,
                                       time_choose
                                       )
-        # self.report_message(to_base,
-        #                     orderbook_sell['asks'][0][0],
-        #                     orderbook_buy['bids'][0][0],
-        #                     deal_time,
-        #                     time_parser,
-        #                     time_choose)
+        # self.report_message(to_base,                          #WHILE TESTS
+        #                     orderbook_sell['asks'][0][0],     #WHILE TESTS
+        #                     orderbook_buy['bids'][0][0],      #WHILE TESTS
+        #                     deal_time,                        #WHILE TESTS
+        #                     time_parser,                      #WHILE TESTS
+        #                     time_choose)                      #WHILE TESTS
     async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
         try:
             channel = await connect.channel()
@@ -466,40 +438,40 @@ class MultiBot:
             'symbol': client.symbol
         }
         # print(to_base)
-        # await self.publish_message(self.mq,
-        #                            to_base,
-        #                            'logger.event.insert_balance_check',
-        #                            'logger.event',
-        #                            'logger.event.insert_balance_check')
-        # message = f'BALANCES AND POSITIONS\nSERVER SIDE: {self.server_side}\n'
-        # symbol = self.clients['DYDX'].symbol.split('-')
-        # for_base = ''
-        # for i in symbol:
-        #     for_base += i
-        # total_position = 0
-        # total_balance = 0
-        # index_price = []
-        # for exchange, client in self.clients.items():
-        #     coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
-        #     message += f"   EXCHANGE: {exchange}\n"
-        #     message += f"TOT BAL: {round(client.get_real_balance())} USD\n"
-        #     message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
-        #     message += f"AVL BUY: {round(client.get_available_balance('buy'))}\n"
-        #     message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
-        #     ob = client.get_orderbook()[client.symbol]
-        #     index_price.append((ob['bids'][0][0] + ob['asks'][0][0]) / 2)
-        #     total_position += client.get_positions()[client.symbol]['amount']
-        #     total_balance += client.get_real_balance()
-        # index_price = sum(index_price) / len(index_price)
-        # message += f"   TOTAL:\n"
-        # message += f"BALANCE: {round(total_balance)} USD\n"
-        # message += f"POSITION: {round(total_position, 4)} {coin}\n"
-        # # last_timestamp = self.database.fetch_data_from_table(f'deals_{for_base}')
-        # # last_timestamp = 0 if not len(last_timestamp) else last_timestamp[-1][1]
-        # # min_to_last_deal = round((time.time() - last_timestamp) / 60)
-        # # message += f"LAST DEAL WAS {min_to_last_deal} MIN BEFORE\n"
-        # message += f"INDEX PX: {round(index_price, 2)} USD\n"
-        # self.send_message(self.chat_id, message)
+        # await self.publish_message(self.mq,                                #WHILE TESTS
+        #                            to_base,                                #WHILE TESTS
+        #                            'logger.event.insert_balance_check',    #WHILE TESTS
+        #                            'logger.event',                         #WHILE TESTS
+        #                            'logger.event.insert_balance_check')    #WHILE TESTS
+        message = f'BALANCES AND POSITIONS\nSERVER SIDE: {self.server_side}\n'
+        symbol = self.clients['DYDX'].symbol.split('-')
+        for_base = ''
+        for i in symbol:
+            for_base += i
+        total_position = 0
+        total_balance = 0
+        index_price = []
+        for exchange, client in self.clients.items():
+            coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
+            message += f"   EXCHANGE: {exchange}\n"
+            message += f"TOT BAL: {round(client.get_real_balance())} USD\n"
+            message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
+            message += f"AVL BUY: {round(client.get_available_balance('buy'))}\n"
+            message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
+            ob = client.get_orderbook()[client.symbol]
+            index_price.append((ob['bids'][0][0] + ob['asks'][0][0]) / 2)
+            total_position += client.get_positions()[client.symbol]['amount']
+            total_balance += client.get_real_balance()
+        index_price = sum(index_price) / len(index_price)
+        message += f"   TOTAL:\n"
+        message += f"BALANCE: {round(total_balance)} USD\n"
+        message += f"POSITION: {round(total_position, 4)} {coin}\n"
+        # last_timestamp = self.database.fetch_data_from_table(f'deals_{for_base}')
+        # last_timestamp = 0 if not len(last_timestamp) else last_timestamp[-1][1]
+        # min_to_last_deal = round((time.time() - last_timestamp) / 60)
+        # message += f"LAST DEAL WAS {min_to_last_deal} MIN BEFORE\n"
+        message += f"INDEX PX: {round(index_price, 2)} USD\n"
+        self.send_message(self.chat_id, message)
 
     async def send_data_for_base(self,
                             buy_exch,
@@ -547,11 +519,11 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose}
-        # await self.publish_message(self.mq,
-        #                            to_base,
-        #                            'logger.event.insert_deals_reports',
-        #                            'logger.event',
-        #                            'logger.event.insert_deals_reports')
+        # await self.publish_message(self.mq,                            #WHILE TESTS
+        #                            to_base,                            #WHILE TESTS
+        #                            'logger.event.insert_deals_reports',#WHILE TESTS
+        #                            'logger.event',                     #WHILE TESTS
+        #                            'logger.event.insert_deals_reports')#WHILE TESTS
 
     @staticmethod
     def balancing_data_for_base(exchange, side, price, fee, size, size_usd):
@@ -681,11 +653,11 @@ class MultiBot:
 
     async def run(self, loop):
         self.loop = loop
-        # await self.setup_mq(loop)
+        # await self.setup_mq(loop) #WHILE TESTS
         self.start_message()
-        print("CYCLE START")
-        time.sleep(3)
+        print("SESSION START")
         self.session = aiohttp.ClientSession()
+        time.sleep(3)
         while True:
             time.sleep(0.005)
             if self.state == 'PARSER':
@@ -721,4 +693,3 @@ if __name__ == '__main__':
         loop.run_forever()
     finally:
         loop.close()
-
