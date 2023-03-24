@@ -4,6 +4,7 @@
 #VALUE FORMAT WHICH FUNCTION RETURNS
 
 client.symbol = str
+
 #str value of trading pair name, which being used within API requests. For instance ETH-USD
 
 get_orderbook() = {symbol:
