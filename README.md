@@ -4,23 +4,22 @@
 #VALUE FORMAT WHICH FUNCTION RETURNS
 
 client.symbol = str
-
 #str value of trading pair name, which being used within API requests. For instance ETH-USD
 
 get_orderbook() = {symbol:
-                       {'asks': [[price, size, etc], [price2, size2, etc2]],
-                         'bids': [[price, size, etc], [price2, size2, etc2]],
-                         'timestamp': timestamp}
-                   }
+  {'asks': [[price, size, etc], [price2, size2, etc2]],
+  'bids': [[price, size, etc], [price2, size2, etc2]],
+  'timestamp': timestamp}
+}
 #timestamp type float, seconds | price, size - float | etc - some other useful information which we can get via API
 
 positions() = {
-    'BTC-USD':
-        {'amount': amount, 'entry_price': entry_price, 'unrealized_pnl_usd': unrealized_pnl_usd, 'side': 'LONG'/'SHORT',
-         'amount_usd': amount_usd, 'realized_pnl_usd': realized_pnl_usd},
-    'ETH-USD':
-        {'amount': amount, 'entry_price': entry_price, 'unrealized_pnl_usd': unrealized_pnl_usd, 'side': 'LONG'/'SHORT',
-         'amount_usd': amount_usd, 'realized_pnl_usd': realized_pnl_usd}
+  'BTC-USD':
+    {'amount': amount, 'entry_price': entry_price, 'unrealized_pnl_usd': unrealized_pnl_usd, 'side': 'LONG'/'SHORT',
+    'amount_usd': amount_usd, 'realized_pnl_usd': realized_pnl_usd},
+  'ETH-USD':
+    {'amount': amount, 'entry_price': entry_price, 'unrealized_pnl_usd': unrealized_pnl_usd, 'side': 'LONG'/'SHORT',
+    'amount_usd': amount_usd, 'realized_pnl_usd': realized_pnl_usd}
 }
 #every parameter type float except 'side'
 
