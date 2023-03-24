@@ -45,7 +45,7 @@ class MultiBot:
         exchanges = [exchanges]
     min_disbalance = 500 * len(exchanges)
     RABBIT = {
-        'host': '13.127.170.236',
+        'host': '3.111.57.65',
         'port': 5672,
         'username': 'supauser',
         'password': 'XClO8wNcv9stGmfCO7'
@@ -207,8 +207,8 @@ class MultiBot:
         price = av_price / len(self.clients.keys())
         taker_fee = av_fee / len(self.clients.keys())
         await self.balancing_bd_update(exchanges, client, position_gap, price, side, taker_fee)
-        self.send_message(self.chat_id, message)
-        return message
+        # self.send_message(self.chat_id, message)
+        # return message
 
     def create_balancing_order(self, client, position_gap, price, side):
         self.pool.add(client.create_order, abs(position_gap), price, side)
@@ -227,11 +227,11 @@ class MultiBot:
             'size_usd': size_usd,
             'coin': coin
         }
-        # await self.publish_message(self.mq,                                       #WHILE TESTS
-        #                            to_base,                                       #WHILE TESTS
-        #                            'logger.event.insert_balancing_reports',       #WHILE TESTS
-        #                            'logger.event',                                #WHILE TESTS
-        #                            'logger.event.insert_balancing_reports')       #WHILE TESTS
+        await self.publish_message(self.mq,                                       #WHILE TESTS
+                                   to_base,                                       #WHILE TESTS
+                                   'logger.event.insert_balancing_reports',       #WHILE TESTS
+                                   'logger.event',                                #WHILE TESTS
+                                   'logger.event.insert_balancing_reports')       #WHILE TESTS
 
         # message = f"CREATED BALANCING ORDER\n"
         # message += f"SIZE, {coin}: {position_gap}\n"
@@ -372,6 +372,7 @@ class MultiBot:
         #                     deal_time,                        #WHILE TESTS
         #                     time_parser,                      #WHILE TESTS
         #                     time_choose)                      #WHILE TESTS
+
     async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
         try:
             channel = await connect.channel()
@@ -438,11 +439,11 @@ class MultiBot:
             'symbol': client.symbol
         }
         # print(to_base)
-        # await self.publish_message(self.mq,                                #WHILE TESTS
-        #                            to_base,                                #WHILE TESTS
-        #                            'logger.event.insert_balance_check',    #WHILE TESTS
-        #                            'logger.event',                         #WHILE TESTS
-        #                            'logger.event.insert_balance_check')    #WHILE TESTS
+        await self.publish_message(self.mq,                                #WHILE TESTS
+                                   to_base,                                #WHILE TESTS
+                                   'logger.event.insert_balance_check',    #WHILE TESTS
+                                   'logger.event',                         #WHILE TESTS
+                                   'logger.event.insert_balance_check')    #WHILE TESTS
         message = f'BALANCES AND POSITIONS\nSERVER SIDE: {self.server_side}\n'
         symbol = self.clients['DYDX'].symbol.split('-')
         for_base = ''
@@ -471,7 +472,7 @@ class MultiBot:
         # min_to_last_deal = round((time.time() - last_timestamp) / 60)
         # message += f"LAST DEAL WAS {min_to_last_deal} MIN BEFORE\n"
         message += f"INDEX PX: {round(index_price, 2)} USD\n"
-        self.send_message(self.chat_id, message)
+        # self.send_message(self.chat_id, message)
 
     async def send_data_for_base(self,
                             buy_exch,
@@ -519,11 +520,11 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose}
-        # await self.publish_message(self.mq,                            #WHILE TESTS
-        #                            to_base,                            #WHILE TESTS
-        #                            'logger.event.insert_deals_reports',#WHILE TESTS
-        #                            'logger.event',                     #WHILE TESTS
-        #                            'logger.event.insert_deals_reports')#WHILE TESTS
+        await self.publish_message(self.mq,                            #WHILE TESTS
+                                   to_base,                            #WHILE TESTS
+                                   'logger.event.insert_deals_reports',#WHILE TESTS
+                                   'logger.event',                     #WHILE TESTS
+                                   'logger.event.insert_deals_reports')#WHILE TESTS
 
     @staticmethod
     def balancing_data_for_base(exchange, side, price, fee, size, size_usd):
@@ -653,7 +654,7 @@ class MultiBot:
 
     async def run(self, loop):
         self.loop = loop
-        # await self.setup_mq(loop) #WHILE TESTS
+        await self.setup_mq(loop) #WHILE TESTS
         self.start_message()
         print("SESSION START")
         self.session = aiohttp.ClientSession()
