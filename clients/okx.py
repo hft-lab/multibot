@@ -13,6 +13,7 @@ import requests
 import random
 import queue
 
+from config import Config
 from core.base_client import BaseClient
 
 
@@ -39,7 +40,7 @@ class OkxClient(BaseClient):
         self.instrument = self.get_instrument()
         self.tick_size = float(self.instrument['tickSz'])
         self.step_size = float(self.instrument['lotSz'])
-        self.quantity_precision = 0
+        self.quantity_precision = float(self.instrument['ctVal'])
 
         self.orderbook = {}
         self.orders = {}
@@ -216,13 +217,13 @@ class OkxClient(BaseClient):
 
     def _update_orders(self, obj):
         if obj.get('data') and obj.get('arg'):
-            print('obj', obj)
+            self.create_order_response = obj
             if obj['data'][0]['state'] == 'live':
                 print(f"OKEX ORDER PLACE TIME: {float(obj['data'][0]['uTime']) - self.time_sent * 1000} ms\n")
         # print(obj)
         if not self.taker_fee:
             if obj.get('arg'):
-                if obj['data'][0]['fillNotionalUsd'] != '':
+                if obj['data'][0]['fillNotionalUsd'] != '':         # TODO ???
                     self.taker_fee = abs(float(obj['data'][0]['fillFee'])) / float(obj['data'][0]['fillNotionalUsd'])
                     self.taker_fee = 0.0003
         if not obj['arg']['instId'] == self.symbol:
@@ -263,14 +264,16 @@ class OkxClient(BaseClient):
         self.time_sent = time.time()
         self.queue.put_nowait({'amount': amount, 'price': price, 'side': side, 'expire': expire})
 
-        # response = self.create_order_response
-        # self.create_order_response = 1
-        return {}
+        response = self.create_order_response
+        self.create_order_response = {}
+        return response
 
     async def _send_order(self, amount, price, side, expire=1000):
         # expire_date = str(round((time.time() + expire) * 1000))
-        amount = self.fit_amount(amount)
+
+        amount = self.fit_amount(float(amount))
         price = self.fit_price(price)
+
         msg = {
             "id": self.id_generator(),
             "op": "order",
@@ -289,7 +292,8 @@ class OkxClient(BaseClient):
         await self._ws_private.send_json(msg)
 
     def fit_amount(self, amount):
-        return str(float(round(amount / self.step_size * self.step_size, self.quantity_precision)))
+        amount = int((amount - (amount % self.quantity_precision)) / self.quantity_precision)
+        return str(amount - (amount % self.step_size))
 
     def fit_price(self, price):
         if '.' in str(self.tick_size):
@@ -348,31 +352,3 @@ class OkxClient(BaseClient):
 
     def cancel_all_orders(self, orderID=None):
         pass
-
-# EXAMPLES:
-# import configparser
-# import sys
-#
-# cp = configparser.ConfigParser()
-# if len(sys.argv) != 2:
-#     sys.exit(1)
-# cp.read(sys.argv[1], "utf-8")
-# keys = cp['OKEX']
-# #
-# # import random
-# client_okex = OkexClient(keys)
-# client_okex.run_updater()
-# # #
-# while True:
-#     time.sleep(2)
-#     ob = client_okex.get_orderbook()
-# # #     client_okex.get_real_balance()
-# # #     client_okex.get_positions()
-# # #     client_okex.get_last_price('buy')
-# # #     time_start = time.time()
-#     client_okex.create_order(0.021007, ob[client_okex.symbol]['bids'][0][0] * 0.96, 'buy')
-# print(f"Order place time: {time.time() - time_start}")
-
-
-# 1674154165380
-# 1597026383085
