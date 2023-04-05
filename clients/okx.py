@@ -40,7 +40,7 @@ class OkxClient(BaseClient):
         self.instrument = self.get_instrument()
         self.tick_size = float(self.instrument['tickSz'])
         self.step_size = float(self.instrument['lotSz'])
-        self.quantity_precision = int(self.instrument['ctVal'])
+        self.quantity_precision = 0
 
         self.orderbook = {}
         self.orders = {}
@@ -292,7 +292,7 @@ class OkxClient(BaseClient):
         await self._ws_private.send_json(msg)
 
     def fit_amount(self, amount):
-        amount = int((amount - (amount % self.quantity_precision)) / self.quantity_precision)
+        amount = int((amount - (amount % self.instrument['ctVal'])) / self.instrument['ctVal'])
         return str(amount - (amount % self.step_size))
 
     def fit_price(self, price):
