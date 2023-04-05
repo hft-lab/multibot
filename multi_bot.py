@@ -320,7 +320,6 @@ class MultiBot:
                                    exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_CHECK),
                                    queue_name=RabbitMqQueues.BALANCE_CHECK
                                    )
-
     async def send_data_for_base(self,
                                  client_buy,
                                  client_sell,
@@ -371,8 +370,7 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'env': self.env
-        }
+            'env': self.env}
 
         await self.publish_message(connect=self.mq,
                                    message=to_base,
@@ -551,7 +549,6 @@ class MultiBot:
 
     async def run(self, loop):
         self.loop = loop
-
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
