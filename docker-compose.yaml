@@ -1,0 +1,16 @@
+version: '3.5'
+
+services:
+
+  multibot_test_bitmex_dydx:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+    build:
+      context: .
+      dockerfile: "Dockerfile.multibot"
+    env_file:
+      - .env
+    restart: always
+    command: 'python multi_bot.py -c1 bitmex -c2 dydx'

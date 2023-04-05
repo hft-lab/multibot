@@ -3,7 +3,6 @@ import datetime
 import json
 import threading
 import time
-from pprint import pprint
 
 import aiohttp
 from dydx3 import Client
@@ -16,14 +15,13 @@ from dydx3.helpers.request_helpers import remove_nones
 from dydx3.starkex.order import SignableOrder
 from web3 import Web3
 
-URI_WS = 'wss://api.dydx.exchange/v3/ws'
-URI_API = 'https://api.dydx.exchange'
+from core.base_client import BaseClient
 
 
-class DydxClient:
-    _updates = 0
-    offsets = {}
-    time_sent = time.time()
+class DydxClient(BaseClient):
+    BASE_WS = 'wss://api.dydx.exchange/v3/ws'
+    BASE_URL = 'https://api.dydx.exchange'
+    EXCHANGE_NAME = 'DYDX'
 
     def __init__(self, keys=None, leverage=2):
         self._loop = asyncio.new_event_loop()
@@ -52,20 +50,29 @@ class DydxClient:
 
         self.keys = keys
         self.user = self.client.private.get_user().data
-        account = self.client.private.get_account().data
+        self.account = self.client.private.get_account().data
         self.markets = self.client.public.get_markets().data
         self.leverage = leverage
 
-        self.balance = {'free': account['account']['equity'], 'total': account['account']['freeCollateral']}
-        self.position_id = account['account']['positionId']
+        self.balance = {'free': self.account['account']['equity'], 'total': self.account['account']['freeCollateral']}
+        self.position_id = self.account['account']['positionId']
 
         self.maker_fee = float(self.user['user']['makerFeeRate']) * 0.77
         self.taker_fee = float(self.user['user']['takerFeeRate']) * 0.77
 
-        self.ticksize = float(self.markets['markets'][self.symbol]['tickSize'])
-        self.stepsize = float(self.markets['markets'][self.symbol]['stepSize'])
+        self.tick_size = float(self.markets['markets'][self.symbol]['tickSize'])
+        self.step_size = float(self.markets['markets']   [self.symbol]['stepSize'])
 
-    def cancel_order(self, orderID):
+
+        self._updates = 0
+        self.offsets = {}
+        self.time_sent = time.time()
+
+        self.quantity_precision = None
+
+        self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
+
+    def cancel_all_orders(self, orderID=None):
         self.client.private.cancel_order(order_id=orderID)
 
     def get_real_balance(self):
@@ -78,19 +85,23 @@ class DydxClient:
         return balance
 
     def fit_amount(self, amount):
-        if '.' in str(self.stepsize):
-            round_amount_len = len(str(self.stepsize).split('.')[1])
+        if not self.quantity_precision:
+            if '.' in str(self.step_size):
+                round_amount_len = len(str(self.step_size).split('.')[1])
+            else:
+                round_amount_len = 0
+            amount = str(round(amount - (amount % self.step_size), round_amount_len))
         else:
-            round_amount_len = 0
-        amount = str(round(amount - (amount % self.stepsize), round_amount_len))
+            amount = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
+
         return amount
 
     def fit_price(self, price):
-        if '.' in str(self.ticksize):
-            round_price_len = len(str(self.ticksize).split('.')[1])
+        if '.' in str(self.tick_size):
+            round_price_len = len(str(self.tick_size).split('.')[1])
         else:
             round_price_len = 0
-        price = str(round(price - (price % self.ticksize), round_price_len))
+        price = str(round(price - (price % self.tick_size), round_price_len))
         return price
 
     def exit(self):
@@ -146,7 +157,7 @@ class DydxClient:
             'trailingPercent': None,
             'reduceOnly': None
         }
-
+        print(f'DYDX BODY: {data}')
         request_path = '/'.join(['/v3', 'orders'])
         signature = self.client.private.sign(
             request_path=request_path,
@@ -166,13 +177,11 @@ class DydxClient:
             'User-Agent': 'dydx/python'
         }
 
-        async with session.post(url=URI_API + request_path, headers=headers, data=json.dumps(remove_nones(data))) as resp:
+        async with session.post(url=self.BASE_URL + request_path, headers=headers, data=json.dumps(remove_nones(data))) as resp:
             return await resp.json()
 
     def run_updater(self):
-        wst = threading.Thread(target=self._run_ws_forever)
-        wst.daemon = True
-        wst.start()
+        self.wst.start()
         # except Exception as e:
         #     print(f"Error line 33: {e}")
 
@@ -186,7 +195,7 @@ class DydxClient:
     async def _run_ws_loop(self):
         async with aiohttp.ClientSession() as s:
             try:
-                async with s.ws_connect(URI_WS) as ws:
+                async with s.ws_connect(self.BASE_WS) as ws:
                     print("DyDx: connected")
                     self._connected.set()
                     self._ws = ws
@@ -458,11 +467,11 @@ class DydxClient:
         available_margin = balance['total'] * self.leverage
         # print(available_margin)
         if side == 'buy':
-            max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
-            return min(available_margin - position_value, max_ask)
+            # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
+            return available_margin - position_value
         elif side == 'sell':
-            max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
-            return min(available_margin + position_value, max_bid)
+            # max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
+            return available_margin + position_value
 
     def _process_msg(self, msg: aiohttp.WSMessage):
         if msg.type == aiohttp.WSMsgType.TEXT:

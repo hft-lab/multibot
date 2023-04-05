@@ -1,16 +1,17 @@
-import threading
-import json
-import aiohttp
 import asyncio
-import math
-import time
 import datetime
+import json
+import math
+import threading
+import time
+import urllib.parse
+
+import aiohttp
 from bravado.client import SwaggerClient
 from bravado.requests_client import RequestsClient
-from APIKeyAuthenticator import APIKeyAuthenticator as auth
-import urllib.parse
-import requests
-import http.client
+
+from core.base_client import BaseClient
+from tools.APIKeyAuthenticator import APIKeyAuthenticator as auth
 
 
 # Naive implementation of connecting to BitMEX websocket for streaming realtime data.
@@ -21,22 +22,14 @@ import http.client
 # On connect, it synchronously asks for a push of all this data then returns.
 # Right after, the MM can start using its data. It will be updated in realtime, so the MM can
 # poll really often if it wants.
-class BitmexClient:
 
-    # Don't grow a table larger than this amount. Helps cap memory usage.
+class BitmexClient(BaseClient):
+    BASE_WS = 'wss://ws.bitmex.com/realtime'
+    BASE_URL = 'https://www.bitmex.com'
+    EXCHANGE_NAME = 'BITMEX'
     MAX_TABLE_LEN = 200
-    URI_WS = 'wss://ws.bitmex.com/realtime'
-    NO_SYMBOL_SUBS = ['account', 'affiliate', 'announcement', 'connected', 'chat', 'insurance', 'margin',
-                      'publicNotifications', 'privateNotifications', 'transact', 'wallet']
-    subscriptions = ['execution', 'instrument', 'margin', 'order', 'position', 'trade', 'orderBook10']
-    host = 'https://www.bitmex.com'
-    host_http = 'www.bitmex.com'
-    time_sent = time.time()
 
     def __init__(self, keys, leverage=2):
-        '''Connect to the websocket and initialize data stores.'''
-
-        # self.session = requests.Session()
         self._loop = asyncio.new_event_loop()
         self._connected = asyncio.Event()
         self.leverage = leverage
@@ -46,7 +39,7 @@ class BitmexClient:
         self.pos_power = 6 if 'USDT' in self.symbol else 8
         self.currency = 'USDt' if 'USDT' in self.symbol else 'XBt'
 
-        self.auth = auth(self.host, self.api_key, self.api_secret)
+        self.auth = auth(self.BASE_URL, self.api_key, self.api_secret)
         self.data = {}
         self.keys = {}
         self.exited = False
@@ -56,13 +49,17 @@ class BitmexClient:
         self.taker_fee = commission[self.symbol]['takerFee']
         self.maker_fee = commission[self.symbol]['makerFee']
 
+        self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
+        self.tick_size = 0.0
+        self.step_size = 0.0
+        self.quantity_precision = 0
+        self.time_sent = time.time()
+
     def run_updater(self):
-        self.wst = threading.Thread(target=self._run_ws_forever)
-        self.wst.daemon = True
         self.wst.start()
         self.__wait_for_account()
         self.get_contract_price()
-        self.ticksize = self.get_instrument()['tickSize']
+        self.tick_size = self.get_instrument()['tick_size']
 
     def _run_ws_forever(self):
         while True:
@@ -173,7 +170,7 @@ class BitmexClient:
                 # Returns response in 2-tuple of (body, response); if False, will only return body
                 'also_return_response': True,
             }
-        spec_uri = self.host + '/api/explorer/swagger.json'
+        spec_uri = self.BASE_URL + '/api/explorer/swagger.json'
         request_client = RequestsClient()
         request_client.authenticator = self.auth
         return SwaggerClient.from_url(spec_uri, config=config, http_client=request_client)
@@ -184,49 +181,64 @@ class BitmexClient:
         self.ws.close()
 
     def get_instrument(self):
-        '''Get the raw instrument data for this symbol.'''
-        # Turn the 'tickSize' into 'tickLog' for use in rounding
+        """Get the raw instrument data for this symbol."""
+        # Turn the 'tick_size' into 'tickLog' for use in rounding
         instrument = self.data['instrument'][0]
-        instrument['tickLog'] = int(math.fabs(math.log10(instrument['tickSize'])))
+        instrument['tick_size'] = int(math.fabs(math.log10(instrument['tickSize'])))
         return instrument
 
     def funds(self):
-        '''Get your margin details.'''
+        """Get your margin details."""
         return self.data['margin']
 
     def open_orders(self):
-        '''Get all your open orders.'''
-        orders = self.data['order']
-        # Filter to only open orders and those that we actually placed
-        return orders
+        """Get all your open orders."""
+        return self.data['order']
 
     def recent_trades(self):
-        '''Get recent trades.'''
+        """Get recent trades."""
         return self.data['trade']
 
     def fit_price(self, price):
-        ticksize = self.get_instrument()['tickSize']
-        if '.' in str(ticksize):
-            round_price_len = len(str(ticksize).split('.')[1])
+        if '.' in str(self.tick_size):
+            round_price_len = len(str(self.tick_size).split('.')[1])
         else:
             round_price_len = 0
-        price = round(price - (price % ticksize), round_price_len)
+        price = round(price - (price % self.tick_size), round_price_len)
         return price
 
     def fit_amount(self, amount):
-        lot_size = self.get_instrument()['lotSize']
-        orderbook = self.get_orderbook()[self.symbol]
-        change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
-        amount = amount * change
-        if self.symbol == 'XBTUSD':
-            amount = int(round(amount - (amount % lot_size)))
-            return amount
+        if not self.quantity_precision:
+            orderbook = self.get_orderbook()[self.symbol]
+            change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
+            amount = amount * change
+            if self.symbol == 'XBTUSD':
+                amount = int(round(amount - (amount % self.step_size)))
+                print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+                print(amount)
+                print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+            else:
+                print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+                amount = int(round(amount / self.contract_price))
+                print(amount)
+                amount -= amount % self.step_size
+                print(amount)
+                print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
         else:
-            amount = int(round(amount / self.contract_price))
-            amount -= amount % lot_size
-            return amount
+            print('0' * 60)
+            print('0' * 60)
+            print('0' * 60)
+            print('0' * 60)
+            amount  = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
+            print('0' * 60)
+            print('0' * 60)
+            print('0' * 60)
+            print('0' * 60)
 
-    async def create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession, client_id=None):
+        return amount
+
+    async def create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
+                           expire: int = 100, client_id=None):
         self.time_sent = time.time()
         price = self.fit_price(price)
         amount = self.fit_amount(amount)
@@ -239,7 +251,7 @@ class BitmexClient:
         }
         if client_id is not None:
             body["clOrdID"] = client_id
-        # await self._loop.create_task(self._post("/api/v1/order", body, session))
+        print(f'BITMEX BODY: {body}')
         return await self._post("/api/v1/order", body, session)
 
     async def _post(self, path: str, data: any, session: aiohttp.ClientSession):
@@ -250,36 +262,8 @@ class BitmexClient:
                 "Content-Length": str(len(headers_body.encode('utf-8'))),
                 "Content-Type": "application/x-www-form-urlencoded"}
         )
-        async with session.post(url=self.host + path, headers=headers, data=headers_body) as resp:
+        async with session.post(url=self.BASE_URL + path, headers=headers, data=headers_body) as resp:
             return await resp.json()
-
-    # def create_order(self, amount, price, side, expire=1000, clOrdID=None):
-    #     self.time_sent = time.time()
-    #     price = self.fit_price(price)
-    #     amount = self.fit_amount(amount)  # int(round(amount))
-        # request_params = {'method': 'POST', 'url': 'https://www.bitmex.com/api/v1/order', 'params': {}, 'headers': {},
-        #          'data': {'symbol': 'XBTUSD', 'side': 'Sell', 'ordType': 'Limit', 'orderQty': 200, 'price': 28000.0}}
-        # operation = "Operation(Order_new)"
-        # req_config = '< bravado.config.RequestConfig object at 0x7f6382affd00 >'
-        # data = {'symbol': 'XBTUSD', 'side': 'Sell', 'ordType': 'Limit', 'orderQty': 200, 'price': 26000.0}
-        # resp = requests.post('https://www.bitmex.com/api/v1/order', json=request_params['data'])
-        # print(resp)
-        # time.sleep(3)
-        # while True:
-        #     try:
-        #         a = self.swagger_client.Order.Order_new(symbol=self.symbol,
-        #                                                 side=side.capitalize(),
-        #                                                 ordType='Limit',
-        #                                                 orderQty=amount,
-        #                                                 price=price,
-        #                                                 clOrdID=clOrdID
-        #                                                 ).result()
-        #         print(f"Swagger response: {a}")
-        #         return
-        #     except Exception as e:
-        #         print(f"Error line 287: {e}")
-        #         time.sleep(30)
-        #         continue
 
     def change_order(self, amount, price, id):
         if amount:
@@ -287,7 +271,7 @@ class BitmexClient:
         else:
             self.swagger_client.Order.Order_amend(orderID=id, price=price).result()
 
-    def cancel_order(self, orderID):
+    def cancel_all_orders(self, orderID=None):
         self.swagger_client.Order.Order_cancel(orderID=orderID).result()
 
     def __get_auth(self, method, uri, body=''):
@@ -310,13 +294,14 @@ class BitmexClient:
         """
         # Some subscriptions need to xhave the symbol appended.
         subscriptions_full = map(lambda sub: (
-            sub if sub in self.NO_SYMBOL_SUBS
+            sub if sub in ['account', 'affiliate', 'announcement', 'connected', 'chat', 'insurance', 'margin',
+                           'publicNotifications', 'privateNotifications', 'transact', 'wallet']
             else (sub + ':' + self.symbol)
-        ), self.subscriptions)
-        urlParts = list(urllib.parse.urlparse(self.URI_WS))
+        ), ['execution', 'instrument', 'margin', 'order', 'position', 'trade', 'orderBook10'])
+        urlParts = list(urllib.parse.urlparse(self.BASE_WS))
         urlParts[2] += "?subscribe={}".format(','.join(subscriptions_full))
         urlParts[2] += ',orderBook10:XBTUSD'
-        # print(urlParts[2])
+
         return urllib.parse.urlunparse(urlParts)
 
     def get_pnl(self):

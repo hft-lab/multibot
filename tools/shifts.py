@@ -1,16 +1,19 @@
+import traceback
+
 
 class Shifts:
 
-    with open('rates.txt', 'r') as file:
-        data = file.read().split('\n\n')
-    data = data[-300000:]
-    list_len = len(data)
-    price_deviations = []
-    prices = {}
+    def __init__(self):
+        with open('rates.txt', 'r') as file:
+            data = file.read().split('\n\n')
+
+        self.data = data[-300000:]
+        self.list_len = len(data)
+        self.price_deviations = []
+        self.prices = {}
 
     def find_deviations(self):
         for record in self.data:
-            # print(record + '\n')
             for exchange in record.split('\n'):
                 if exchange == '':
                     continue
@@ -31,32 +34,23 @@ class Shifts:
                     new_record.update({name_1 + ' ' + name_2: deviation_value})
             self.price_deviations.append(new_record)
 
-    # def check_for_repeats(self, shifts):
-    #     for key_1 in shifts.keys():
-    #         for key_2
-
     def get_shifts(self):
         self.find_deviations()
-        gathering_time = len(self.data) / 240
-        # print(f"Gathering time: {gathering_time}")
+        gathering_time = self.list_len / 240
         shifts = {}
-        # if gathering_time > 10:
         print(f"Result for {gathering_time} hours")
+
         for exchange in self.price_deviations[-1].keys():
             try:
                 avg_deviation = sum([x[exchange] for x in self.price_deviations]) / self.list_len
             except Exception as e:
-                print(f"Line 39. Shifts. Error: {e}")
+                traceback.print_exc()
                 avg_deviation = None
-            # print(f"Avg deviation {exchange}: {avg_deviation}")
+
             shifts.update({exchange: round(avg_deviation, 6)})
-        # shifts = self.check_for_repeats(shifts)
+
         print(f"SHIFTS: {shifts}")
 
         return shifts
-
-
-# shifts = Shifts()
-# shifts.get_shifts()
 
 

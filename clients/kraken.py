@@ -14,44 +14,20 @@ import aiohttp
 import orjson
 import requests
 
-
-class PositionSideEnum:
-    LONG = 'LONG'
-    SHORT = 'SHORT'
-    BOTH = 'BOTH'
-
-    @classmethod
-    def all_position_sides(cls):
-        return [cls.LONG, cls.SHORT, cls.BOTH]
+from config import Config
+from core.base_client import BaseClient
+from core.enums import ConnectMethodEnum
 
 
-class ConnectMethodEnum:
-    PUBLIC = 'public'
-    PRIVATE = 'private'
-
-
-class EventTypeEnum:
-    ACCOUNT_UPDATE = 'ACCOUNT_UPDATE'
-    ORDER_TRADE_UPDATE = 'ORDER_TRADE_UPDATE'
-
-
-class KrakenClient:
-    KRAKEN_WS_URL = 'wss://futures.kraken.com/ws/v1'
+class KrakenClient(BaseClient):
+    BASE_WS = 'wss://futures.kraken.com/ws/v1'
     BASE_URL = 'https://futures.kraken.com'
+    EXCHANGE_NAME = 'KRAKEN'
 
     def __init__(self, keys, leverage):
-        if not keys.get('symbol'):
-            raise Exception('Cant find symbol in keys')
-        elif not keys.get('api_key'):
-            raise Exception('Cant find api_key in keys')
-        elif not keys.get('secret_key'):
-            raise Exception('Cant find secret_key in keys')
         self.taker_fee = 0.00036
         self.leverage = leverage
         self.symbol = keys['symbol']
-        self.order_types = {
-            'limit': 'lmt'
-        }
         self.__api_key = keys['api_key']
         self.__secret_key = keys['secret_key']
         self.__last_challenge = None
@@ -89,11 +65,11 @@ class KrakenClient:
     def get_available_balance(self, side: str) -> float:
         return self.__get_available_balance(side)
 
-    async def create_order(self, amount, price, side, type, session: aiohttp.ClientSession,
+    async def create_order(self, amount, price, side, session: aiohttp.ClientSession,
                            expire: int = 5000, client_ID: str = None) -> dict:
-        return await self.__create_order(amount, price, side.upper(), type.upper(), session, expire, client_ID)
+        return await self.__create_order(amount, price, side.upper(), session, expire, client_ID)
 
-    def cancel_all_orders(self) -> dict:
+    def cancel_all_orders(self, orderID=None) -> dict:
         return self.__cancel_open_orders()
 
     def get_positions(self) -> dict:
@@ -134,7 +110,8 @@ class KrakenClient:
     # PUBLIC -----------------------------------------------------------------------------------------------------------
 
     async def _symbol_data_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.KRAKEN_WS_URL) as ws:
+
+        async with session.ws_connect(self.BASE_WS) as ws:
             await ws.send_str(orjson.dumps({
                 "event": "subscribe",
                 "feed": "book",
@@ -147,6 +124,7 @@ class KrakenClient:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     payload = orjson.loads(msg.data)
+                    print(payload.get('feed') )
                     if payload.get('feed') == 'book_snapshot':
                         self.orderbook[self.symbol] = {
                             'sell': {x['price']: x['qty'] for x in payload['asks']},
@@ -226,11 +204,11 @@ class KrakenClient:
         }
         return requests.post(headers=headers, url=self.BASE_URL + url_path, data=str.encode(post_string)).json()
 
-    async def __create_order(self, amount: float, price: float, side: str, type: str, session: aiohttp.ClientSession,
+    async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=5000, client_ID=None) -> dict:
         nonce = str(int(time.time() * 1000))
         url_path = "/derivatives/api/v3/sendorder"
-        params = {"orderType": self.order_types[type], "limitPrice": price, "side": side, "size": amount,
+        params = {"orderType": "lmt", "limitPrice": price, "side": side, "size": amount,
                   "symbol": self.symbol}
         post_string = "&".join([f"{key}={params[key]}" for key in sorted(params)])
 
@@ -261,7 +239,7 @@ class KrakenClient:
         ).decode("utf-8")
 
     async def _user_balance_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.KRAKEN_WS_URL) as ws:
+        async with session.ws_connect(self.BASE_WS) as ws:
             if not self.__last_challenge:
                 await ws.send_str(orjson.dumps({"event": "challenge", "api_key": self.__api_key}).decode('utf-8'))
 
@@ -302,3 +280,9 @@ class KrakenClient:
                                     'lever': self.leverage
                                 }})
 
+#
+# w = KrakenClient(Config.KRAKEN, leverage=Config.LEVERAGE)
+# w.run_updater()
+# while True:
+#     print(w.get_orderbook())
+#     time.sleep(1)

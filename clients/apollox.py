@@ -12,40 +12,17 @@ import aiohttp
 import orjson
 import requests
 
-
-class PositionSideEnum:
-    LONG = 'LONG'
-    SHORT = 'SHORT'
-    BOTH = 'BOTH'
-
-    @classmethod
-    def all_position_sides(cls):
-        return [cls.LONG, cls.SHORT, cls.BOTH]
+from config import Config
+from core.base_client import BaseClient
+from core.enums import ConnectMethodEnum, EventTypeEnum, PositionSideEnum
 
 
-class ConnectMethodEnum:
-    PUBLIC = 'public'
-    PRIVATE = 'private'
-
-
-class EventTypeEnum:
-    ACCOUNT_UPDATE = 'ACCOUNT_UPDATE'
-    ORDER_TRADE_UPDATE = 'ORDER_TRADE_UPDATE'
-
-
-class ApolloxClient:
-    APOLLOX_WS_URL = 'wss://fstream.apollox.finance/ws/'
+class ApolloxClient(BaseClient):
+    BASE_WS = 'wss://fstream.apollox.finance/ws/'
     BASE_URL = 'https://fapi.apollox.finance'
+    EXCHANGE_NAME = 'APOLLOX'
 
     def __init__(self, keys, leverage):
-        if not keys.get('symbol'):
-            raise Exception('Cant find symbol in keys')
-        elif not keys.get('api_key'):
-            raise Exception('Cant find api_key in keys')
-        elif not keys.get('secret_key'):
-            raise Exception('Cant find secret_key in keys')
-
-        self.rabbit_url = f"amqp://{keys['username_mq']}:{keys['password_mq']}@{keys['host_mq']}:{keys['port_mq']}/"  # noqa
         self.taker_fee = 0.00036
         self.leverage = leverage
         self.symbol = keys['symbol']
@@ -53,7 +30,10 @@ class ApolloxClient:
         self.__secret_key = keys['secret_key']
         self.headers = {'X-MBX-APIKEY': self.__api_key}
         self.symbol_is_active = False
-        self.message_to_rabbit_list = []
+        self.quantity_precision = 0
+        self.price_precision = 0
+        self.tick_size = 0
+        self.step_size = 0
         self.balance = {
             'total': 0.0,
         }
@@ -94,11 +74,11 @@ class ApolloxClient:
     def get_available_balance(self, side: str) -> float:
         return self.__get_available_balance(side)
 
-    async def create_order(self, amount, price, side, type, session: aiohttp.ClientSession,
+    async def create_order(self, amount, price, side, session: aiohttp.ClientSession,
                      expire: int = 5000, client_ID: str = None) -> dict:
-        return await self.__create_order(amount, price, side.upper(), type.upper(), session, expire, client_ID)
+        return await self.__create_order(amount, price, side.upper(), session, expire, client_ID)
 
-    def cancel_all_orders(self) -> dict:
+    def cancel_all_orders(self, orderID=None) -> dict:
         return self.__cancel_open_orders()
 
     def get_positions(self) -> dict:
@@ -118,9 +98,9 @@ class ApolloxClient:
     def run_updater(self) -> None:
         self.req_check.start()
         self.lk_check.start()
+        self.bal_check.start()
         self.wsd_public.start()
         self.wsu_private.start()
-        self.bal_check.start()
 
     def _run_forever(self, type, loop) -> None:
         while True:
@@ -144,11 +124,16 @@ class ApolloxClient:
                 for data in response['symbols']:
                     if data['symbol'] == self.symbol.upper() and data['status'] == 'TRADING' and \
                             data['contractType'] == 'PERPETUAL':
-
+                        self.quantity_precision = data['quantityPrecision']
+                        self.price_precision = data['pricePrecision']
                         self.symbol_is_active = True
                         for f in data['filters']:
                             if f['filterType'] == 'MIN_NOTIONAL':
                                 self.notional = int(f['notional'])
+                            elif f['filterType'] == 'PRICE_FILTER':
+                                self.tick_size = float(f['tickSize'])
+                            elif f['filterType'] == 'LOT_SIZE':
+                                self.step_size = float(f['stepSize'])
 
                         break
             else:
@@ -156,7 +141,8 @@ class ApolloxClient:
             time.sleep(5)
 
     async def _symbol_data_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.APOLLOX_WS_URL + self.symbol.lower()) as ws:
+
+        async with session.ws_connect(self.BASE_WS + self.symbol.lower()) as ws:
             await ws.send_str(orjson.dumps({
                 'id': 1,
                 'method': 'SUBSCRIBE',
@@ -194,11 +180,11 @@ class ApolloxClient:
             available_margin = self.balance['total'] * self.leverage
 
             if side == 'buy':
-                max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
-                return min(available_margin - position_value, max_ask)
+                # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
+                return available_margin - position_value
 
-            max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
-            return min(available_margin + position_value, max_bid)
+            # max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
+            return available_margin + position_value
 
     def _create_signature(self, query: str) -> str:
         if self.__secret_key is None or self.__secret_key == "":
@@ -220,23 +206,26 @@ class ApolloxClient:
         query_string = self._prepare_query(payload)
 
         res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
-
-        for s in res:
-            if s['asset'] == 'USDT':
-                return float(s['balance'])
+        try:
+            for s in res:
+                if s['asset'] == 'USDT':
+                    return float(s['balance'])
+        except:
+            print(query_string)
+            print('>>>>>>>>>>>', res)
 
         return 0.0
 
-    async def __create_order(self, amount: float, price: float, side: str, type: str, session: aiohttp.ClientSession,
-                             expire=5000, client_ID=None) -> dict:
+    async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
+                             expire=100, client_ID=None) -> dict:
         url_path = "https://fapi.apollox.finance/fapi/v1/order?"
-        query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type={type}&price={price}" \
-                       f"&quantity={amount}&timeInForce=GTC"
+        query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type=LIMIT&" \
+                       f"price={float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))}" \
+                       f"&quantity={float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision))}&timeInForce=GTC"
+        print(f'APOLLOX BODY: {query_string}')
         query_string += f'&signature={self._create_signature(query_string)}'
-
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
-
         return res
 
     def __cancel_open_orders(self) -> dict:
@@ -266,7 +255,7 @@ class ApolloxClient:
             requests.put(self.BASE_URL + '/fapi/v1/listenKey', headers={'X-MBX-APIKEY': self.__api_key})
 
     async def _user_data_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.APOLLOX_WS_URL + self.listen_key) as ws:
+        async with session.ws_connect(self.BASE_WS + self.listen_key) as ws:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     data = orjson.loads(msg.data)

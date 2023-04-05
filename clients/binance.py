@@ -1,58 +1,35 @@
 import asyncio
 import hashlib
 import hmac
-
 import threading
 import time
 import traceback
-
 from urllib.parse import urlencode
 
 import aiohttp
 import orjson
 import requests
 
-
-class PositionSideEnum:
-    LONG = 'LONG'
-    SHORT = 'SHORT'
-    BOTH = 'BOTH'
-
-    @classmethod
-    def all_position_sides(cls):
-        return [cls.LONG, cls.SHORT, cls.BOTH]
+from config import Config
+from core.base_client import BaseClient
+from core.enums import ConnectMethodEnum, EventTypeEnum, PositionSideEnum
 
 
-class ConnectMethodEnum:
-    PUBLIC = 'public'
-    PRIVATE = 'private'
-
-
-class EventTypeEnum:
-    ACCOUNT_UPDATE = 'ACCOUNT_UPDATE'
-    ORDER_TRADE_UPDATE = 'ORDER_TRADE_UPDATE'
-
-
-class BinanceClient:
-    BINANCE_WS_URL = 'wss://fstream.binance.com/ws/'
+class BinanceClient(BaseClient):
+    BASE_WS = 'wss://fstream.binance.com/ws/'
     BASE_URL = 'https://fapi.binance.com'
+    EXCHANGE_NAME = 'BINANCE'
 
     def __init__(self, keys, leverage):
-        if not keys.get('symbol'):
-            raise Exception('Cant find symbol in keys')
-        elif not keys.get('api_key'):
-            raise Exception('Cant find api_key in keys')
-        elif not keys.get('secret_key'):
-            raise Exception('Cant find secret_key in keys')
-
         self.taker_fee = 0.00036
         self.leverage = leverage
         self.symbol = keys['symbol']
-        # self.leverage = float(keys.get('lever', 10))
         self.__api_key = keys['api_key']
         self.__secret_key = keys['secret_key']
         self.headers = {'X-MBX-APIKEY': self.__api_key}
         self.symbol_is_active = False
+        self.quantity_precision = 0
+        self.message_to_rabbit_list = []
         self.balance = {
             'total': 0.0,
         }
@@ -62,7 +39,7 @@ class BinanceClient:
         }
         self.positions = {
             self.symbol: {'amount': 0, 'entry_price': 0, 'unrealized_pnl_usd': 0, 'side': 'LONG',
-                        'amount_usd': 0, 'realized_pnl_usd': 0}
+                          'amount_usd': 0, 'realized_pnl_usd': 0}
         }
         self.notional = 0
         self.orderbook = {
@@ -74,6 +51,7 @@ class BinanceClient:
         }
         self._loop_public = asyncio.new_event_loop()
         self._loop_private = asyncio.new_event_loop()
+        self._loop_message = asyncio.new_event_loop()
         self.wsd_public = threading.Thread(target=self._run_forever,
                                            args=[ConnectMethodEnum.PUBLIC, self._loop_public],
                                            daemon=True)
@@ -89,10 +67,11 @@ class BinanceClient:
     def get_available_balance(self, side: str) -> float:
         return self.__get_available_balance(side)
 
-    def create_order(self, amount, price, side, type, expire: int = 5000, client_ID: str = None) -> dict:
-        return self.__create_order(amount, price, side.upper(), type.upper(), expire, client_ID)
+    async def create_order(self, amount, price, side, session: aiohttp.ClientSession,
+                           expire: int = 100, client_ID: str = None) -> dict:
+        return await self.__create_order(amount, price, side.upper(), session, expire, client_ID)
 
-    def cancel_all_orders(self) -> dict:
+    def cancel_all_orders(self, orderID=None) -> dict:
         return self.__cancel_open_orders()
 
     def get_positions(self) -> dict:
@@ -112,9 +91,10 @@ class BinanceClient:
     def run_updater(self) -> None:
         self.req_check.start()
         self.lk_check.start()
+        self.bal_check.start()
         self.wsd_public.start()
         self.wsu_private.start()
-        self.bal_check.start()
+        # self.wsd_public.join()
 
     def _run_forever(self, type, loop) -> None:
         while True:
@@ -138,11 +118,17 @@ class BinanceClient:
                 for data in response['symbols']:
                     if data['symbol'] == self.symbol.upper() and data['status'] == 'TRADING' and \
                             data['contractType'] == 'PERPETUAL':
-
+                        self.quantity_precision = data['quantityPrecision']
+                        self.price_precision = data['pricePrecision']
                         self.symbol_is_active = True
                         for f in data['filters']:
                             if f['filterType'] == 'MIN_NOTIONAL':
                                 self.notional = int(f['notional'])
+                            elif f['filterType'] == 'PRICE_FILTER':
+                                self.tick_size = float(f['tickSize'])
+                            elif f['filterType'] == 'LOT_SIZE':
+                                self.step_size = float(f['stepSize'])
+
 
                         break
             else:
@@ -150,7 +136,7 @@ class BinanceClient:
             time.sleep(5)
 
     async def _symbol_data_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.BINANCE_WS_URL + self.symbol.lower()) as ws:
+        async with session.ws_connect(self.BASE_WS + self.symbol.lower()) as ws:
             await ws.send_str(orjson.dumps({
                 'id': 1,
                 'method': 'SUBSCRIBE',
@@ -221,14 +207,15 @@ class BinanceClient:
 
         return 0.0
 
-    def __create_order(self, amount: float, price: float, side: str, type: str, expire=5000, client_ID=None) -> dict:
-        start = int(time.time() * 1000)
+    async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
+                             expire=5000, client_ID=None) -> dict:
         url_path = "https://fapi.binance.com/fapi/v1/order?"
-        query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type={type}&price={price}" \
-                       f"&quantity={amount}&timeInForce=GTC"
+        query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type=LIMIT&" \
+                       f"price={float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))}" \
+                       f"&quantity={float(round(float(round(amount / self.step_size) *  self.step_size), self.quantity_precision))}&timeInForce=GTC"
         query_string += f'&signature={self._create_signature(query_string)}'
-        res = requests.post(url=url_path + query_string, headers=self.headers).json()
-        print('Request time: ', res['updateTime'] - start)
+        async with session.post(url=url_path + query_string, headers=self.headers) as resp:
+            res = await resp.json()
         return res
 
     def __cancel_open_orders(self) -> dict:
@@ -258,7 +245,7 @@ class BinanceClient:
             requests.put(self.BASE_URL + '/fapi/v1/listenKey', headers={'X-MBX-APIKEY': self.__api_key})
 
     async def _user_data_getter(self, session: aiohttp.ClientSession) -> None:
-        async with session.ws_connect(self.BINANCE_WS_URL + self.listen_key) as ws:
+        async with session.ws_connect(self.BASE_WS + self.listen_key) as ws:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     data = orjson.loads(msg.data)
@@ -277,19 +264,3 @@ class BinanceClient:
 
                     elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False:
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])
-
-
-# a = BinanceClient(KEYS)
-# a.run_updater()
-#
-# while True:
-#     print(a.get_available_balance('buy'))
-#     print(a.get_positions())
-#     if a.symbol_is_active:
-#         print(a.get_orderbook())
-#     if a.listen_key:
-#         print('sell', a.get_last_price('sell'))
-#         print('buy', a.get_last_price('buy'))
-#     print(a.get_real_balance())
-#     time.sleep(1)
-#     print('- ' * 30)

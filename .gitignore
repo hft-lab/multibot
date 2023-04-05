@@ -1,0 +1,8 @@
+.idea/
+*.pyc
+venv
+.env
+__pycache__
+
+arbi.txt
+rates.txt
