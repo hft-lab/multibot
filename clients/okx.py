@@ -40,7 +40,7 @@ class OkxClient(BaseClient):
         self.instrument = self.get_instrument()
         self.tick_size = float(self.instrument['tickSz'])
         self.step_size = float(self.instrument['lotSz'])
-        self.quantity_precision = float(self.instrument['ctVal'])
+        self.quantity_precision = int(self.instrument['ctVal'])
 
         self.orderbook = {}
         self.orders = {}
