@@ -2,7 +2,7 @@ version: '3.5'
 
 services:
 
-  multibot_test_bitmex_dydx:
+  multibot_test_dydx_binance:
     logging:
       driver: "json-file"
       options:
@@ -13,4 +13,4 @@ services:
     env_file:
       - .env
     restart: always
-    command: 'python multi_bot.py -c1 bitmex -c2 dydx'
+    command: 'python multi_bot.py -c1 dydx -c2 binance'
