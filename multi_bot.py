@@ -503,9 +503,6 @@ class MultiBot:
         position_gap, amount_to_balancing = self.find_balancing_elements()
         position_gap = position_gap / len(self.clients)
 
-        if amount_to_balancing < self.min_disbalance:
-            return
-
         ob_side = 'bids' if position_gap > 0 else 'asks'
         side = 'sell' if position_gap > 0 else 'buy'
         exchanges = ''
@@ -521,6 +518,9 @@ class MultiBot:
             await self.create_balancing_order(client, position_gap, price, side)
             exchanges += client.EXCHANGE_NAME + ' '
             await self.balance_message(client)
+
+        if amount_to_balancing < self.min_disbalance:
+            return
 
         price = av_price / len(self.clients)
         taker_fee = av_fee / len(self.clients)
