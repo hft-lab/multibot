@@ -423,7 +423,9 @@ class MultiBot:
                 print(f"Exception with orderbooks: {e}")
 
     async def start_message(self):
+        coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
         message = f'MULTIBOT STARTED\n{self.client_1.EXCHANGE_NAME} | {self.client_2.EXCHANGE_NAME}\n'
+        message += f"COIN: {coin} "
         message += f"ENV: {self.env}\n"
         message += f"STATE: {Config.STATE}\n"
         message += f"LEVERAGE: {Config.LEVERAGE}\n"
