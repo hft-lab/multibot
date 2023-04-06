@@ -43,7 +43,6 @@ class BinanceClient(BaseClient):
             self.symbol: {'amount': 0, 'entry_price': 0, 'unrealized_pnl_usd': 0, 'side': 'LONG',
                           'amount_usd': 0, 'realized_pnl_usd': 0}
         }
-        self.notional = 0
         self.orderbook = {
             self.symbol: {
                 'asks': [],
@@ -124,9 +123,7 @@ class BinanceClient(BaseClient):
                         self.price_precision = data['pricePrecision']
                         self.symbol_is_active = True
                         for f in data['filters']:
-                            if f['filterType'] == 'MIN_NOTIONAL':
-                                self.notional = int(f['notional'])
-                            elif f['filterType'] == 'PRICE_FILTER':
+                            if f['filterType'] == 'PRICE_FILTER':
                                 self.tick_size = float(f['tickSize'])
                             elif f['filterType'] == 'LOT_SIZE':
                                 self.step_size = float(f['stepSize'])
