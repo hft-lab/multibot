@@ -32,6 +32,11 @@ class KrakenClient(BaseClient):
         self.__secret_key = keys['secret_key']
         self.__last_challenge = None
 
+        self.step_size = 0
+        self.tick_size = 0
+        self.price_precision = 0
+        self.quantity_precision = 0
+
         self.balance = {
             'total': 0.0,
         }
@@ -60,7 +65,7 @@ class KrakenClient(BaseClient):
         self.wsd_public = threading.Thread(target=self._run_forever,
                                            args=[ConnectMethodEnum.PUBLIC, self._loop_public])
         self.bal_check = threading.Thread(target=self._run_forever,
-                                           args=[ConnectMethodEnum.PRIVATE, self._loop_private])
+                                          args=[ConnectMethodEnum.PRIVATE, self._loop_private])
 
     def get_available_balance(self, side: str) -> float:
         return self.__get_available_balance(side)
@@ -124,7 +129,7 @@ class KrakenClient(BaseClient):
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     payload = orjson.loads(msg.data)
-                    print(payload.get('feed') )
+                    print(payload.get('feed'))
                     if payload.get('feed') == 'book_snapshot':
                         self.orderbook[self.symbol] = {
                             'sell': {x['price']: x['qty'] for x in payload['asks']},
@@ -192,7 +197,7 @@ class KrakenClient(BaseClient):
     def __cancel_open_orders(self):
         url_path = "/derivatives/api/v3/cancelallorders"
         nonce = str(int(time.time() * 1000))
-        params ={'symbol': self.symbol}
+        params = {'symbol': self.symbol}
         post_string = "&".join([f"{key}={params[key]}" for key in sorted(params)])
         headers = {
             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
@@ -208,8 +213,13 @@ class KrakenClient(BaseClient):
                              expire=5000, client_ID=None) -> dict:
         nonce = str(int(time.time() * 1000))
         url_path = "/derivatives/api/v3/sendorder"
-        params = {"orderType": "lmt", "limitPrice": price, "side": side, "size": amount,
-                  "symbol": self.symbol}
+        params = {
+            "orderType": "lmt",
+            "limitPrice": float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision)),
+            "side": side,
+            "size": float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)),
+            "symbol": self.symbol
+        }
         post_string = "&".join([f"{key}={params[key]}" for key in sorted(params)])
 
         headers = {
@@ -265,7 +275,7 @@ class KrakenClient(BaseClient):
                             }).decode('utf-8'))
 
                         elif msg_data.get('feed') in ['balances']:
-                            if  msg_data.get('flex_futures'):
+                            if msg_data.get('flex_futures'):
                                 self.balance['total'] = msg_data['flex_futures']['balance_value']
 
                         elif msg_data.get('feed') == 'open_positions':
