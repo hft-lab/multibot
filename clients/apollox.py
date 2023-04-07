@@ -32,8 +32,8 @@ class ApolloxClient(BaseClient):
         self.symbol_is_active = False
         self.quantity_precision = 0
         self.price_precision = 0
-        self.tick_size = 0
-        self.step_size = 0
+        self.tick_size = None
+        self.step_size = None
         self.balance = {
             'total': 0.0,
         }

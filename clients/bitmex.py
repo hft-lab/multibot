@@ -50,8 +50,8 @@ class BitmexClient(BaseClient):
         self.maker_fee = commission[self.symbol]['makerFee']
 
         self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
-        self.tick_size = 0.0
-        self.step_size = 0.0
+        self.tick_size = None
+        self.step_size = None
         self.quantity_precision = 0
         self.price_precision = 0
         self.time_sent = time.time()

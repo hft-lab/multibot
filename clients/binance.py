@@ -29,8 +29,8 @@ class BinanceClient(BaseClient):
         self.headers = {'X-MBX-APIKEY': self.__api_key}
         self.symbol_is_active = False
         self.quantity_precision = 0
-        self.tick_size = 0
-        self.step_size = 0
+        self.tick_size = None
+        self.step_size = None
         self.message_to_rabbit_list = []
         self.balance = {
             'total': 0.0,

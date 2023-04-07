@@ -61,7 +61,7 @@ class DydxClient(BaseClient):
         self.taker_fee = float(self.user['user']['takerFeeRate']) * 0.77
 
         self.tick_size = float(self.markets['markets'][self.symbol]['tickSize'])
-        self.step_size = float(self.markets['markets']   [self.symbol]['stepSize'])
+        self.step_size = float(self.markets['markets'][self.symbol]['stepSize'])
 
 
         self._updates = 0
