@@ -306,12 +306,5 @@ class KrakenClient(BaseClient):
                                     'lever': self.leverage
                                 }})
 
-#
-w = KrakenClient(Config.KRAKEN, leverage=Config.LEVERAGE)
-async def f():
-    async with aiohttp.ClientSession() as session:
-        await w.create_order(0.007, 28000, 'sell', session)
-
-asyncio.run(f())
 
 
