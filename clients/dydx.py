@@ -43,7 +43,7 @@ class DydxClient(BaseClient):
             api_key_credentials=self.API_KEYS
         )
         self.orders = {}
-        self.positions = {}
+        self.positions = {self.symbol: {}}
         self.fills = {}
         self.balance = {'free': 0, 'total': 0}
         self.orderbook = {}
@@ -453,18 +453,17 @@ class DydxClient(BaseClient):
     #    'createdAt': '2022-08-16T18:52:16.881Z'}
 
     def get_available_balance(self, side):
-        balance = self.balance
-        positions = self.positions
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
-        for market, position in positions.items():
+        for market, position in self.positions.items():
+            if position.get('size'):
             # if market == self.symbol:
-            position_value += float(position['size']) * change
+                position_value += float(position['size']) * change
             # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
             # print()
             # continue
         # print(f"Position Value dydx: {position_value}")
-        available_margin = balance['total'] * self.leverage
+        available_margin = self.balance['total'] * self.leverage
         # print(available_margin)
         if side == 'buy':
             # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change

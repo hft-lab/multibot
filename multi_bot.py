@@ -181,7 +181,7 @@ class MultiBot:
 
         if self.state == BotState.BOT:
             position_gap, amount_to_balancing = self.find_balancing_elements()
-            if chosen_deal and amount_to_balancing < 5000:  # todo REFACTOR THIS
+            if chosen_deal and amount_to_balancing < self.max_order_size:  # todo REFACTOR THIS
 
                 time_choose = time.time() - time_start - time_parser
                 await self.execute_deal(chosen_deal['buy_exch'],
@@ -498,7 +498,7 @@ class MultiBot:
                                    )
 
     async def create_balancing_order(self, client, position_gap, price, side):
-        print('CREATE BALANCING ORDER:', f'{position_gap}{price}{side}',
+        print('CREATE BALANCING ORDER:', f'{position_gap} {price} {side}',
               client.EXCHANGE_NAME, await client.create_order(abs(position_gap), price, side, self.session))
 
     async def position_balancing(self):
@@ -536,8 +536,8 @@ class MultiBot:
 
 
     def get_sizes(self):
-        tick_size = max([x.tick_size for x in self.clients if x.tick_size])
-        step_size = max([x.step_size for x in self.clients if x.step_size])
+        tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
+        step_size = max([x.step_size for x in self.clients if x.step_size], default=0.01)
         quantity_precision = min([x.quantity_precision for x in self.clients if x.quantity_precision], default=0)
 
         self.client_1.quantity_precision = quantity_precision
@@ -578,8 +578,8 @@ class MultiBot:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c1', nargs='?', const=True, default='okx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='apollox', dest='client_2')
+    parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
+    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()

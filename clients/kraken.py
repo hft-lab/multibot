@@ -129,7 +129,6 @@ class KrakenClient(BaseClient):
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     payload = orjson.loads(msg.data)
-                    print(payload.get('feed'))
                     if payload.get('feed') == 'book_snapshot':
                         self.orderbook[self.symbol] = {
                             'sell': {x['price']: x['qty'] for x in payload['asks']},
@@ -207,7 +206,19 @@ class KrakenClient(BaseClient):
                 url_path, post_string, nonce
             ),
         }
-        return requests.post(headers=headers, url=self.BASE_URL + url_path, data=str.encode(post_string)).json()
+        return requests.post(headers=headers, url=self.BASE_URL + url_path, data=post_string).json()
+
+    def fit_amount(self, amount):
+        if not self.quantity_precision:
+            if '.' in str(self.step_size):
+                round_amount_len = len(str(self.step_size).split('.')[1])
+            else:
+                round_amount_len = 0
+            amount = str(round(amount - (amount % self.step_size), round_amount_len))
+        else:
+            amount = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
+
+        return amount
 
     async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=5000, client_ID=None) -> dict:
@@ -216,8 +227,8 @@ class KrakenClient(BaseClient):
         params = {
             "orderType": "lmt",
             "limitPrice": float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision)),
-            "side": side,
-            "size": float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)),
+            "side": side.lower(),
+            "size": amount,
             "symbol": self.symbol
         }
         post_string = "&".join([f"{key}={params[key]}" for key in sorted(params)])
@@ -228,15 +239,20 @@ class KrakenClient(BaseClient):
             "APIKey": self.__api_key,
             "Authent": self.get_kraken_futures_signature(
                 url_path, post_string, nonce
-            ),
+            ).decode('utf-8'),
         }
-        async with session.post(url=self.BASE_URL + url_path, headers=headers) as resp:
+        print(headers)
+        async with session.post(
+                url=self.BASE_URL + url_path + '?' + post_string,
+                headers=headers,
+                data=post_string
+        ) as resp:
+
             response = await resp.json()
-            timestamp = response['sendStatus']['orderEvents'][0]['orderPriorExecution']['timestamp']
+            # timestamp = response['sendStatus']['orderEvents'][0]['orderPriorExecution']['timestamp']
 
             return {
                 'status': response['sendStatus']['status'],
-                'timestamp': int(datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ').timestamp() * 1000)
             }
 
     def _get_sign_challenge(self, challenge: str) -> str:
@@ -291,8 +307,11 @@ class KrakenClient(BaseClient):
                                 }})
 
 #
-# w = KrakenClient(Config.KRAKEN, leverage=Config.LEVERAGE)
-# w.run_updater()
-# while True:
-#     print(w.get_orderbook())
-#     time.sleep(1)
+w = KrakenClient(Config.KRAKEN, leverage=Config.LEVERAGE)
+async def f():
+    async with aiohttp.ClientSession() as session:
+        await w.create_order(0.007, 28000, 'sell', session)
+
+asyncio.run(f())
+
+

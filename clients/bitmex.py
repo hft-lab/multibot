@@ -53,6 +53,7 @@ class BitmexClient(BaseClient):
         self.tick_size = 0.0
         self.step_size = 0.0
         self.quantity_precision = 0
+        self.price_precision = 0
         self.time_sent = time.time()
 
     def run_updater(self):
@@ -200,11 +201,14 @@ class BitmexClient(BaseClient):
         return self.data['trade']
 
     def fit_price(self, price):
-        if '.' in str(self.tick_size):
-            round_price_len = len(str(self.tick_size).split('.')[1])
+        if not self.price_precision:
+            if '.' in str(self.tick_size):
+                round_price_len = len(str(self.tick_size).split('.')[1])
+            else:
+                round_price_len = 0
+            price = round(price - (price % self.tick_size), round_price_len)
         else:
-            round_price_len = 0
-        price = round(price - (price % self.tick_size), round_price_len)
+            price = float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))
         return price
 
     def fit_amount(self, amount):
@@ -214,26 +218,12 @@ class BitmexClient(BaseClient):
             amount = amount * change
             if self.symbol == 'XBTUSD':
                 amount = int(round(amount - (amount % self.step_size)))
-                print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
-                print(amount)
-                print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
             else:
-                print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
                 amount = int(round(amount / self.contract_price))
-                print(amount)
                 amount -= amount % self.step_size
-                print(amount)
-                print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
         else:
-            print('0' * 60)
-            print('0' * 60)
-            print('0' * 60)
-            print('0' * 60)
             amount  = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
-            print('0' * 60)
-            print('0' * 60)
-            print('0' * 60)
-            print('0' * 60)
+
 
         return amount
 
