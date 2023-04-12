@@ -16,7 +16,7 @@ import requests
 
 from config import Config
 from core.base_client import BaseClient
-from core.enums import ConnectMethodEnum
+from core.enums import ConnectMethodEnum, ResponseStatus
 
 
 class KrakenClient(BaseClient):
@@ -241,19 +241,25 @@ class KrakenClient(BaseClient):
                 url_path, post_string, nonce
             ).decode('utf-8'),
         }
-        print(headers)
         async with session.post(
-                url=self.BASE_URL + url_path + '?' + post_string,
-                headers=headers,
-                data=post_string
+                url=self.BASE_URL + url_path + '?' + post_string, headers=headers, data=post_string
         ) as resp:
-
             response = await resp.json()
-            # timestamp = response['sendStatus']['orderEvents'][0]['orderPriorExecution']['timestamp']
+            try:
+                timestamp = response['sendStatus']['orderEvents'][0]['orderPriorExecution']['timestamp']
+                if response.get('sendStatus').get('status'):
+                    status = ResponseStatus.SUCCESS
+            except:
+                timestamp = 0000000000000
+                status = ResponseStatus.ERROR
+
 
             return {
-                'status': response['sendStatus']['status'],
+                'exchange_name': self.EXCHANGE_NAME,
+                'timestamp': timestamp,
+                'status': status
             }
+
 
     def _get_sign_challenge(self, challenge: str) -> str:
         sha256_hash = hashlib.sha256()

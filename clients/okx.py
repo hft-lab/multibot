@@ -15,6 +15,7 @@ import queue
 
 from config import Config
 from core.base_client import BaseClient
+from core.enums import ResponseStatus
 
 
 class OkxClient(BaseClient):
@@ -40,7 +41,8 @@ class OkxClient(BaseClient):
         self.instrument = self.get_instrument()
         self.tick_size = float(self.instrument['tickSz'])
         self.step_size = float(self.instrument['lotSz'])
-        self.quantity_precision = 0
+        print('OKX STEP', self.step_size)
+        self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
 
         self.orderbook = {}
         self.orders = {}
@@ -223,7 +225,7 @@ class OkxClient(BaseClient):
         # print(obj)
         if not self.taker_fee:
             if obj.get('arg'):
-                if obj['data'][0]['fillNotionalUsd'] != '':         # TODO ???
+                if obj['data'][0]['fillNotionalUsd'] != '':  # TODO ???
                     self.taker_fee = abs(float(obj['data'][0]['fillFee'])) / float(obj['data'][0]['fillNotionalUsd'])
                     self.taker_fee = 0.0003
         if not obj['arg']['instId'] == self.symbol:
@@ -244,9 +246,6 @@ class OkxClient(BaseClient):
 
     def _process_msg(self, msg: aiohttp.WSMessage):
         obj = json.loads(msg.data)
-        if obj.get('op') == 'order':
-            print(obj)
-
         if obj.get('event'):
             return
         if obj.get('arg'):
@@ -261,10 +260,14 @@ class OkxClient(BaseClient):
 
     async def create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                            expire: int = 100, client_ID: str = None) -> dict:
-        self.time_sent = time.time()
+        self.time_sent = time.time() * 1000
         self.queue.put_nowait({'amount': amount, 'price': price, 'side': side, 'expire': expire})
 
-        response = self.create_order_response
+        response = {
+            'exchange_name': self.EXCHANGE_NAME,
+            'timestamp': (self.time_sent +  time.time() * 1000) / 2,
+            'status': ResponseStatus.SUCCESS if self.create_order_response.get('code') == '0' else ResponseStatus.ERROR
+        }
         self.create_order_response = {}
         return response
 
@@ -292,7 +295,7 @@ class OkxClient(BaseClient):
         await self._ws_private.send_json(msg)
 
     def fit_amount(self, amount):
-        amount = int((amount - (amount % self.instrument['ctVal'])) / self.instrument['ctVal'])
+        amount = int((amount - (amount % float(self.instrument['ctVal']))) / float(self.instrument['ctVal']))
         return str(amount - (amount % self.step_size))
 
     def fit_price(self, price):
