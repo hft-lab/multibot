@@ -1,16 +1,18 @@
 import asyncio
-import datetime
+from datetime import datetime
 import json
 import math
 import threading
 import time
 import urllib.parse
+from pprint import pprint
 
 import aiohttp
 from bravado.client import SwaggerClient
 from bravado.requests_client import RequestsClient
 
 from core.base_client import BaseClient
+from core.enums import ResponseStatus
 from tools.APIKeyAuthenticator import APIKeyAuthenticator as auth
 
 
@@ -52,7 +54,7 @@ class BitmexClient(BaseClient):
         self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
         self.tick_size = None
         self.step_size = None
-        self.quantity_precision = 0
+        self.quantity_precision = None
         self.price_precision = 0
         self.time_sent = time.time()
 
@@ -60,7 +62,11 @@ class BitmexClient(BaseClient):
         self.wst.start()
         self.__wait_for_account()
         self.get_contract_price()
+
         self.tick_size = self.get_instrument()['tick_size']
+        self.step_size = self.get_instrument()['step_size']
+        print('BITMEX STEPSIZE', self.step_size)
+        self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
 
     def _run_ws_forever(self):
         while True:
@@ -146,7 +152,7 @@ class BitmexClient(BaseClient):
     def timestamp_from_date(date: str):
         # date = '2023-02-15T02:55:27.640Z'
         ms = int(date.split(".")[1].split('Z')[0]) / 1000
-        return time.mktime(datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()) + ms
+        return time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()) + ms
 
     @staticmethod
     def order_leaves_quantity(o):
@@ -185,7 +191,9 @@ class BitmexClient(BaseClient):
         """Get the raw instrument data for this symbol."""
         # Turn the 'tick_size' into 'tickLog' for use in rounding
         instrument = self.data['instrument'][0]
-        instrument['tick_size'] = int(math.fabs(math.log10(instrument['tickSize'])))
+        print(instrument)
+        instrument['tick_size'] = instrument['tickSize']
+        instrument['step_size'] = instrument['tickSize']
         return instrument
 
     def funds(self):
@@ -212,19 +220,14 @@ class BitmexClient(BaseClient):
         return price
 
     def fit_amount(self, amount):
-        if not self.quantity_precision:
-            orderbook = self.get_orderbook()[self.symbol]
-            change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
-            amount = amount * change
-            if self.symbol == 'XBTUSD':
-                amount = int(round(amount - (amount % self.step_size)))
-            else:
-                amount = int(round(amount / self.contract_price))
-                amount -= amount % self.step_size
+        orderbook = self.get_orderbook()[self.symbol]
+        change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
+        amount = amount * change
+        if self.symbol == 'XBTUSD':
+            amount = int(round(amount - (amount % self.step_size)))
         else:
-            amount  = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
-
-
+            amount = int(round(amount / self.contract_price))
+            amount -= amount % self.step_size
         return amount
 
     async def create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
@@ -242,7 +245,25 @@ class BitmexClient(BaseClient):
         if client_id is not None:
             body["clOrdID"] = client_id
         print(f'BITMEX BODY: {body}')
-        return await self._post("/api/v1/order", body, session)
+
+        res = await self._post("/api/v1/order", body, session)
+        print('BITMEX >>> ',res)
+        timestamp = 0000000000000
+        if res.get('errors'):
+            status = ResponseStatus.ERROR
+        elif res.get('order') and res['order'].get('status'):
+            timestamp = int(
+                datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
+            status = ResponseStatus.SUCCESS
+        else:
+            status = ResponseStatus.NO_CONNECTION
+
+        return {
+            'exchange_name': self.EXCHANGE_NAME,
+            'timestamp': timestamp,
+            'status': status
+        }
+
 
     async def _post(self, path: str, data: any, session: aiohttp.ClientSession):
         headers_body = f"symbol={data['symbol']}&side={data['side']}&ordType=Limit&orderQty={data['orderQty']}&price={data['price']}"

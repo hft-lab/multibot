@@ -10,7 +10,7 @@ class Config:
     LEVERAGE = float(getenv("LEVERAGE", 1.0))
     EXCHANGES = getenv("EXCHANGES").split(",")
     DEALS_PAUSE = int(getenv("DEALS_PAUSE", 10))
-
+    STOP_PERCENT = float(getenv("STOP_PERCENT", 0.5))
     ORDER_SIZE = float(getenv("ORDER_SIZE", 0))
     TARGET_PROFIT = float(getenv("TARGET_PROFIT", 0))
     LIMIT_SHIFTS = float(getenv("LIMIT_SHIFTS", 0))
@@ -19,6 +19,16 @@ class Config:
     TELEGRAM_CHAT_ID = getenv("TELEGRAM_CHAT_ID") # this is tests chat
     TELEGRAM_DAILY_CHAT_ID = getenv("TELEGRAM_DAILY_CHAT_ID")
     TELEGRAM_INV_CHAT_ID = getenv("TELEGRAM_INV_CHAT_ID")
+    ALERT_BOT_TOKEN = getenv('ALERT_BOT_TOKEN')
+    ALERT_CHAT_ID = getenv('ALERT_CHAT_ID')
+
+    POSTGRES = {
+        'database': getenv('POSTGRES_NAME'),
+        'user': getenv('POSTGRES_USER'),
+        'password': getenv('POSTGRES_PASSWORD'),
+        'host': getenv('POSTGRES_HOST'),
+        'port': getenv('POSTGRES_PORT'),
+    }
 
     RABBIT = {
         "host": getenv("RABBIT_HOST"),

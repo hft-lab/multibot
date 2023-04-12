@@ -1,5 +1,5 @@
 import asyncio
-import datetime
+from datetime import datetime
 import json
 import threading
 import time
@@ -16,6 +16,7 @@ from dydx3.starkex.order import SignableOrder
 from web3 import Web3
 
 from core.base_client import BaseClient
+from core.enums import ResponseStatus
 
 
 class DydxClient(BaseClient):
@@ -57,18 +58,17 @@ class DydxClient(BaseClient):
         self.balance = {'free': self.account['account']['equity'], 'total': self.account['account']['freeCollateral']}
         self.position_id = self.account['account']['positionId']
 
-        self.maker_fee = float(self.user['user']['makerFeeRate']) * 0.77
-        self.taker_fee = float(self.user['user']['takerFeeRate']) * 0.77
+        # self.maker_fee = float(self.user['user']['makerFeeRate'])
+        self.taker_fee = float(self.user['user']['takerFeeRate'])
 
         self.tick_size = float(self.markets['markets'][self.symbol]['tickSize'])
         self.step_size = float(self.markets['markets'][self.symbol]['stepSize'])
-
 
         self._updates = 0
         self.offsets = {}
         self.time_sent = time.time()
 
-        self.quantity_precision = None
+        self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
 
         self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
 
@@ -85,16 +85,19 @@ class DydxClient(BaseClient):
         return balance
 
     def fit_amount(self, amount):
-        if not self.quantity_precision:
-            if '.' in str(self.step_size):
-                round_amount_len = len(str(self.step_size).split('.')[1])
-            else:
-                round_amount_len = 0
-            amount = str(round(amount - (amount % self.step_size), round_amount_len))
-        else:
-            amount = str(float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision)))
+        # if not self.quantity_precision:
+        #     if '.' in str(self.step_size):
+        #         round_amount_len = len(str(self.step_size).split('.')[1])
+        #     else:
+        #         round_amount_len = 0
+        #     amount = str(round(amount - (amount % self.step_size), round_amount_len))
+        # else:
+        #     print(amount, self.step_size, self.quantity_precision)
+        #     # amount = str(float(round(float(amount % self.step_size), self.quantity_precision)))
+        #     amount =
 
-        return amount
+        return str(float(round(float(round(amount / self.step_size, self.quantity_precision) * self.step_size),
+                               self.quantity_precision)))
 
     def fit_price(self, price):
         if '.' in str(self.tick_size):
@@ -148,7 +151,7 @@ class DydxClient(BaseClient):
             'size': amount,
             'price': price,
             'limitFee': '0.0008',
-            'expiration':  expiration,
+            'expiration': expiration,
             'postOnly': False,
             'clientId': client_id,
             'signature': order_to_sign.sign(self.keys['privateKey']),
@@ -177,8 +180,24 @@ class DydxClient(BaseClient):
             'User-Agent': 'dydx/python'
         }
 
-        async with session.post(url=self.BASE_URL + request_path, headers=headers, data=json.dumps(remove_nones(data))) as resp:
-            return await resp.json()
+        async with session.post(url=self.BASE_URL + request_path, headers=headers,
+                                data=json.dumps(remove_nones(data))) as resp:
+            res = await resp.json()
+            timestamp = 0000000000000
+            if res.get('errors'):
+                status = ResponseStatus.ERROR
+            elif res.get('order') and res['order'].get('status'):
+                timestamp = int(
+                    datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
+                status = ResponseStatus.SUCCESS
+            else:
+                status = ResponseStatus.NO_CONNECTION
+
+            return {
+                'exchange_name': self.EXCHANGE_NAME,
+                'timestamp': timestamp,
+                'status': status
+            }
 
     def run_updater(self):
         self.wst.start()
@@ -370,7 +389,7 @@ class DydxClient(BaseClient):
     def timestamp_from_date(date: str):
         # date = '2023-02-15T02:55:27.640Z'
         ms = int(date.split(".")[1].split('Z')[0]) / 1000
-        return time.mktime(datetime.datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()) + ms
+        return time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()) + ms
 
     def get_orders(self):
         return self.orders
@@ -457,12 +476,13 @@ class DydxClient(BaseClient):
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for market, position in self.positions.items():
             if position.get('size'):
-            # if market == self.symbol:
+                # if market == self.symbol:
                 position_value += float(position['size']) * change
             # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
             # print()
             # continue
         # print(f"Position Value dydx: {position_value}")
+
         available_margin = self.balance['total'] * self.leverage
         # print(available_margin)
         if side == 'buy':
@@ -578,4 +598,3 @@ class DydxClient(BaseClient):
 # print(client.get_balance())
 # print(client.markets['markets']['BTC-USD'])
 # a = client.client.private.get_orders(market=['SOL-USD']).data
-

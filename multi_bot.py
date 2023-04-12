@@ -7,6 +7,7 @@ import traceback
 from logging.config import dictConfig
 
 import aiohttp
+import asyncpg
 import orjson
 from aio_pika import Message, ExchangeType, connect_robust
 
@@ -37,9 +38,12 @@ class MultiBot:
     __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'client_1', 'client_2', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
-                 'session', 'clients', 'exchanges', 'mq', 'min_disbalance', 'ribs', 'env']
+                 'session', 'clients', 'exchanges', 'mq', 'min_disbalance', 'ribs', 'env', 'exchanges_len', 'db',
+                 'start',
+                 'finish']
 
     def __init__(self, client_1: str, client_2: str):
+        self.db = None
         self.mq = None
         self.rabbit_url = f"amqp://{Config.RABBIT['username']}:{Config.RABBIT['password']}@{Config.RABBIT['host']}:{Config.RABBIT['port']}/"
 
@@ -59,6 +63,7 @@ class MultiBot:
 
         self.state = Config.STATE
         self.loop = None
+        self.exchanges_len = len(Config.EXCHANGES)
 
         # CLIENTS
         client_1 = CLIENTS_WITH_CONFIGS[client_1.upper()]
@@ -250,9 +255,12 @@ class MultiBot:
                 client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
-        print(responses)
 
         deal_time = time.time() - time_start - time_parser - time_choose
+
+        for response in responses:
+            await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
+                                             time.time() * 1000, response['status'])
 
         await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
                                 time_parser, time_choose)
@@ -295,6 +303,7 @@ class MultiBot:
                 await self.setup_mq(self.loop)
 
     async def balance_message(self, client):
+        print(client.EXCHANGE_NAME)
         position = round(client.get_positions()[client.symbol]['amount'], 4)
         balance = round(client.get_real_balance())
         avl_buy = round(client.get_available_balance('buy'))
@@ -320,6 +329,7 @@ class MultiBot:
                                    exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_CHECK),
                                    queue_name=RabbitMqQueues.BALANCE_CHECK
                                    )
+
     async def send_data_for_base(self,
                                  client_buy,
                                  client_sell,
@@ -370,7 +380,8 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'env': self.env}
+            'env': self.env
+        }
 
         await self.publish_message(connect=self.mq,
                                    message=to_base,
@@ -422,6 +433,33 @@ class MultiBot:
             except Exception as e:
                 print(f"Exception with orderbooks: {e}")
 
+    async def save_order_timestamps(self, exchange_name: str, ts_of_request: float, ts_from_response: float,
+                                    ts_received_response: float, status: str) -> None:
+        """
+        Prepare and send data to rabbitmq
+        :param exchange_name:
+        :param ts_of_request:
+        :param ts_from_response:
+        :param ts_received_response:
+        :param status:
+        :return:
+        """
+        data = {
+            "server_name": self.env,
+            "exchange_name": exchange_name,
+            "status_of_ping": status,
+            "ts_of_request": ts_of_request,
+            "ts_from_response": ts_from_response,
+            "ts_received_response": ts_received_response
+        }
+
+        await self.publish_message(connect=self.mq,
+                                   message=data,
+                                   routing_key=RabbitMqQueues.PING,
+                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.PING),
+                                   queue_name=RabbitMqQueues.PING
+                                   )
+
     async def start_message(self):
         coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
         message = f'MULTIBOT STARTED\n{self.client_1.EXCHANGE_NAME} | {self.client_2.EXCHANGE_NAME}\n'
@@ -437,7 +475,7 @@ class MultiBot:
         for exchange, shift in self.shifts.items():
             message += f"{exchange}: {round(shift, 6)}\n"
 
-        await self.send_message(message)
+        await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
     async def time_based_messages(self):
         time_from = (int(round(time.time())) - 10 - self.start_time) % 180
@@ -447,7 +485,6 @@ class MultiBot:
                 await self.position_balancing()  # no need
 
             self.start_time -= 1
-
 
     @staticmethod
     def create_result_message(deals_potential: dict, deals_executed: dict, time: int) -> str:
@@ -467,39 +504,42 @@ class MultiBot:
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
         if not (int(round(time.time())) - self.start_time) % 15:
             deals_potential = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
-
-            for _ in self.deals_counter:
-                deals_potential['SELL'][sell_client.EXCHANGE_NAME] += 1
-                deals_potential['BUY'][buy_client.EXCHANGE_NAME] += 1
-
             deals_executed = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
 
-            for _ in self.deals_executed:
-                deals_executed['SELL'][sell_client.EXCHANGE_NAME] += 1
-                deals_executed['BUY'][buy_client.EXCHANGE_NAME] += 1
+            deals_potential['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_counter)
+            deals_potential['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_counter)
+
+            deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
+            deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
 
             self.__rates_update()
             self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
 
             if not (int(round(time.time())) - self.start_time) % 600:
                 message = self.create_result_message(deals_potential, deals_executed, 600)
-                await self.send_message(message)
+                await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
                 self.deals_counter = []
                 self.deals_executed = []
 
             self.start_time -= 1
 
-    async def send_message(self, message: str) -> None:
+    async def send_message(self, message: str, chat_id: int, bot_token: str) -> None:
         await self.publish_message(connect=self.mq,
-                                   message={"chat_id": self.chat_id, "msg": message},
+                                   message={"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
                                    routing_key=RabbitMqQueues.TELEGRAM,
                                    exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
                                    queue_name=RabbitMqQueues.TELEGRAM
                                    )
 
     async def create_balancing_order(self, client, position_gap, price, side):
-        print('CREATE BALANCING ORDER:', f'{position_gap} {price} {side}',
-              client.EXCHANGE_NAME, await client.create_order(abs(position_gap), price, side, self.session))
+        time_start = time.time()
+        response = await client.create_order(abs(position_gap), price, side, self.session)
+        deal_time = time.time() - time_start
+
+        await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
+                                         time.time() * 1000, response['status'])
+
+        print('CREATE BALANCING ORDER:', f'{position_gap} {price} {side}', client.EXCHANGE_NAME, response)
 
     async def position_balancing(self):
         position_gap, amount_to_balancing = self.find_balancing_elements()
@@ -529,16 +569,18 @@ class MultiBot:
 
         await self.balancing_bd_update(exchanges, client, position_gap, price, side, taker_fee)
 
-    async def setup_mq(self, loop):
+    async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
         self.mq = await connect_robust(self.rabbit_url, loop=loop)
         print(f"SETUP MQ ENDED")
 
+    async def setup_postgres(self) -> None:
+        self.db = await asyncpg.create_pool(**Config.POSTGRES)
 
     def get_sizes(self):
         tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
         step_size = max([x.step_size for x in self.clients if x.step_size], default=0.01)
-        quantity_precision = min([x.quantity_precision for x in self.clients if x.quantity_precision], default=0)
+        quantity_precision = max([x.quantity_precision for x in self.clients if x.quantity_precision])
 
         self.client_1.quantity_precision = quantity_precision
         self.client_2.quantity_precision = quantity_precision
@@ -549,6 +591,42 @@ class MultiBot:
         self.client_1.step_size = step_size
         self.client_2.step_size = step_size
 
+    async def __query(self, asc_desc: str, cursor) -> float:
+        sql = f"""
+            select 
+                sum(d.total_balance) as bal
+            from 
+                (select 
+                    distinct on (bc.exchange_name) bc.exchange_name, ts, total_balance
+                from 
+                    balance_check bc
+                where 
+                    bc.ts > extract(epoch from current_date) * 1000
+                order by 
+                    exchange_name, ts {asc_desc}
+                limit 
+                    {self.exchanges_len}) d  
+        """
+
+        res = await cursor.fetchrow(sql)
+        return res['bal']
+
+    async def get_balance_percent(self) -> float:
+        async with self.db.acquire() as cursor:
+            self.start = await self.__query('asc', cursor)
+            self.finish = await self.__query('desc', cursor)
+            return abs(100 - self.finish * 100 / self.start)
+
+    async def prepare_alert(self):
+        message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
+        message += f"ENV: {self.env}\n"
+        message += f"CHANGED TO {BotState.PARSER} STATE\n"
+        message += f"ABS BALANCE CHANGE %: {round(abs(100 - self.finish * 100 / self.start), 2)}\n"
+        message += f"ABS BALANCE CHANGE USD: {abs(self.start - self.finish)}\n"
+        message += f"!!!NEED CHECK IT!!!"
+
+        await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+
     async def run(self, loop):
         self.loop = loop
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
@@ -556,8 +634,8 @@ class MultiBot:
             self.__prepare_shifts()
 
         await self.setup_mq(loop)
+        await self.setup_postgres()
         await self.start_message()
-
 
         async with aiohttp.ClientSession() as session:
             self.session = session
@@ -569,6 +647,10 @@ class MultiBot:
                 if self.state == BotState.PARSER:
                     time.sleep(1)
 
+                if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
+                    self.state = BotState.PARSER
+                    await self.prepare_alert()
+
                 await self.find_price_diffs()
                 await self.time_based_messages()
 
@@ -579,7 +661,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='apollox', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()

@@ -14,7 +14,7 @@ import requests
 
 from config import Config
 from core.base_client import BaseClient
-from core.enums import ConnectMethodEnum, EventTypeEnum, PositionSideEnum
+from core.enums import ConnectMethodEnum, EventTypeEnum, PositionSideEnum, ResponseStatus
 
 
 class ApolloxClient(BaseClient):
@@ -224,7 +224,21 @@ class ApolloxClient(BaseClient):
         query_string += f'&signature={self._create_signature(query_string)}'
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
-        return res
+            timestamp = 0000000000000
+
+            if res.get('status') and res.get('status') == 'NEW':
+                status = ResponseStatus.SUCCESS
+                timestamp = res['updateTime']
+            elif res.get('code') and  -5023 < res.get['code'] < -1099:
+                status = ResponseStatus.ERROR
+            else:
+                status = ResponseStatus.NO_CONNECTION
+
+            return {
+                'exchange_name': self.EXCHANGE_NAME,
+                'timestamp': timestamp,
+                'status': status
+            }
 
     def __cancel_open_orders(self) -> dict:
         url_path = "/fapi/v1/allOpenOrders"
