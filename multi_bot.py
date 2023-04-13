@@ -148,7 +148,9 @@ class MultiBot:
             'position_gap': position_gap,
             'size_usd': size_usd,
             'coin': coin,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -320,7 +322,9 @@ class MultiBot:
             'ask': orderbook['asks'][0][0],
             'bid': orderbook['bids'][0][0],
             'symbol': client.symbol,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -380,7 +384,9 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -450,7 +456,9 @@ class MultiBot:
             "status_of_ping": status,
             "ts_of_request": ts_of_request,
             "ts_from_response": ts_from_response,
-            "ts_received_response": ts_received_response
+            "ts_received_response": ts_received_response,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
