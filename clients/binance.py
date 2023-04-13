@@ -200,11 +200,13 @@ class BinanceClient(BaseClient):
 
         res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
 
-        for s in res:
-            if s['asset'] == 'USDT':
-                return float(s['balance'])
-
-        return 0.0
+        if isinstance(res, list):
+            for s in res:
+                if s['asset'] == 'USDT':
+                    return float(s['balance'])
+        else:
+            print(res)
+            return 0.0
 
     async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=5000, client_ID=None) -> dict:
@@ -213,10 +215,12 @@ class BinanceClient(BaseClient):
                        f"price={float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))}" \
                        f"&quantity={float(round(float(round(amount / self.step_size) *  self.step_size), self.quantity_precision))}&timeInForce=GTC"
         query_string += f'&signature={self._create_signature(query_string)}'
+
+        print(query_string)
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
             timestamp = 0000000000000
-
+            print(res)
             if res.get('status') and res.get('status') == 'NEW':
                 status = ResponseStatus.SUCCESS
                 timestamp = res['updateTime']

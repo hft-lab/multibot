@@ -169,8 +169,8 @@ class MultiBot:
             self.available_balance_update(client_buy, client_sell)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
             shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-            sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
-            buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
+            sell_price = orderbook_sell['bids'][0][0] #* (1 + shift)
+            buy_price = orderbook_buy['asks'][0][0] #* (1 - shift)
 
             if sell_price > buy_price:
                 self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
@@ -672,7 +672,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='apollox', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
