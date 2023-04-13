@@ -615,7 +615,10 @@ class MultiBot:
         async with self.db.acquire() as cursor:
             self.start = await self.__query('asc', cursor)
             self.finish = await self.__query('desc', cursor)
-            return abs(100 - self.finish * 100 / self.start)
+
+            if self.start and self.finish:
+                return abs(100 - self.finish * 100 / self.start)
+            return 0
 
     async def prepare_alert(self):
         message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
@@ -623,7 +626,7 @@ class MultiBot:
         message += f"CHANGED TO {BotState.PARSER} STATE\n"
         message += f"ABS BALANCE CHANGE %: {round(abs(100 - self.finish * 100 / self.start), 2)}\n"
         message += f"ABS BALANCE CHANGE USD: {abs(self.start - self.finish)}\n"
-        message += f"!!!NEED CHECK IT!!!"
+        message += f"!!!NEED TO CHECK IT!!!"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 

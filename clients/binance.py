@@ -220,7 +220,7 @@ class BinanceClient(BaseClient):
             if res.get('status') and res.get('status') == 'NEW':
                 status = ResponseStatus.SUCCESS
                 timestamp = res['updateTime']
-            elif res.get('code') and -5023 < res.get['code'] < -1099:
+            elif res.get('code') and -5023 < res['code'] < -1099:
                 status = ResponseStatus.ERROR
             else:
                 status = ResponseStatus.NO_CONNECTION
