@@ -148,7 +148,9 @@ class MultiBot:
             'position_gap': position_gap,
             'size_usd': size_usd,
             'coin': coin,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -167,8 +169,8 @@ class MultiBot:
             self.available_balance_update(client_buy, client_sell)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
             shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-            sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
-            buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
+            sell_price = orderbook_sell['bids'][0][0] #* (1 + shift)
+            buy_price = orderbook_buy['asks'][0][0] #* (1 - shift)
 
             if sell_price > buy_price:
                 self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
@@ -320,7 +322,9 @@ class MultiBot:
             'ask': orderbook['asks'][0][0],
             'bid': orderbook['bids'][0][0],
             'symbol': client.symbol,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -380,7 +384,9 @@ class MultiBot:
             'deal_time': deal_time,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'env': self.env
+            'env': self.env,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -450,7 +456,9 @@ class MultiBot:
             "status_of_ping": status,
             "ts_of_request": ts_of_request,
             "ts_from_response": ts_from_response,
-            "ts_received_response": ts_received_response
+            "ts_received_response": ts_received_response,
+            'chat_id': Config.TELEGRAM_CHAT_ID,
+            'bot_token': Config.TELEGRAM_TOKEN
         }
 
         await self.publish_message(connect=self.mq,
@@ -615,7 +623,10 @@ class MultiBot:
         async with self.db.acquire() as cursor:
             self.start = await self.__query('asc', cursor)
             self.finish = await self.__query('desc', cursor)
-            return abs(100 - self.finish * 100 / self.start)
+
+            if self.start and self.finish:
+                return abs(100 - self.finish * 100 / self.start)
+            return 0
 
     async def prepare_alert(self):
         message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
@@ -623,7 +634,7 @@ class MultiBot:
         message += f"CHANGED TO {BotState.PARSER} STATE\n"
         message += f"ABS BALANCE CHANGE %: {round(abs(100 - self.finish * 100 / self.start), 2)}\n"
         message += f"ABS BALANCE CHANGE USD: {abs(self.start - self.finish)}\n"
-        message += f"!!!NEED CHECK IT!!!"
+        message += f"!!!NEED TO CHECK IT!!!"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 
@@ -661,7 +672,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='apollox', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
