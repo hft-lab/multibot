@@ -242,8 +242,8 @@ class MultiBot:
         expect_buy_px = orderbook_buy['asks'][0][0]
         expect_sell_px = orderbook_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy = (orderbook_buy['asks'][0][0] * (1 - shift))
-        price_sell = (orderbook_sell['bids'][0][0] * (1 + shift))
+        price_buy = orderbook_buy['asks'][0][0] #* (1 - shift))
+        price_sell = orderbook_sell['bids'][0][0]  #* (1 + shift))
         price_buy_limit_taker = price_buy * self.shifts['TAKER']
         price_sell_limit_taker = price_sell / self.shifts['TAKER']
         timer = time.time()
