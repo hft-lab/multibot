@@ -663,10 +663,12 @@ class MultiBot:
                     await self.prepare_alert()
 
                 await self.find_price_diffs()
-                await self.time_based_messages()
+                # await self.time_based_messages()
 
-                if (int(round(time.time())) - self.start_time) == 25:
+                if int(round(time.time())) - self.start_time >= 180:
+                    print(f"STARTED POSITION BALANCING")
                     await self.position_balancing()
+                    self.start_time = int(round(time.time()))
 
 
 if __name__ == '__main__':
