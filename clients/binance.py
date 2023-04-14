@@ -271,8 +271,8 @@ class BinanceClient(BaseClient):
                             if p['ps'] in PositionSideEnum.all_position_sides() and float(p['pa']):
                                 self.positions.update({p['s']: {
                                     'side': p['ps'],
-                                    'amount_usd': float(p['pa']),
-                                    'amount': float(p['pa']) * float(p['ep']),
+                                    'amount_usd': float(p['pa']) * float(p['ep']),
+                                    'amount': float(p['pa']),
                                     'entry_price': float(p['ep']),
                                     'unrealized_pnl_usd': float(p['up']),
                                     'realized_pnl_usd': 0,
