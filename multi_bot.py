@@ -19,6 +19,7 @@ from clients.kraken import KrakenClient
 from clients.okx import OkxClient
 from config import Config
 from core.enums import BotState, RabbitMqQueues
+from core.queries import get_last_balance_jumps, get_total_balance
 from tools.shifts import Shifts
 
 dictConfig(Config.LOGGING)
@@ -169,8 +170,8 @@ class MultiBot:
             self.available_balance_update(client_buy, client_sell)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
             shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-            sell_price = orderbook_sell['bids'][0][0] #* (1 + shift)
-            buy_price = orderbook_buy['asks'][0][0] #* (1 - shift)
+            sell_price = orderbook_sell['bids'][0][0]  # * (1 + shift)
+            buy_price = orderbook_buy['asks'][0][0]  # * (1 - shift)
 
             if sell_price > buy_price:
                 self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
@@ -242,8 +243,8 @@ class MultiBot:
         expect_buy_px = orderbook_buy['asks'][0][0]
         expect_sell_px = orderbook_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy = orderbook_buy['asks'][0][0] #* (1 - shift))
-        price_sell = orderbook_sell['bids'][0][0]  #* (1 + shift))
+        price_buy = orderbook_buy['asks'][0][0]  # * (1 - shift))
+        price_sell = orderbook_sell['bids'][0][0]  # * (1 + shift))
         price_buy_limit_taker = price_buy * self.shifts['TAKER']
         price_sell_limit_taker = price_sell / self.shifts['TAKER']
         timer = time.time()
@@ -599,33 +600,33 @@ class MultiBot:
         self.client_1.step_size = step_size
         self.client_2.step_size = step_size
 
-    async def __query(self, asc_desc: str, cursor) -> float:
-        sql = f"""
-            select 
-                sum(d.total_balance) as bal
-            from 
-                (select 
-                    distinct on (bc.exchange_name) bc.exchange_name, ts, total_balance
-                from 
-                    balance_check bc
-                where 
-                    bc.ts > extract(epoch from current_date) * 1000
-                order by 
-                    exchange_name, ts {asc_desc}
-                limit 
-                    {self.exchanges_len}) d  
-        """
+    async def save_new_balance_jump(self):
+        to_base = {
+            'timestamp': int(round(time.time() * 1000)),
+            'total_balance': self.start
+        }
 
-        res = await cursor.fetchrow(sql)
-        return res['bal']
+        await self.publish_message(connect=self.mq,
+                                   message=to_base,
+                                   routing_key=RabbitMqQueues.BALANCE_JUMP,
+                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_JUMP),
+                                   queue_name=RabbitMqQueues.BALANCE_JUMP
+                                   )
 
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
-            self.start = await self.__query('asc', cursor)
-            self.finish = await self.__query('desc', cursor)
+            self.finish = await get_total_balance(cursor, 'desc', self.exchanges_len)
+
+            if start := await get_last_balance_jumps(cursor):
+                self.start = start
+
+            elif start := await get_total_balance(cursor, 'asc', self.exchanges_len):
+                self.start = start
+                await self.save_new_balance_jump()
 
             if self.start and self.finish:
                 return abs(100 - self.finish * 100 / self.start)
+
             return 0
 
     async def prepare_alert(self):
@@ -634,8 +635,10 @@ class MultiBot:
         message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
         message += f"CHANGED TO {BotState.PARSER} STATE\n"
-        message += f"{'🔴' if percent_change < 0 else '🟢'} ABS BALANCE CHANGE %: {percent_change}\n"
-        message += f"{'🔴' if usd_change < 0 else '🟢'} ABS BALANCE CHANGE USD: {usd_change}\n"
+        message += f"{'🔴' if percent_change < 0 else '🟢'} BALANCE CHANGE %: {percent_change}\n"
+        message += f"{'🔴' if usd_change < 0 else '🟢'} BALANCE CHANGE USD: {usd_change}\n"
+        message += f"BALANCE, USD: {self.start}\n"
+        message += f"CURRENT, USD: {self.finish}\n"
         message += f"!!!NEED TO CHECK IT!!!"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
@@ -661,10 +664,13 @@ class MultiBot:
                     time.sleep(1)
 
                 if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                    if 'PROD' in self.env.upper():
-                        self.state = BotState.PARSER
+                    self.state = BotState.PARSER
 
+                    await self.save_new_balance_jump()
                     await self.prepare_alert()
+
+                    if 'DEV' in self.env.upper():
+                        break
 
                 await self.find_price_diffs()
                 # await self.time_based_messages()
