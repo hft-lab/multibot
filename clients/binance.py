@@ -163,6 +163,7 @@ class BinanceClient(BaseClient):
 
     def __get_available_balance(self, side) -> float:
         position_value = 0
+
         if self.orderbook[self.symbol]['asks'] and self.orderbook[self.symbol]['bids']:
             change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
             for market, position in self.positions.items():

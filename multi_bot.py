@@ -629,11 +629,13 @@ class MultiBot:
             return 0
 
     async def prepare_alert(self):
+        percent_change = round(100 - self.finish * 100 / self.start, 2)
+        usd_change = self.start - self.finish
         message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
         message += f"CHANGED TO {BotState.PARSER} STATE\n"
-        message += f"ABS BALANCE CHANGE %: {round(abs(100 - self.finish * 100 / self.start), 2)}\n"
-        message += f"ABS BALANCE CHANGE USD: {abs(self.start - self.finish)}\n"
+        message += f"{'🔴' if percent_change < 0 else '🟢'} ABS BALANCE CHANGE %: {percent_change}\n"
+        message += f"{'🔴' if usd_change < 0 else '🟢'} ABS BALANCE CHANGE USD: {usd_change}\n"
         message += f"!!!NEED TO CHECK IT!!!"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
@@ -659,7 +661,9 @@ class MultiBot:
                     time.sleep(1)
 
                 if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                    self.state = BotState.PARSER
+                    if 'PROD' in self.env.upper():
+                        self.state = BotState.PARSER
+
                     await self.prepare_alert()
 
                 await self.find_price_diffs()
