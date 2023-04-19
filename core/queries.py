@@ -1,6 +1,4 @@
-
-
-async def get_total_balance(cursor, exchanges_len, asc_desc):
+async def get_total_balance(cursor, asc_desc, exchanges_len):
     sql = f"""
     select 
         sum(d.total_balance) as bal
@@ -28,11 +26,11 @@ async def get_last_balance_jumps(cursor):
     from 
         balance_jumps
     where 
-            ts > extract(epoch from current_date at time zone 'UTC') * 1000
+        ts > extract(epoch from current_date at time zone 'UTC') * 1000
     order by 
         ts desc
     limit 
         1
     """
-    res = await cursor.fetchrow(sql)
-    return res.get('total_balance')
+    if res:= await cursor.fetchrow(sql):
+        return res['total_balance']

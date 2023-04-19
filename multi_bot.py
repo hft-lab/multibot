@@ -242,7 +242,7 @@ class MultiBot:
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
         expect_buy_px = orderbook_buy['asks'][0][0]
         expect_sell_px = orderbook_sell['bids'][0][0]
-        shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
+        # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
         price_buy = orderbook_buy['asks'][0][0]  # * (1 - shift))
         price_sell = orderbook_sell['bids'][0][0]  # * (1 + shift))
         price_buy_limit_taker = price_buy * self.shifts['TAKER']
@@ -267,6 +267,10 @@ class MultiBot:
 
         await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
                                 time_parser, time_choose)
+
+        await asyncio.sleep(3)
+        await self.balance_message(client_buy)
+        await self.balance_message(client_sell)
 
     async def deal_details(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, deal_time,
                            time_parser,
@@ -550,6 +554,9 @@ class MultiBot:
 
         print('CREATE BALANCING ORDER:', f'{position_gap} {price} {side}', client.EXCHANGE_NAME, response)
 
+        await asyncio.sleep(3)
+        await self.balance_message(client)
+
     async def position_balancing(self):
         position_gap, amount_to_balancing = self.find_balancing_elements()
         position_gap = position_gap / len(self.clients)
@@ -603,7 +610,8 @@ class MultiBot:
     async def save_new_balance_jump(self):
         to_base = {
             'timestamp': int(round(time.time() * 1000)),
-            'total_balance': self.start
+            'total_balance': self.finish,
+            'env': self.env
         }
 
         await self.publish_message(connect=self.mq,
@@ -619,9 +627,8 @@ class MultiBot:
 
             if start := await get_last_balance_jumps(cursor):
                 self.start = start
-
-            elif start := await get_total_balance(cursor, 'asc', self.exchanges_len):
-                self.start = start
+            else:
+                self.start = await get_total_balance(cursor, 'asc', self.exchanges_len)
                 await self.save_new_balance_jump()
 
             if self.start and self.finish:
@@ -658,7 +665,7 @@ class MultiBot:
             time.sleep(3)
 
             while True:
-                time.sleep(0.005)
+                # time.sleep(0.005)
 
                 if self.state == BotState.PARSER:
                     time.sleep(1)
@@ -666,11 +673,11 @@ class MultiBot:
                 if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
                     self.state = BotState.PARSER
 
+                    if 'DEV_' in self.env.upper():
+                        self.state = BotState.BOT
+
                     await self.save_new_balance_jump()
                     await self.prepare_alert()
-
-                    if 'DEV' in self.env.upper():
-                        break
 
                 await self.find_price_diffs()
                 # await self.time_based_messages()
