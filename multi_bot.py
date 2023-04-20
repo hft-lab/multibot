@@ -169,7 +169,7 @@ class MultiBot:
         for client_buy, client_sell in self.ribs:
             self.available_balance_update(client_buy, client_sell)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
-            shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+            # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
             sell_price = orderbook_sell['bids'][0][0]  # * (1 + shift)
             buy_price = orderbook_buy['asks'][0][0]  # * (1 - shift)
 
@@ -189,7 +189,8 @@ class MultiBot:
 
         if self.state == BotState.BOT:
             position_gap, amount_to_balancing = self.find_balancing_elements()
-            if chosen_deal and amount_to_balancing < self.max_order_size:  # todo REFACTOR THIS
+            print(f'{chosen_deal=}', f'{position_gap=}', f'{amount_to_balancing=}', f'{self.max_order_size=}')
+            if chosen_deal and amount_to_balancing  < self.max_order_size:  # todo REFACTOR THIS
 
                 time_choose = time.time() - time_start - time_parser
                 await self.execute_deal(chosen_deal['buy_exch'],
