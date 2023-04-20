@@ -161,23 +161,45 @@ class BinanceClient(BaseClient):
     def _prepare_query(params: dict) -> str:
         return urlencode(params)
 
-    def __get_available_balance(self, side) -> float:
+    # def __get_available_balance(self, side) -> float:
+    #     position_value = 0
+    #
+    #     if self.orderbook[self.symbol]['asks'] and self.orderbook[self.symbol]['bids']:
+    #         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
+    #         for market, position in self.positions.items():
+    #             if market == self.symbol:
+    #                 position_value = position['amount_usd'] * change
+    #                 break
+    #
+    #         available_margin = self.balance['total'] * self.leverage
+    #
+    #         if side == 'buy':
+    #             max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
+    #             return min(available_margin - position_value, max_ask)
+    #
+    #         max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
+    #         return min(available_margin + position_value, max_bid)
+
+    def get_available_balance(self, side):
         position_value = 0
-        if self.orderbook[self.symbol]['asks'] and self.orderbook[self.symbol]['bids']:
-            change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
-            for market, position in self.positions.items():
-                if market == self.symbol:
-                    position_value = position['amount_usd'] * change
-                    break
+        change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
+        for market, position in self.positions.items():
+            if position.get('size'):
+                # if market == self.symbol:
+                position_value += float(position['size']) * change
+            # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
+            # print()
+            # continue
+        # print(f"Position Value dydx: {position_value}")
 
-            available_margin = self.balance['total'] * self.leverage
-
-            if side == 'buy':
-                max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
-                return min(available_margin - position_value, max_ask)
-
-            max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
-            return min(available_margin + position_value, max_bid)
+        available_margin = self.balance['total'] * self.leverage
+        # print(available_margin)
+        if side == 'buy':
+            # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
+            return available_margin - position_value
+        elif side == 'sell':
+            # max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
+            return available_margin + position_value
 
     def _create_signature(self, query: str) -> str:
         if self.__secret_key is None or self.__secret_key == "":
@@ -206,7 +228,8 @@ class BinanceClient(BaseClient):
                     return float(s['balance'])
         else:
             print(res)
-            return 0.0
+            time.sleep(1)
+            return self._get_balance()
 
     async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=5000, client_ID=None) -> dict:
@@ -221,11 +244,11 @@ class BinanceClient(BaseClient):
             res = await resp.json()
             timestamp = 0000000000000
             print(res)
-            if res.get('status') and res.get('status') == 'NEW':
+            if res.get('code') and -5023 < res['code'] < -1099:
+                status = ResponseStatus.ERROR
+            elif res.get('status'):
                 status = ResponseStatus.SUCCESS
                 timestamp = res['updateTime']
-            elif res.get('code') and -5023 < res['code'] < -1099:
-                status = ResponseStatus.ERROR
             else:
                 status = ResponseStatus.NO_CONNECTION
 
@@ -271,8 +294,8 @@ class BinanceClient(BaseClient):
                             if p['ps'] in PositionSideEnum.all_position_sides() and float(p['pa']):
                                 self.positions.update({p['s']: {
                                     'side': p['ps'],
-                                    'amount_usd': float(p['pa']),
-                                    'amount': float(p['pa']) * float(p['ep']),
+                                    'amount_usd': float(p['pa']) * float(p['ep']),
+                                    'amount': float(p['pa']),
                                     'entry_price': float(p['ep']),
                                     'unrealized_pnl_usd': float(p['up']),
                                     'realized_pnl_usd': 0,
