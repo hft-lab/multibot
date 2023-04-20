@@ -189,7 +189,6 @@ class MultiBot:
 
         if self.state == BotState.BOT:
             position_gap, amount_to_balancing = self.find_balancing_elements()
-            print(f'{chosen_deal=}', f'{position_gap=}', f'{amount_to_balancing=}', f'{self.max_order_size=}')
             if chosen_deal and amount_to_balancing  < self.max_order_size:  # todo REFACTOR THIS
 
                 time_choose = time.time() - time_start - time_parser
@@ -304,7 +303,6 @@ class MultiBot:
 
         except Exception as e:
             traceback.print_exc()
-            print(e)
 
             if 'RuntimeError' in str(e):
                 print(f"RABBIT MQ RESTART")
@@ -485,6 +483,8 @@ class MultiBot:
         message += f"DEALS_PAUSE: {Config.DEALS_PAUSE}\n"
         message += f"ORDER_SIZE: {Config.ORDER_SIZE}\n"
         message += f"TARGET_PROFIT: {Config.TARGET_PROFIT}\n"
+        message += f"START BALANCE: {self.start}\n"
+        message += f"CURRENT BALANCE: {self.finish}\n"
 
         for exchange, shift in self.shifts.items():
             message += f"{exchange}: {round(shift, 6)}\n"
@@ -659,7 +659,6 @@ class MultiBot:
 
         await self.setup_mq(loop)
         await self.setup_postgres()
-        await self.start_message()
 
         async with aiohttp.ClientSession() as session:
             self.session = session
@@ -680,6 +679,7 @@ class MultiBot:
                     await self.save_new_balance_jump()
                     await self.prepare_alert()
 
+                await self.start_message()
                 await self.find_price_diffs()
                 # await self.time_based_messages()
 
