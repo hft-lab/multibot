@@ -207,7 +207,8 @@ class BinanceClient(BaseClient):
                     return float(s['balance'])
         else:
             print(res)
-            return 0.0
+            time.sleep(1)
+            return self._get_balance()
 
     async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=5000, client_ID=None) -> dict:
@@ -222,11 +223,11 @@ class BinanceClient(BaseClient):
             res = await resp.json()
             timestamp = 0000000000000
             print(res)
-            if res.get('status') and res.get('status') == 'NEW':
+            if res.get('code') and -5023 < res['code'] < -1099:
+                status = ResponseStatus.ERROR
+            elif res.get('status'):
                 status = ResponseStatus.SUCCESS
                 timestamp = res['updateTime']
-            elif res.get('code') and -5023 < res['code'] < -1099:
-                status = ResponseStatus.ERROR
             else:
                 status = ResponseStatus.NO_CONNECTION
 

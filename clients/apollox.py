@@ -204,15 +204,14 @@ class ApolloxClient(BaseClient):
         query_string = self._prepare_query(payload)
 
         res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
-        try:
+        if isinstance(res, list):
             for s in res:
                 if s['asset'] == 'USDT':
                     return float(s['balance'])
-        except:
-            print(query_string)
-            print('>>>>>>>>>>>', res)
-
-        return 0.0
+        else:
+            print(res)
+            time.sleep(1)
+            return self._get_balance()
 
     async def __create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
                              expire=100, client_ID=None) -> dict:
@@ -226,11 +225,11 @@ class ApolloxClient(BaseClient):
             res = await resp.json()
             timestamp = 0000000000000
 
-            if res.get('status') and res.get('status') == 'NEW':
+            if res.get('code') and -5023 < res['code'] < -1099:
+                status = ResponseStatus.ERROR
+            elif res.get('status'):
                 status = ResponseStatus.SUCCESS
                 timestamp = res['updateTime']
-            elif res.get('code') and  -5023 < res['code'] < -1099:
-                status = ResponseStatus.ERROR
             else:
                 status = ResponseStatus.NO_CONNECTION
 
