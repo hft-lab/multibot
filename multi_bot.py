@@ -355,7 +355,7 @@ class MultiBot:
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
         change = ((orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2)
 
-        if price_buy != 0 and price_sell != 0:
+        if price_buy and price_sell:
             real_profit = (price_sell - price_buy) / price_buy
             real_profit = real_profit - self.client_1.taker_fee + self.client_2.taker_fee
             real_profit_usd = real_profit * deal_size * change
@@ -663,7 +663,7 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
-
+            start_message = False
             while True:
                 # time.sleep(0.005)
 
@@ -679,7 +679,9 @@ class MultiBot:
                     await self.save_new_balance_jump()
                     await self.prepare_alert()
 
-                await self.start_message()
+                if not start_message:
+                    await self.start_message()
+                    start_message = True
                 await self.find_price_diffs()
                 # await self.time_based_messages()
 
