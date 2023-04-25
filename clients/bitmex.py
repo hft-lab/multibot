@@ -221,13 +221,13 @@ class BitmexClient(BaseClient):
 
     def fit_amount(self, amount):
         orderbook = self.get_orderbook()[self.symbol]
-        change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
-        amount = amount * change
+        # change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
+        # amount = amount * change
         if self.symbol == 'XBTUSD':
             amount = int(round(amount - (amount % self.step_size)))
         else:
             amount = int(round(amount / self.contract_price))
-            amount -= amount % self.step_size
+            amount = int(round(amount - amount % self.step_size))
         return amount
 
     async def create_order(self, amount: float, price: float, side: str, session: aiohttp.ClientSession,
@@ -331,7 +331,7 @@ class BitmexClient(BaseClient):
         side = side.capitalize()
         # last_trades = self.recent_trades()
         last_trades = self.data['execution']
-        last_price = None
+        last_price = 0
         for trade in last_trades:
             if trade.get('side'):
                 if trade['side'] == side and trade['symbol'] == self.symbol and trade.get('avgPx'):
@@ -424,14 +424,16 @@ class BitmexClient(BaseClient):
 # keys = {'BITMEX': {'api_key': 'HKli7p7qxcsqQmsYvR-fDDmM',
 #                    'api_secret': '28Dt_sLKMaGpbM2g-EI-NI1yT_mm880L56H_PhfAZ1Jug_R1',
 #                    'symbol': 'XBTUSD'}}
-#
 # #
+# # #
 # api_key = keys["BITMEX"]["api_key"]
 # api_secret = keys["BITMEX"]["api_secret"]
 # bitmex_client = BitmexClient(keys['BITMEX'])
 # bitmex_client.run_updater()
-#
+# #
 # time.sleep(1)
+#
+# print(bitmex_client.get_positions())
 # # loop = asyncio.new_event_loop()
 # async def func():
 #     async with aiohttp.ClientSession() as session:

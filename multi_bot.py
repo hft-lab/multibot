@@ -189,7 +189,7 @@ class MultiBot:
 
         if self.state == BotState.BOT:
             position_gap, amount_to_balancing = self.find_balancing_elements()
-            if chosen_deal and amount_to_balancing  < self.max_order_size:  # todo REFACTOR THIS
+            if chosen_deal and amount_to_balancing < self.max_order_size:  # todo REFACTOR THIS
 
                 time_choose = time.time() - time_start - time_parser
                 await self.execute_deal(chosen_deal['buy_exch'],
@@ -209,10 +209,8 @@ class MultiBot:
                                        "profit": deal['profit']})
 
             if deal['profit'] > max_profit:
-                if self.available_balances[
-                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
-                        'sell_exch'].EXCHANGE_NAME in self.exchanges:
+                if self.available_balances[f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:
+                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges:
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -275,6 +273,7 @@ class MultiBot:
     async def deal_details(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, deal_time,
                            time_parser,
                            time_choose):
+        print(f">>>>>>DEAL DETAILS FUNC STARTED")
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
         time.sleep(self.deal_pause)
         await self.send_data_for_base(client_buy,
@@ -349,7 +348,7 @@ class MultiBot:
                                  deal_time,
                                  time_parser,
                                  time_choose):
-
+        print(f">>>>>>SEND DATA FOR BASE FUNC STARTED")
         price_buy = client_buy.get_last_price('buy')
         price_sell = client_sell.get_last_price('sell')
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
@@ -392,7 +391,7 @@ class MultiBot:
             'chat_id': Config.TELEGRAM_CHAT_ID,
             'bot_token': Config.TELEGRAM_TOKEN
         }
-
+        print(f"Data for base in send_data_for_base func:\n{to_base}")
         await self.publish_message(connect=self.mq,
                                    message=to_base,
                                    routing_key=RabbitMqQueues.DEALS_REPORT,
@@ -689,6 +688,11 @@ class MultiBot:
                     print(f"STARTED POSITION BALANCING")
                     await self.position_balancing()
                     self.start_time = int(round(time.time()))
+                # if int(round(time.time())) - self.start_time >= 35:
+                #     print(f"False order started to create")
+                #     await self.create_orders(self.client_1, self.client_2, 0.5, 0, 0, 0)
+                #     print(f"False order created")
+
 
 
 if __name__ == '__main__':
