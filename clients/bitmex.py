@@ -333,8 +333,11 @@ class BitmexClient(BaseClient):
         last_trades = self.data['execution']
         last_price = None
         for trade in last_trades:
-            if trade['side'] == side and trade['symbol'] == self.symbol and trade.get('avgPx'):
-                last_price = trade['avgPx']
+            if trade.get('side'):
+                if trade['side'] == side and trade['symbol'] == self.symbol and trade.get('avgPx'):
+                    last_price = trade['avgPx']
+            else:
+                print(f"\nTRADE HAS NO SIDE.TRADE: {trade}\n")
         return last_price
 
     def get_real_balance(self):
