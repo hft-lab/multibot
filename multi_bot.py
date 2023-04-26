@@ -608,18 +608,19 @@ class MultiBot:
         self.client_2.step_size = step_size
 
     async def save_new_balance_jump(self):
-        to_base = {
-            'timestamp': int(round(time.time() * 1000)),
-            'total_balance': self.finish,
-            'env': self.env
-        }
+        if self.start and self.finish:
+            to_base = {
+                'timestamp': int(round(time.time() * 1000)),
+                'total_balance': self.finish,
+                'env': self.env
+            }
 
-        await self.publish_message(connect=self.mq,
-                                   message=to_base,
-                                   routing_key=RabbitMqQueues.BALANCE_JUMP,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_JUMP),
-                                   queue_name=RabbitMqQueues.BALANCE_JUMP
-                                   )
+            await self.publish_message(connect=self.mq,
+                                       message=to_base,
+                                       routing_key=RabbitMqQueues.BALANCE_JUMP,
+                                       exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_JUMP),
+                                       queue_name=RabbitMqQueues.BALANCE_JUMP
+                                       )
 
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
@@ -698,7 +699,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
