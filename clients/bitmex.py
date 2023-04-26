@@ -65,7 +65,6 @@ class BitmexClient(BaseClient):
 
         self.tick_size = self.get_instrument()['tick_size']
         self.step_size = self.get_instrument()['step_size']
-        print('BITMEX STEPSIZE', self.step_size)
         self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
 
     def _run_ws_forever(self):
@@ -193,7 +192,7 @@ class BitmexClient(BaseClient):
         instrument = self.data['instrument'][0]
         print(instrument)
         instrument['tick_size'] = instrument['tickSize']
-        instrument['step_size'] = instrument['tickSize']
+        instrument['step_size'] = instrument['lotSize']
         return instrument
 
     def funds(self):
@@ -221,8 +220,8 @@ class BitmexClient(BaseClient):
 
     def fit_amount(self, amount):
         orderbook = self.get_orderbook()[self.symbol]
-        # change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
-        # amount = amount * change
+        change = (orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2
+        amount = amount * change
         if self.symbol == 'XBTUSD':
             amount = int(round(amount - (amount % self.step_size)))
         else:
