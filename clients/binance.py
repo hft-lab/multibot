@@ -40,8 +40,14 @@ class BinanceClient(BaseClient):
             'buy': 0
         }
         self.positions = {
-            self.symbol: {'amount': 0, 'entry_price': 0, 'unrealized_pnl_usd': 0, 'side': 'LONG',
-                          'amount_usd': 0, 'realized_pnl_usd': 0}
+            self.symbol: {
+                'amount': 0,
+                'entry_price': 0,
+                'unrealized_pnl_usd': 0,
+                'side': 'LONG',
+                'amount_usd': 0,
+                'realized_pnl_usd': 0
+            }
         }
         self.orderbook = {
             self.symbol: {
@@ -161,39 +167,16 @@ class BinanceClient(BaseClient):
     def _prepare_query(params: dict) -> str:
         return urlencode(params)
 
-    # def __get_available_balance(self, side) -> float:
-    #     position_value = 0
-    #
-    #     if self.orderbook[self.symbol]['asks'] and self.orderbook[self.symbol]['bids']:
-    #         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
-    #         for market, position in self.positions.items():
-    #             if market == self.symbol:
-    #                 position_value = position['amount_usd'] * change
-    #                 break
-    #
-    #         available_margin = self.balance['total'] * self.leverage
-    #
-    #         if side == 'buy':
-    #             max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
-    #             return min(available_margin - position_value, max_ask)
-    #
-    #         max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
-    #         return min(available_margin + position_value, max_bid)
 
-    def get_available_balance(self, side):
+    def __get_available_balance(self, side):
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for market, position in self.positions.items():
             if position.get('size'):
-                # if market == self.symbol:
                 position_value += float(position['size']) * change
-            # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
-            # print()
-            # continue
-        # print(f"Position Value dydx: {position_value}")
 
         available_margin = self.balance['total'] * self.leverage
-        # print(available_margin)
+
         if side == 'buy':
             # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
             return available_margin - position_value
@@ -239,18 +222,19 @@ class BinanceClient(BaseClient):
                        f"&quantity={float(round(float(round(amount / self.step_size) *  self.step_size), self.quantity_precision))}&timeInForce=GTC"
         query_string += f'&signature={self._create_signature(query_string)}'
 
-        print(query_string)
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
             timestamp = 0000000000000
-            print(res)
             if res.get('code') and -5023 < res['code'] < -1099:
                 status = ResponseStatus.ERROR
             elif res.get('status'):
                 status = ResponseStatus.SUCCESS
+                self.LAST_ORDER_ID = res['clientOrderId']
                 timestamp = res['updateTime']
             else:
                 status = ResponseStatus.NO_CONNECTION
+
+
 
             return {
                 'exchange_name': self.EXCHANGE_NAME,
@@ -302,5 +286,6 @@ class BinanceClient(BaseClient):
                                     'lever': self.leverage
                                 }})
 
-                    elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False:
+                    elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False \
+                            and self.symbol.uppder() ==  data['o']['S'].upper():
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])

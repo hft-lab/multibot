@@ -271,9 +271,7 @@ class MultiBot:
         await self.balance_message(client_sell)
 
     async def deal_details(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, deal_time,
-                           time_parser,
-                           time_choose):
-        print(f">>>>>>DEAL DETAILS FUNC STARTED")
+                           time_parser, time_choose):
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
         time.sleep(self.deal_pause)
         await self.send_data_for_base(client_buy,
@@ -348,7 +346,6 @@ class MultiBot:
                                  deal_time,
                                  time_parser,
                                  time_choose):
-        print(f">>>>>>SEND DATA FOR BASE FUNC STARTED")
         price_buy = client_buy.get_last_price('buy')
         price_sell = client_sell.get_last_price('sell')
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
@@ -371,6 +368,8 @@ class MultiBot:
             'timestamp': int(round(time.time() * 1000)),
             'sell_exch': client_sell.EXCHANGE_NAME,
             'buy_exch': client_buy.EXCHANGE_NAME,
+            'sell_order_id': str(client_sell.LAST_ORDER_ID),
+            'buy_order_id': str(client_buy.LAST_ORDER_ID),
             'sell_px': price_sell,
             'expect_sell_px': expect_sell_px,
             'buy_px': price_buy,
@@ -388,10 +387,11 @@ class MultiBot:
             'time_parser': time_parser,
             'time_choose': time_choose,
             'env': self.env,
+            'coin': client_sell.symbol,
+            'date_utc': datetime.datetime.utcnow(),
             'chat_id': Config.TELEGRAM_CHAT_ID,
             'bot_token': Config.TELEGRAM_TOKEN
         }
-        print(f"Data for base in send_data_for_base func:\n{to_base}")
         await self.publish_message(connect=self.mq,
                                    message=to_base,
                                    routing_key=RabbitMqQueues.DEALS_REPORT,
@@ -640,14 +640,16 @@ class MultiBot:
     async def prepare_alert(self):
         percent_change = round(100 - self.finish * 100 / self.start, 2)
         usd_change = self.start - self.finish
-        message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
+
+        message = f"ALERT NAME: BALANCE JUMP {'🔴' if percent_change < 0 else '🟢'}\n"
+        message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
-        message += f"CHANGED TO {BotState.PARSER} STATE\n"
         message += f"{'🔴' if percent_change < 0 else '🟢'} BALANCE CHANGE %: {percent_change}\n"
         message += f"{'🔴' if usd_change < 0 else '🟢'} BALANCE CHANGE USD: {usd_change}\n"
         message += f"BALANCE, USD: {self.start}\n"
         message += f"CURRENT, USD: {self.finish}\n"
-        message += f"!!!NEED TO CHECK IT!!!"
+        # message += f"START DT: {}"
+        # message += f"CURRENT DT {}:"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 

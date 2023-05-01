@@ -219,7 +219,6 @@ class ApolloxClient(BaseClient):
         query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type=LIMIT&" \
                        f"price={float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))}" \
                        f"&quantity={float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision))}&timeInForce=GTC"
-        print(f'APOLLOX BODY: {query_string}')
         query_string += f'&signature={self._create_signature(query_string)}'
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
@@ -229,6 +228,7 @@ class ApolloxClient(BaseClient):
                 status = ResponseStatus.ERROR
             elif res.get('status'):
                 status = ResponseStatus.SUCCESS
+                self.LAST_ORDER_ID = res['clientOrderId']
                 timestamp = res['updateTime']
             else:
                 status = ResponseStatus.NO_CONNECTION
@@ -283,5 +283,7 @@ class ApolloxClient(BaseClient):
                                     'lever': self.leverage
                                 }})
 
-                    elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False:
+
+                    elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False \
+                            and self.symbol.uppder() == data['o']['S'].upper():
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])

@@ -243,10 +243,8 @@ class BitmexClient(BaseClient):
         }
         if client_id is not None:
             body["clOrdID"] = client_id
-        print(f'BITMEX BODY: {body}')
 
         res = await self._post("/api/v1/order", body, session)
-        print('BITMEX >>> ',res)
         timestamp = 0000000000000
         if res.get('errors'):
             status = ResponseStatus.ERROR
@@ -254,6 +252,7 @@ class BitmexClient(BaseClient):
             timestamp = int(
                 datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
             status = ResponseStatus.SUCCESS
+            self.LAST_ORDER_ID = res['orderID']
         else:
             status = ResponseStatus.NO_CONNECTION
 

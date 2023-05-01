@@ -190,6 +190,7 @@ class DydxClient(BaseClient):
                 timestamp = int(
                     datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
                 status = ResponseStatus.SUCCESS
+                self.LAST_ORDER_ID = res['id']
             else:
                 status = ResponseStatus.NO_CONNECTION
 
