@@ -40,15 +40,19 @@ class MultiBot:
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'client_1', 'client_2', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'min_disbalance', 'ribs', 'env', 'exchanges_len', 'db',
-                 'start',
-                 'finish']
+                 'start', 'finish', 's_time', 'f_time']
 
     def __init__(self, client_1: str, client_2: str):
+        self.start = None
+        self.finish = None
         self.db = None
         self.mq = None
         self.rabbit_url = f"amqp://{Config.RABBIT['username']}:{Config.RABBIT['password']}@{Config.RABBIT['host']}:{Config.RABBIT['port']}/"
 
         self.env = Config.ENV
+
+        self.s_time = ''
+        self.f_time = ''
 
         # ORDER CONFIGS
         self.deal_pause = Config.DEALS_PAUSE
@@ -335,17 +339,8 @@ class MultiBot:
                                    queue_name=RabbitMqQueues.BALANCE_CHECK
                                    )
 
-    async def send_data_for_base(self,
-                                 client_buy,
-                                 client_sell,
-                                 expect_buy_px,
-                                 expect_sell_px,
-                                 deal_size,
-                                 sell_ob_ask,
-                                 buy_ob_bid,
-                                 deal_time,
-                                 time_parser,
-                                 time_choose):
+    async def send_data_for_base(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, sell_ob_ask,
+                                 buy_ob_bid, deal_time, time_parser, time_choose):
         price_buy = client_buy.get_last_price('buy')
         price_sell = client_sell.get_last_price('sell')
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
@@ -388,7 +383,7 @@ class MultiBot:
             'time_choose': time_choose,
             'env': self.env,
             'coin': client_sell.symbol,
-            'date_utc': datetime.datetime.utcnow(),
+            'date_utc': str(datetime.datetime.utcnow()),
             'chat_id': Config.TELEGRAM_CHAT_ID,
             'bot_token': Config.TELEGRAM_TOKEN
         }
@@ -624,12 +619,12 @@ class MultiBot:
 
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
-            self.finish = await get_total_balance(cursor, 'desc', self.exchanges_len)
+            self.finish, self.f_time = await get_total_balance(cursor, 'desc', self.exchanges_len)
 
-            if start := await get_last_balance_jumps(cursor):
-                self.start = start
+            if res := await get_last_balance_jumps(cursor):
+                self.start, self.s_time = res[0], res[1]
             else:
-                self.start = await get_total_balance(cursor, 'asc', self.exchanges_len)
+                self.start, self.s_time = await get_total_balance(cursor, 'asc', self.exchanges_len)
                 await self.save_new_balance_jump()
 
             if self.start and self.finish:
@@ -644,12 +639,12 @@ class MultiBot:
         message = f"ALERT NAME: BALANCE JUMP {'🔴' if percent_change < 0 else '🟢'}\n"
         message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
-        message += f"{'🔴' if percent_change < 0 else '🟢'} BALANCE CHANGE %: {percent_change}\n"
-        message += f"{'🔴' if usd_change < 0 else '🟢'} BALANCE CHANGE USD: {usd_change}\n"
+        message += f"BALANCE CHANGE %: {percent_change}\n"
+        message += f"BALANCE CHANGE USD: {usd_change}\n"
         message += f"BALANCE, USD: {self.start}\n"
         message += f"CURRENT, USD: {self.finish}\n"
-        # message += f"START DT: {}"
-        # message += f"CURRENT DT {}:"
+        message += f"START DT: {self.s_time}"
+        message += f"CURRENT DT: {self.f_time}"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 
