@@ -643,7 +643,7 @@ class MultiBot:
         message += f"BALANCE CHANGE USD: {usd_change}\n"
         message += f"BALANCE, USD: {self.start}\n"
         message += f"CURRENT, USD: {self.finish}\n"
-        message += f"START DT: {self.s_time}"
+        message += f"START DT: {self.s_time}\n"
         message += f"CURRENT DT: {self.f_time}"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
