@@ -44,8 +44,9 @@ class DydxClient(BaseClient):
             api_key_credentials=self.API_KEYS
         )
         self.orders = {}
-        self.positions = {self.symbol: {}}
         self.fills = {}
+        self.positions = {self.symbol: {}}
+
         self.balance = {'free': 0, 'total': 0}
         self.orderbook = {}
 
