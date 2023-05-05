@@ -170,7 +170,7 @@ class BinanceClient(BaseClient):
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for market, position in self.positions.items():
-            if position.get('amount') and market == self.symbol:
+            if position.get('amount') and market.upper() == self.symbol.upper():
                 if position['side'] == PositionSideEnum.SHORT:
                     position_value -= float(position['amount']) * change
                 else:
