@@ -171,9 +171,11 @@ class ApolloxClient(BaseClient):
         if self.orderbook[self.symbol]['asks'] and self.orderbook[self.symbol]['bids']:
             change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
             for market, position in self.positions.items():
-                if market == self.symbol:
-                    position_value = position['amount_usd'] * change
-                    break
+                if position.get('amount') and market == self.symbol:
+                    if position['side'] == PositionSideEnum.SHORT:
+                        position_value -= float(position['amount']) * change
+                    else:
+                        position_value += float(position['amount']) * change
 
             available_margin = self.balance['total'] * self.leverage
 

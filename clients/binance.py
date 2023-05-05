@@ -133,8 +133,6 @@ class BinanceClient(BaseClient):
                                 self.tick_size = float(f['tickSize'])
                             elif f['filterType'] == 'LOT_SIZE':
                                 self.step_size = float(f['stepSize'])
-
-
                         break
             else:
                 self.symbol_is_active = False
@@ -172,8 +170,11 @@ class BinanceClient(BaseClient):
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for market, position in self.positions.items():
-            if position.get('size'):
-                position_value += float(position['size']) * change
+            if position.get('size') and market == self.symbol:
+                if position['side'] == PositionSideEnum.SHORT:
+                    position_value -= float(position['size']) * change
+                else:
+                    position_value += float(position['size']) * change
 
         available_margin = self.balance['total'] * self.leverage
 
@@ -234,8 +235,6 @@ class BinanceClient(BaseClient):
             else:
                 status = ResponseStatus.NO_CONNECTION
 
-
-
             return {
                 'exchange_name': self.EXCHANGE_NAME,
                 'timestamp': timestamp,
@@ -276,7 +275,7 @@ class BinanceClient(BaseClient):
                     if data['e'] == EventTypeEnum.ACCOUNT_UPDATE and data['a']['P']:
                         for p in data['a']['P']:
                             if p['ps'] in PositionSideEnum.all_position_sides() and float(p['pa']):
-                                self.positions.update({p['s']: {
+                                self.positions.update({p['s'].upper(): {
                                     'side': p['ps'],
                                     'amount_usd': float(p['pa']) * float(p['ep']),
                                     'amount': float(p['pa']),

@@ -190,7 +190,7 @@ class DydxClient(BaseClient):
                 timestamp = int(
                     datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
                 status = ResponseStatus.SUCCESS
-                self.LAST_ORDER_ID = res['id']
+                self.LAST_ORDER_ID = res['order']['id']
             else:
                 status = ResponseStatus.NO_CONNECTION
 
@@ -475,8 +475,8 @@ class DydxClient(BaseClient):
     def get_available_balance(self, side):
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
-        for market, position in self.positions.items():
-            if position.get('size'):
+        for symbol, position in self.positions.items():
+            if position.get('size') and symbol.upper() == self.symbol.upper():
                 # if market == self.symbol:
                 position_value += float(position['size']) * change
             # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')

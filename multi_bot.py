@@ -677,7 +677,7 @@ class MultiBot:
                     await self.prepare_alert()
 
                 if not start_message:
-                    await self.start_message()
+                    # await self.start_message()
                     start_message = True
                 await self.find_price_diffs()
                 # await self.time_based_messages()
