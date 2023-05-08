@@ -477,7 +477,7 @@ class DydxClient(BaseClient):
         position_value = 0
         change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for symbol, position in self.positions.items():
-            if position.get('size') and symbol.upper() == self.symbol.upper():
+            if position.get('size'):
                 # if market == self.symbol:
                 position_value += float(position['size']) * change
             # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
