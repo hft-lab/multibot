@@ -230,7 +230,7 @@ class BinanceClient(BaseClient):
                 status = ResponseStatus.ERROR
             elif res.get('status'):
                 status = ResponseStatus.SUCCESS
-                self.LAST_ORDER_ID = res['clientOrderId']
+                self.LAST_ORDER_ID = res['orderId']
                 timestamp = res['updateTime']
             else:
                 status = ResponseStatus.NO_CONNECTION
