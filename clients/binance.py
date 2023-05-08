@@ -34,6 +34,7 @@ class BinanceClient(BaseClient):
         self.message_to_rabbit_list = []
         self.balance = {
             'total': 0.0,
+            'avl_balance': 0.0
         }
         self.last_price = {
             'sell': 0,
@@ -176,7 +177,7 @@ class BinanceClient(BaseClient):
                 else:
                     position_value += float(position['amount']) * change
 
-        available_margin = self.balance['total'] * self.leverage
+        available_margin = self.balance['avl_balance'] * self.leverage
 
         if side == 'buy':
             # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
@@ -193,10 +194,10 @@ class BinanceClient(BaseClient):
 
     def _balance(self) -> None:
         while True:
-            self.balance['total'] = self._get_balance()
+            self.balance['total'], self.balance['avl_balance'] = self._get_balance()
             time.sleep(1)
 
-    def _get_balance(self) -> float:
+    def _get_balance(self) -> [float, float]:
         url_path = "/fapi/v2/balance"
         payload = {"timestamp": int(time.time() * 1000)}
 
@@ -205,11 +206,10 @@ class BinanceClient(BaseClient):
         query_string = self._prepare_query(payload)
 
         res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
-
         if isinstance(res, list):
             for s in res:
                 if s['asset'] == 'USDT':
-                    return float(s['balance'])
+                    return float(s['balance']), float(s['availableBalance'])
         else:
             print(res)
             time.sleep(1)
