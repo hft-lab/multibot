@@ -1,21 +1,14 @@
-async def get_total_balance(cursor, asc_desc, exchanges_len):
+async def get_total_balance(cursor, asc_desc):
     sql = f"""
-    select 
-        sum(d.total_balance) as total_balance,
-        TO_CHAR(TO_TIMESTAMP(max(ts) / 1000), 'DD/MM/YYYY HH24:MI:SS') as date_utc
-    from 
-        (select 
-            distinct on (bc.exchange_name) bc.exchange_name, ts, total_balance
+        select 
+            *
         from 
-            balance_check bc
-        order by 
-            exchange_name, ts {asc_desc}
-        limit 
-            {exchanges_len}) d  
+            balance_check bc 
+        order by
+            ts {asc_desc} 
     """
 
-    res = await cursor.fetchrow(sql)
-    return res['total_balance'], res['date_utc']
+    return await cursor.fetch(sql)
 
 
 async def get_last_balance_jumps(cursor):

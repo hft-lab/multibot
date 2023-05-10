@@ -310,20 +310,15 @@ class MultiBot:
                 await self.setup_mq(self.loop)
 
     async def balance_message(self, client):
-        print(client.EXCHANGE_NAME)
-        position = round(client.get_positions()[client.symbol]['amount'], 4)
-        balance = round(client.get_real_balance())
-        avl_buy = round(client.get_available_balance('buy'))
-        avl_sell = round(client.get_available_balance('sell'))
         orderbook = client.get_orderbook()[client.symbol]
         to_base = {
             'timestamp': int(round(time.time() * 1000)),
             'exchange_name': client.EXCHANGE_NAME,
             # 'side': 'sell' if position <= 0 else 'long',
-            'total_balance': balance,
-            'position': position,
-            'available_for_buy': avl_buy,
-            'available_for_sell': avl_sell,
+            'total_balance':  round(client.get_real_balance()),
+            'position': round(client.get_positions()[client.symbol]['amount'], 4),
+            'available_for_buy': round(client.get_available_balance('buy')),
+            'available_for_sell': round(client.get_available_balance('sell')),
             'ask': orderbook['asks'][0][0],
             'bid': orderbook['bids'][0][0],
             'symbol': client.symbol,
@@ -617,14 +612,29 @@ class MultiBot:
                                        queue_name=RabbitMqQueues.BALANCE_JUMP
                                        )
 
+    async def get_total_balance_calc(self, cursor, asc_desc):
+        result = 0
+        exchanges = []
+        time_ = 0
+        for r in await get_total_balance(cursor, asc_desc):
+            if not r['exchange_name'] in exchanges:
+                result += r['total_balance']
+                exchanges.append(r['exchange_name'])
+                time_ = max(time_, r['ts'])
+
+            if len(exchanges) >= self.exchanges_len:
+                break
+
+        return result, time_
+
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
-            self.finish, self.f_time = await get_total_balance(cursor, 'desc', self.exchanges_len)
+            self.finish, self.f_time = await self.get_total_balance_calc(cursor, 'desc')
 
             if res := await get_last_balance_jumps(cursor):
                 self.start, self.s_time = res[0], res[1]
             else:
-                self.start, self.s_time = await get_total_balance(cursor, 'asc', self.exchanges_len)
+                self.start, self.s_time = await self.get_total_balance_calc(cursor, 'asc')
                 await self.save_new_balance_jump()
 
             if self.start and self.finish:

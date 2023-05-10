@@ -169,21 +169,15 @@ class BinanceClient(BaseClient):
 
     def __get_available_balance(self, side):
         position_value = 0
-        change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
         for market, position in self.positions.items():
             if position.get('amount'): # and market.upper() == self.symbol.upper():
-                # if position['side'] == PositionSideEnum.SHORT:
-                #     position_value -= float(position['amount']) * change
-                # else:
-                position_value += float(position['amount']) * change
+                position_value += position['amount_usd']
 
-        available_margin = self.balance['avl_balance'] * self.leverage
+        available_margin = self.balance['total'] * self.leverage
 
         if side == 'buy':
-            # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
             return available_margin - position_value
         elif side == 'sell':
-            # max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
             return available_margin + position_value
 
     def _create_signature(self, query: str) -> str:
@@ -276,7 +270,7 @@ class BinanceClient(BaseClient):
                         for p in data['a']['P']:
                             if p['ps'] in PositionSideEnum.all_position_sides() and float(p['pa']):
                                 self.positions.update({p['s'].upper(): {
-                                    'side': p['ps'],
+                                    'side': PositionSideEnum.LONG if float(p['pa']) > 0 else PositionSideEnum.SHORT,
                                     'amount_usd': float(p['pa']) * float(p['ep']),
                                     'amount': float(p['pa']),
                                     'entry_price': float(p['ep']),
@@ -288,3 +282,14 @@ class BinanceClient(BaseClient):
                     elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False \
                             and self.symbol.upper() ==  data['o']['S'].upper():
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])
+
+if __name__ == '__main__':
+    client = BinanceClient(Config.BINANCE, Config.LEVERAGE)
+    client.run_updater()
+    time.sleep(15)
+
+    while True:
+        print('sell', client.get_available_balance('sell'))
+        print('buy', client.get_available_balance('buy'))
+        print('\n')
+        time.sleep(1)
