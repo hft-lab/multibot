@@ -6,6 +6,7 @@ class BaseClient(ABC):
     BASE_URL = None
     BASE_WS = None
     EXCHANGE_NAME = None
+    LAST_ORDER_ID = 'default'
 
     @abstractmethod
     def get_available_balance(self, side: str) -> float:

@@ -11,6 +11,7 @@ import aiohttp
 from bravado.client import SwaggerClient
 from bravado.requests_client import RequestsClient
 
+from config import Config
 from core.base_client import BaseClient
 from core.enums import ResponseStatus
 from tools.APIKeyAuthenticator import APIKeyAuthenticator as auth
@@ -243,10 +244,8 @@ class BitmexClient(BaseClient):
         }
         if client_id is not None:
             body["clOrdID"] = client_id
-        print(f'BITMEX BODY: {body}')
 
         res = await self._post("/api/v1/order", body, session)
-        print('BITMEX >>> ',res)
         timestamp = 0000000000000
         if res.get('errors'):
             status = ResponseStatus.ERROR
@@ -254,6 +253,7 @@ class BitmexClient(BaseClient):
             timestamp = int(
                 datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
             status = ResponseStatus.SUCCESS
+            self.LAST_ORDER_ID = res['orderID']
         else:
             status = ResponseStatus.NO_CONNECTION
 
@@ -262,7 +262,6 @@ class BitmexClient(BaseClient):
             'timestamp': timestamp,
             'status': status
         }
-
 
     async def _post(self, path: str, data: any, session: aiohttp.ClientSession):
         headers_body = f"symbol={data['symbol']}&side={data['side']}&ordType=Limit&orderQty={data['orderQty']}&price={data['price']}"
@@ -367,19 +366,16 @@ class BitmexClient(BaseClient):
         wallet_balance = wallet_balance if self.symbol == 'XBTUSD' else 0
         position_value = 0
         for symbol, position in positions.items():
-            if symbol == self.symbol:
-                if position['foreignNotional']:
-                    position_value = position['homeNotional'] * position['markPrice']
-                    self.contract_price = abs(position_value / position['currentQty'])
-                else:
-                    print('ERROR')
-                    print(position)
+            if self.symbol == symbol:
+                self.contract_price = abs(position_value / position['currentQty'])
+
+            if position['foreignNotional']:
+                position_value = position['homeNotional'] * position['markPrice']
+
         if side == 'buy':
-            max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * self.contract_price
-            return min(available_balance - position_value - wallet_balance, max_ask)
+            return available_balance - position_value - wallet_balance
         else:
-            max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * self.contract_price
-            return min(available_balance + position_value + wallet_balance, max_bid)
+            return available_balance + position_value + wallet_balance
 
     def get_positions(self):
         '''Get your positions.'''
@@ -615,3 +611,16 @@ class BitmexClient(BaseClient):
 #   'trdMatchID': '15cd273d-ded8-e339-b3b1-9a9080b5d10f', 'execID': 'adcc6b75-2d57-a9d2-47c4-8db921d8aae1',
 #   'execType': 'Trade', 'execCost': 16519000, 'homeNotional': 0.001, 'foreignNotional': -16.519,
 #   'commission': 0.00022500045, 'lastMkt': 'XBME', 'execComm': 3716, 'underlyingLastPx': None}]
+
+
+if __name__ == '__main__':
+    client = BitmexClient(Config.BITMEX, Config.LEVERAGE)
+    client.run_updater()
+
+    time.sleep(15)
+
+    while True:
+        print(f"{client.get_available_balance('sell')=}")
+        print(f"{client.get_available_balance('buy')=}")
+        print("\n")
+        time.sleep(1)

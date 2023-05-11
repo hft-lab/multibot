@@ -15,6 +15,7 @@ from dydx3.helpers.request_helpers import remove_nones
 from dydx3.starkex.order import SignableOrder
 from web3 import Web3
 
+from config import Config
 from core.base_client import BaseClient
 from core.enums import ResponseStatus
 
@@ -44,8 +45,9 @@ class DydxClient(BaseClient):
             api_key_credentials=self.API_KEYS
         )
         self.orders = {}
-        self.positions = {self.symbol: {}}
         self.fills = {}
+        self.positions = {self.symbol: {}}
+
         self.balance = {'free': 0, 'total': 0}
         self.orderbook = {}
 
@@ -190,6 +192,7 @@ class DydxClient(BaseClient):
                 timestamp = int(
                     datetime.timestamp(datetime.strptime(res['order']['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')) * 1000)
                 status = ResponseStatus.SUCCESS
+                self.LAST_ORDER_ID = res['order']['id']
             else:
                 status = ResponseStatus.NO_CONNECTION
 
@@ -473,23 +476,15 @@ class DydxClient(BaseClient):
 
     def get_available_balance(self, side):
         position_value = 0
-        change = (self.orderbook[self.symbol]['asks'][0][0] + self.orderbook[self.symbol]['bids'][0][0]) / 2
-        for market, position in self.positions.items():
-            if position.get('size'):
-                # if market == self.symbol:
-                position_value += float(position['size']) * change
-            # print(f'Market:{market}\nValue:{position["size"]}\nUSD value:{position_value}')
-            # print()
-            # continue
-        # print(f"Position Value dydx: {position_value}")
+        for symbol, position in self.positions.items():
+            if position.get('amount_usd'):
+                position_value += position['amount_usd']
 
         available_margin = self.balance['total'] * self.leverage
-        # print(available_margin)
+
         if side == 'buy':
-            # max_ask = self.get_orderbook()[self.symbol]['asks'][0][1] * change
             return available_margin - position_value
         elif side == 'sell':
-            # max_bid = self.get_orderbook()[self.symbol]['bids'][0][1] * change
             return available_margin + position_value
 
     def _process_msg(self, msg: aiohttp.WSMessage):
@@ -598,3 +593,16 @@ class DydxClient(BaseClient):
 # print(client.get_balance())
 # print(client.markets['markets']['BTC-USD'])
 # a = client.client.private.get_orders(market=['SOL-USD']).data
+
+if __name__ == '__main__':
+    client = DydxClient(Config.DYDX, Config.LEVERAGE)
+    client.run_updater()
+
+    time.sleep(15)
+
+    while True:
+        print(f"{client.get_available_balance('sell')=}")
+        print(f"{client.get_available_balance('buy')=}")
+        print('\n')
+        time.sleep(1)
+

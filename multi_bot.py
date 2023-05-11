@@ -40,15 +40,19 @@ class MultiBot:
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'client_1', 'client_2', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'min_disbalance', 'ribs', 'env', 'exchanges_len', 'db',
-                 'start',
-                 'finish']
+                 'start', 'finish', 's_time', 'f_time']
 
     def __init__(self, client_1: str, client_2: str):
+        self.start = None
+        self.finish = None
         self.db = None
         self.mq = None
         self.rabbit_url = f"amqp://{Config.RABBIT['username']}:{Config.RABBIT['password']}@{Config.RABBIT['host']}:{Config.RABBIT['port']}/"
 
         self.env = Config.ENV
+
+        self.s_time = ''
+        self.f_time = ''
 
         # ORDER CONFIGS
         self.deal_pause = Config.DEALS_PAUSE
@@ -271,9 +275,7 @@ class MultiBot:
         await self.balance_message(client_sell)
 
     async def deal_details(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, deal_time,
-                           time_parser,
-                           time_choose):
-        print(f">>>>>>DEAL DETAILS FUNC STARTED")
+                           time_parser, time_choose):
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
         time.sleep(self.deal_pause)
         await self.send_data_for_base(client_buy,
@@ -308,20 +310,15 @@ class MultiBot:
                 await self.setup_mq(self.loop)
 
     async def balance_message(self, client):
-        print(client.EXCHANGE_NAME)
-        position = round(client.get_positions()[client.symbol]['amount'], 4)
-        balance = round(client.get_real_balance())
-        avl_buy = round(client.get_available_balance('buy'))
-        avl_sell = round(client.get_available_balance('sell'))
         orderbook = client.get_orderbook()[client.symbol]
         to_base = {
             'timestamp': int(round(time.time() * 1000)),
             'exchange_name': client.EXCHANGE_NAME,
             # 'side': 'sell' if position <= 0 else 'long',
-            'total_balance': balance,
-            'position': position,
-            'available_for_buy': avl_buy,
-            'available_for_sell': avl_sell,
+            'total_balance':  round(client.get_real_balance()),
+            'position': round(client.get_positions()[client.symbol]['amount'], 4),
+            'available_for_buy': round(client.get_available_balance('buy')),
+            'available_for_sell': round(client.get_available_balance('sell')),
             'ask': orderbook['asks'][0][0],
             'bid': orderbook['bids'][0][0],
             'symbol': client.symbol,
@@ -337,18 +334,8 @@ class MultiBot:
                                    queue_name=RabbitMqQueues.BALANCE_CHECK
                                    )
 
-    async def send_data_for_base(self,
-                                 client_buy,
-                                 client_sell,
-                                 expect_buy_px,
-                                 expect_sell_px,
-                                 deal_size,
-                                 sell_ob_ask,
-                                 buy_ob_bid,
-                                 deal_time,
-                                 time_parser,
-                                 time_choose):
-        print(f">>>>>>SEND DATA FOR BASE FUNC STARTED")
+    async def send_data_for_base(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, sell_ob_ask,
+                                 buy_ob_bid, deal_time, time_parser, time_choose):
         price_buy = client_buy.get_last_price('buy')
         price_sell = client_sell.get_last_price('sell')
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
@@ -371,6 +358,8 @@ class MultiBot:
             'timestamp': int(round(time.time() * 1000)),
             'sell_exch': client_sell.EXCHANGE_NAME,
             'buy_exch': client_buy.EXCHANGE_NAME,
+            'sell_order_id': str(client_sell.LAST_ORDER_ID),
+            'buy_order_id': str(client_buy.LAST_ORDER_ID),
             'sell_px': price_sell,
             'expect_sell_px': expect_sell_px,
             'buy_px': price_buy,
@@ -388,10 +377,11 @@ class MultiBot:
             'time_parser': time_parser,
             'time_choose': time_choose,
             'env': self.env,
+            'coin': client_sell.symbol,
+            'date_utc': str(datetime.datetime.utcnow()),
             'chat_id': Config.TELEGRAM_CHAT_ID,
             'bot_token': Config.TELEGRAM_TOKEN
         }
-        print(f"Data for base in send_data_for_base func:\n{to_base}")
         await self.publish_message(connect=self.mq,
                                    message=to_base,
                                    routing_key=RabbitMqQueues.DEALS_REPORT,
@@ -622,14 +612,29 @@ class MultiBot:
                                        queue_name=RabbitMqQueues.BALANCE_JUMP
                                        )
 
+    async def get_total_balance_calc(self, cursor, asc_desc):
+        result = 0
+        exchanges = []
+        time_ = 0
+        for r in await get_total_balance(cursor, asc_desc):
+            if not r['exchange_name'] in exchanges:
+                result += r['total_balance']
+                exchanges.append(r['exchange_name'])
+                time_ = max(time_, r['ts'])
+
+            if len(exchanges) >= self.exchanges_len:
+                break
+
+        return result, time_
+
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
-            self.finish = await get_total_balance(cursor, 'desc', self.exchanges_len)
+            self.finish, self.f_time = await self.get_total_balance_calc(cursor, 'desc')
 
-            if start := await get_last_balance_jumps(cursor):
-                self.start = start
+            if res := await get_last_balance_jumps(cursor):
+                self.start, self.s_time = res[0], res[1]
             else:
-                self.start = await get_total_balance(cursor, 'asc', self.exchanges_len)
+                self.start, self.s_time = await self.get_total_balance_calc(cursor, 'asc')
                 await self.save_new_balance_jump()
 
             if self.start and self.finish:
@@ -638,16 +643,18 @@ class MultiBot:
             return 0
 
     async def prepare_alert(self):
-        percent_change = round(100 - self.finish * 100 / self.start, 2)
-        usd_change = self.start - self.finish
-        message = f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
+        percent_change = round(100 - self.start * 100 / self.finish, 2)
+        usd_change = self.finish - self.start
+
+        message = f"ALERT NAME: BALANCE JUMP {'🔴' if percent_change < 0 else '🟢'}\n"
+        message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
-        message += f"CHANGED TO {BotState.PARSER} STATE\n"
-        message += f"{'🔴' if percent_change < 0 else '🟢'} BALANCE CHANGE %: {percent_change}\n"
-        message += f"{'🔴' if usd_change < 0 else '🟢'} BALANCE CHANGE USD: {usd_change}\n"
+        message += f"BALANCE CHANGE %: {percent_change}\n"
+        message += f"BALANCE CHANGE USD: {usd_change}\n"
         message += f"BALANCE, USD: {self.start}\n"
         message += f"CURRENT, USD: {self.finish}\n"
-        message += f"!!!NEED TO CHECK IT!!!"
+        message += f"START DT: {self.s_time}\n"
+        message += f"CURRENT DT: {self.f_time}"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 
@@ -699,7 +706,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
