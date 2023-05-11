@@ -280,7 +280,7 @@ class BinanceClient(BaseClient):
                                 }})
 
                     elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False \
-                            and self.symbol.upper() ==  data['o']['S'].upper():
+                            and self.symbol.upper() ==  data['o']['s'].upper():
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])
 
 if __name__ == '__main__':
