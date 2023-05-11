@@ -643,8 +643,8 @@ class MultiBot:
             return 0
 
     async def prepare_alert(self):
-        percent_change = round(100 - self.finish * 100 / self.start, 2)
-        usd_change = self.start - self.finish
+        percent_change = round(100 - self.start * 100 / self.finish, 2)
+        usd_change = self.finish - self.start
 
         message = f"ALERT NAME: BALANCE JUMP {'🔴' if percent_change < 0 else '🟢'}\n"
         message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
