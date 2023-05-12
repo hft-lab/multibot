@@ -249,7 +249,7 @@ class MultiBot:
         price_sell = orderbook_sell['bids'][0][0]  # * (1 + shift))
         price_buy_limit_taker = price_buy * self.shifts['TAKER']
         price_sell_limit_taker = price_sell / self.shifts['TAKER']
-        timer = time.time()
+        timer = time.time() * 1000
 
         print('CREATE ORDER', max_deal_size, price_buy_limit_taker)
 
@@ -259,13 +259,19 @@ class MultiBot:
             self.loop.create_task(
                 client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
-        print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
+        print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
 
         deal_time = time.time() - time_start - time_parser - time_choose
 
         for response in responses:
-            await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
-                                             time.time() * 1000, response['status'])
+            try:
+                await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
+                                                 time.time() * 1000, response['status'])
+            except Exception:
+                traceback.print_exc()
+                print('\n' * 3)
+                print(response['exchange_name'], deal_time, response['timestamp'], response['status'])
+                print('\n' * 3)
 
         await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
                                 time_parser, time_choose)
@@ -706,7 +712,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
