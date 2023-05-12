@@ -191,7 +191,6 @@ class BitmexClient(BaseClient):
         """Get the raw instrument data for this symbol."""
         # Turn the 'tick_size' into 'tickLog' for use in rounding
         instrument = self.data['instrument'][0]
-        print(instrument)
         instrument['tick_size'] = instrument['tickSize']
         instrument['step_size'] = instrument['lotSize']
         return instrument
@@ -363,11 +362,11 @@ class BitmexClient(BaseClient):
         wallet_balance = wallet_balance if self.symbol == 'XBTUSD' else 0
         position_value = 0
         for symbol, position in positions.items():
-            if self.symbol == symbol:
-                self.contract_price = abs(position_value / position['currentQty'])
-
             if position['foreignNotional']:
                 position_value = position['homeNotional'] * position['markPrice']
+
+            if self.symbol == symbol and position.get('currentQty'):
+                self.contract_price = abs(position_value / position['currentQty'])
 
         if side == 'buy':
             return available_balance - position_value - wallet_balance

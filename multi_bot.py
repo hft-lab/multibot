@@ -712,7 +712,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
