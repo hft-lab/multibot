@@ -496,9 +496,13 @@ class MultiBot:
 
             self.start_time -= 1
 
-    @staticmethod
-    def create_result_message(deals_potential: dict, deals_executed: dict, time: int) -> str:
-        message = f"For last {time / 60} min:"
+    def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
+        message = f"For last 3 min\n"
+        message += f'ENV: {Config.ENV}\n'
+
+        if self.__check_env():
+            message += f'SYMBOL: {self.client_1.symbol}'
+
         message += f"\n\nPotential deals:"
         for side, values in deals_potential.items():
             message += f"\n   {side}:"
@@ -632,7 +636,7 @@ class MultiBot:
             if len(exchanges) >= self.exchanges_len:
                 break
 
-        return result, time_
+        return result, str(datetime.datetime.fromtimestamp(time_ / 1000).strftime('%Y-%m-%d %H:%M:%S'))
 
     async def get_balance_percent(self) -> float:
         async with self.db.acquire() as cursor:
@@ -679,22 +683,22 @@ class MultiBot:
         return 'DEV_' in self.env.upper()
 
     async def prepare_alert(self):
-        percent_change = round(100 - self.start * 100 / self.finish, 2)
+        percent_change = round(100 - self.finish * 100 / self.start, 2)
         usd_change = self.finish - self.start
 
-        message = f"ALERT NAME: BALANCE JUMP {'🔴' if percent_change < 0 else '🟢'}\n"
+        message = f"ALERT NAME: BALANCE JUMP {'🔴' if usd_change < 0 else '🟢'}\n"
         message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
         message += f"ENV: {self.env}\n"
 
         if not self.__check_env():
-            message += "CHANGE STATE TO PARSER"
+            message += "CHANGE STATE TO PARSER\n"
 
         message += f"BALANCE CHANGE %: {percent_change}\n"
         message += f"BALANCE CHANGE USD: {usd_change}\n"
         message += f"PREVIOUS BAL, USD: {self.start}\n"
         message += f"CURRENT BAL, USD: {self.finish}\n"
         message += f"PREVIOUS DT: {self.s_time}\n"
-        message += f"CURRENT CURRENT DT: {self.f_time}"
+        message += f"CURRENT DT: {self.f_time}"
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 
@@ -734,8 +738,8 @@ class MultiBot:
                 # await self.time_based_messages()
 
                 if int(round(time.time())) - self.start_time >= 180:
-                    print(f"STARTED POSITION BALANCING")
-                    await self.position_balancing()
+                    # print(f"STARTED POSITION BALANCING")
+                    # await self.position_balancing()
                     self.start_time = int(round(time.time()))
                 # if int(round(time.time())) - self.start_time >= 35:
                 #     print(f"False order started to create")
