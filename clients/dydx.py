@@ -17,7 +17,7 @@ from web3 import Web3
 
 from config import Config
 from core.base_client import BaseClient
-from core.enums import ResponseStatus
+from core.enums import ResponseStatus, PositionSideEnum
 
 
 class DydxClient(BaseClient):
@@ -71,8 +71,22 @@ class DydxClient(BaseClient):
         self.time_sent = time.time()
 
         self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
+        self.start_positions()
 
         self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
+
+    def start_positions(self):
+        for pos in self.client.private.get_positions().data.get('positions', []):
+            if pos['status'] != 'CLOSED':
+                self.positions.update({pos['market']: {
+                    'side': pos['side'],
+                    'amount_usd': float(pos['size']) * float(pos['entryPrice']),
+                    'amount': float(pos['size']),
+                    'entry_price': float(pos['entryPrice']),
+                    'unrealized_pnl_usd': float(pos['unrealizedPnl']),
+                    'realized_pnl_usd': float(pos['realizedPnl']),
+                    'lever': self.leverage
+                }})
 
     def cancel_all_orders(self, orderID=None):
         self.client.private.cancel_order(order_id=orderID)
@@ -518,6 +532,7 @@ class DydxClient(BaseClient):
     def get_orderbook(self):
         return self.orderbook
 
+
 #
 
 #
@@ -604,5 +619,4 @@ if __name__ == '__main__':
         print(f"{client.get_available_balance('sell')=}")
         print(f"{client.get_available_balance('buy')=}")
         print('\n')
-        time.sleep(1)
-
+        time.sleep(1000000)

@@ -660,16 +660,19 @@ class MultiBot:
         index_price = []
 
         for client in self.clients:
-            coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
-            message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-            message += f"ENV: {Config.ENV}\n"
-            message += f"TOT BAL: {client.get_real_balance()} USD\n"
-            message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
-            message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
-            message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
-            index_price.append((client.get_orderbook()[client.symbol]['bids'][1][0] + client.get_orderbook()[client.symbol]['asks'][1][0]) / 2)
-            total_position += client.get_positions()[client.symbol]['amount']
-            total_balance += client.get_real_balance()
+            try:
+                coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
+                message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
+                message += f"ENV: {Config.ENV}\n"
+                message += f"TOT BAL: {client.get_real_balance()} USD\n"
+                message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
+                message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
+                message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
+                index_price.append((client.get_orderbook()[client.symbol]['bids'][1][0] + client.get_orderbook()[client.symbol]['asks'][1][0]) / 2)
+                total_position += client.get_positions()[client.symbol]['amount']
+                total_balance += client.get_real_balance()
+            except:
+                traceback.print_exc()
 
         message += f"   TOTAL:\n"
         message += f"START BALANCE: {round(total_balance, 2)} USD\n"
@@ -750,7 +753,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
