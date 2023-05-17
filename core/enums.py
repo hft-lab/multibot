@@ -18,6 +18,7 @@ class EventTypeEnum:
     ORDER_TRADE_UPDATE = 'ORDER_TRADE_UPDATE'
 
 
+
 class BotState:
     PARSER = 'PARSER'
     BOT = 'BOT'
@@ -30,6 +31,14 @@ class RabbitMqQueues:
     BALANCING_REPORTS = 'logger.event.insert_balancing_reports'
     PING = 'logger.event.insert_ping_logger'
     BALANCE_JUMP = 'logger.event.insert_balance_jumps'
+
+    # NEW -----------------------------------------------------------------
+    ARBITRAGE_POSSIBILITIES = 'logger.event.insert_arbitrage_possibilities'
+    ORDERS = 'logger.event.insert_orders'
+    BALANCES = 'logger.event.insert_balances'
+    BALANCE_DETALIZATION = 'logger.event.insert_balance_detalization'
+    DISBALANCE = 'logger.event.insert_disbalances'
+
 
     @staticmethod
     def get_exchange_name(routing_key: str):

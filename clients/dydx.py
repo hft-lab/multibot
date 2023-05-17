@@ -199,6 +199,7 @@ class DydxClient(BaseClient):
         async with session.post(url=self.BASE_URL + request_path, headers=headers,
                                 data=json.dumps(remove_nones(data))) as resp:
             res = await resp.json()
+            print(f'DYDEX RESPONSE: {res}')
             timestamp = 0000000000000
             if res.get('errors'):
                 status = ResponseStatus.ERROR
@@ -452,7 +453,7 @@ class DydxClient(BaseClient):
         return self.fills
 
     def get_balance(self):
-        return self.balance
+        return self.balance['total']
 
     def _update_account(self, account):
         self.balance = {'free': float(account['freeCollateral']),

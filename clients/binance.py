@@ -187,6 +187,10 @@ class BinanceClient(BaseClient):
 
         return hmac.new(self.__secret_key.encode(), msg=query.encode(), digestmod=hashlib.sha256).hexdigest()
 
+
+    def get_balance(self):
+        return self.balance['total']
+
     def _balance(self) -> None:
         while True:
             self.balance['total'], self.balance['avl_balance'] = self._get_balance()
@@ -203,7 +207,7 @@ class BinanceClient(BaseClient):
         res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
 
         if isinstance(res, dict):
-            for s in res['positions']:
+            for s in res.get('positions', []):
                 if float(s['positionAmt']):
                     self.positions.update({s['symbol']: {
                         'side': PositionSideEnum.LONG if float(s['positionAmt']) > 0 else PositionSideEnum.SHORT,
@@ -246,6 +250,7 @@ class BinanceClient(BaseClient):
 
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
+            print(f'BINANCE RESPONSE: {res}')
             timestamp = 0000000000000
             if res.get('code') and -5023 < res['code'] < -1099:
                 status = ResponseStatus.ERROR
