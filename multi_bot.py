@@ -317,6 +317,7 @@ class MultiBot:
                                                 max_sell_vol, expect_buy_px, expect_sell_px, max_deal_size, time_parser,
                                                 time_choose)
 
+        time.sleep(7)
         await self.save_balance(**balance_message_buy)
         await self.save_balance_detalization(balance_buy_id, client_buy, 'buy')
         await self.save_balance(**balance_message_sell)
