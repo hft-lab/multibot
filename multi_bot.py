@@ -434,7 +434,7 @@ class MultiBot:
             'position_coin': client.get_positions()[client.symbol]['amount'],
             'position_usd': client.get_positions()[client.symbol]['amount'],
             'entry_price': client.get_positions()[client.symbol]['entry_price'],
-            'current_price': (client.get_orderbook()[client.symbol]['asks'][0][0] + client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
+            'mark_price': (client.get_orderbook()[client.symbol]['asks'][0][0] + client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
         }
         await self.publish_message(connect=self.mq,
                                    message=message,
