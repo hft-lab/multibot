@@ -174,8 +174,9 @@ class MultiBot:
         for client_buy, client_sell in self.ribs:
             self.available_balance_update(client_buy, client_sell)
             orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
-            sell_price = orderbook_sell['bids'][0][0]  # * (1 + shift)
-            buy_price = orderbook_buy['asks'][0][0]  # * (1 - shift)
+            shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+            sell_price = orderbook_sell['bids'][0][0]  * (1 + shift)
+            buy_price = orderbook_buy['asks'][0][0]  * (1 - shift)
             if sell_price > buy_price:
                 self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
 
@@ -237,17 +238,20 @@ class MultiBot:
     async def execute_deal(self, client_buy, client_sell, orderbook_buy, time_start, time_parser, time_choose):
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
         self.deals_executed.append([f'+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}', max_deal_size])
-        max_deal_size = max_deal_size / ((orderbook_buy['asks'][1][0] + orderbook_buy['bids'][1][0]) / 2)
+        max_deal_size = max_deal_size / ((orderbook_buy['asks'][0][0] + orderbook_buy['bids'][0][0]) / 2)
         await self.create_orders(client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose)
 
     async def create_orders(self, client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose):
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
-        expect_buy_px = orderbook_buy['asks'][1][0]
-        expect_sell_px = orderbook_sell['bids'][1][0]
-        price_buy = orderbook_buy['asks'][1][0]
-        max_buy_vol = orderbook_buy['asks'][1][1]
-        price_sell = orderbook_sell['bids'][1][0]
-        max_sell_vol = orderbook_sell['bids'][1][1]
+        expect_buy_px = orderbook_buy['asks'][0][0]
+        expect_sell_px = orderbook_sell['bids'][0][0]
+        shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
+        price_buy = (orderbook_buy['asks'][0][0] * (1 - shift))
+        price_sell = (orderbook_sell['bids'][0][0] * (1 + shift))
+
+        max_buy_vol = orderbook_buy['asks'][0][1]
+        max_sell_vol = orderbook_sell['bids'][0][1]
+
         price_buy_limit_taker = price_buy * self.shifts['TAKER']
         price_sell_limit_taker = price_sell / self.shifts['TAKER']
         timer = time.time() * 1000
@@ -455,8 +459,8 @@ class MultiBot:
                                       expect_buy_px,
                                       expect_sell_px,
                                       deal_size,
-                                      orderbook_sell['asks'][1][0],
-                                      orderbook_buy['bids'][1][0],
+                                      orderbook_sell['asks'][0][0],
+                                      orderbook_buy['bids'][0][0],
                                       deal_time,
                                       time_parser,
                                       time_choose
@@ -491,8 +495,8 @@ class MultiBot:
             'position': round(client.get_positions()[client.symbol].get('amount', 0), 4),
             'available_for_buy': round(client.get_available_balance('buy')),
             'available_for_sell': round(client.get_available_balance('sell')),
-            'ask': orderbook['asks'][1][0],
-            'bid': orderbook['bids'][1][0],
+            'ask': orderbook['asks'][0][0],
+            'bid': orderbook['bids'][0][0],
             'symbol': client.symbol,
             'env': self.env,
             'chat_id': Config.TELEGRAM_CHAT_ID,
@@ -511,7 +515,7 @@ class MultiBot:
         price_buy = client_buy.get_last_price('buy')
         price_sell = client_sell.get_last_price('sell')
         orderbook = client_buy.get_orderbook()[client_buy.symbol]
-        change = ((orderbook['asks'][1][0] + orderbook['bids'][1][0]) / 2)
+        change = ((orderbook['asks'][0][0] + orderbook['bids'][0][0]) / 2)
 
         if price_buy and price_sell:
             real_profit = (price_sell - price_buy) / price_buy
@@ -568,7 +572,7 @@ class MultiBot:
     def __rates_update(self):
         message = ''
         for client in self.clients:
-            message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][1][0]}\n"
+            message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]}\n"
 
         with open('rates.txt', 'a') as file:
             file.write(message + '\n')
@@ -736,7 +740,7 @@ class MultiBot:
         for client in self.clients:
             # CREATE ORDER PRICE TO BE SURE IT CLOSES
             orderbook = client.get_orderbook()[client.symbol]
-            price = orderbook[ob_side][1][0]
+            price = orderbook[ob_side][0][0]
             av_price += price
             av_fee += client.taker_fee
             await self.create_balancing_order(client, position_gap, price, side)
@@ -833,8 +837,8 @@ class MultiBot:
                 message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
                 message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
-                index_price.append((client.get_orderbook()[client.symbol]['bids'][1][0] +
-                                    client.get_orderbook()[client.symbol]['asks'][1][0]) / 2)
+                index_price.append((client.get_orderbook()[client.symbol]['bids'][0][0] +
+                                    client.get_orderbook()[client.symbol]['asks'][0][0]) / 2)
                 total_position += client.get_positions()[client.symbol]['amount']
                 total_balance += client.get_real_balance()
             except:
@@ -933,18 +937,18 @@ class MultiBot:
                     self.start_time = int(round(time.time()))
                 # if int(round(time.time())) - self.start_time >= 35:
                 #     print(f"False order started to create")
-                # await self.create_orders(self.client_1, self.client_2, 0.5, 0, 0, 0)
+                # await self.create_orders(self.client_1, self.client_2, 0.005, 0, 0, 0)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='bitmex', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
     worker = MultiBot(args.client_1, args.client_2)
-    loop.run_until_complete(worker.close_all_positions())
+    loop.run_until_complete(worker.run(loop))
 
     try:
         loop.run_forever()
