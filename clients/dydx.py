@@ -343,15 +343,16 @@ class DydxClient(BaseClient):
     @staticmethod
     def _append_format_pos(position):
         position.update({'timestamp': time.time(),
+                         'entry_price': float(position['entryPrice']),
                          'amount': float(position['size']),
                          'amount_usd': float(position['size']) * float(position['entryPrice'])})
         return position
 
     def _update_positions(self, positions):
+        print(f'DYDX UPDATE POSITIONS: {positions}')
         for position in positions:
             position = self._append_format_pos(position)
             self.positions.update({position['market']: position})
-            self.positions[position['market']]['entry_price'] = position['entryPrice']
             # position_example = [{'id': '312711e6-d172-5e5b-9dc8-362101e94756',
             # 'accountId': 'f47ae945-06ae-5c47-aaad-450c0ffc6164', 'market': 'SNX-USD',
             # 'side': 'LONG/SHORT',
@@ -515,6 +516,7 @@ class DydxClient(BaseClient):
                         self._channel_orderbook_update(obj)
                 elif obj['channel'] == 'v3_accounts':
                     if obj['contents'].get('positions'):
+                        print('> ' * 50)
                         if len(obj['contents']['positions']):
                             self._update_positions(obj['contents']['positions'])
                     if obj['contents'].get('orders'):

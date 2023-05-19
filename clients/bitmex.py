@@ -245,6 +245,7 @@ class BitmexClient(BaseClient):
             body["clOrdID"] = client_id
 
         res = await self._post("/api/v1/order", body, session)
+
         timestamp = 0000000000000
         if res.get('errors'):
             status = ResponseStatus.ERROR
@@ -280,7 +281,14 @@ class BitmexClient(BaseClient):
             self.swagger_client.Order.Order_amend(orderID=id, price=price).result()
 
     def cancel_all_orders(self, orderID=None):
-        self.swagger_client.Order.Order_cancel(orderID=orderID).result()
+        print('>>>>', self.swagger_client.Order.Order_cancelAll(symbol=self.symbol).result())
+            # print('order', order)
+            # if not order['ordStatus'] in ['Canceled', 'Filled']:
+            #
+            #     print(self.swagger_client.Order.Order_cancel(orderID=order['orderID']).result())
+            #
+            #     print('\n\n\n\n\n')
+
 
     def __get_auth(self, method, uri, body=''):
         """
@@ -373,20 +381,34 @@ class BitmexClient(BaseClient):
         else:
             return available_balance + position_value + wallet_balance
 
+
     def get_positions(self):
         '''Get your positions.'''
-        pos_bitmex = {x['symbol']: x for x in self.data['position']}
+        pos_bitmex = {x['symbol']: x for x in self.swagger_client.Position.Position_get().result()[0]}
         for symbol, position in pos_bitmex.items():
-            if position['homeNotional'] >= 0:
-                pos_bitmex[symbol].update({'side': 'LONG', 'amount': position['homeNotional']})
-            else:
-                pos_bitmex[symbol].update({'side': 'SHORT', 'amount': position['homeNotional']})
-        if self.symbol == 'XBTUSD':
-            pos_xbt = pos_bitmex.get('XBTUSD')
-            if pos_xbt:
-                bal_bitmex = [x for x in self.funds() if x['currency'] == self.currency][0]
-                xbt_extra_pos = bal_bitmex['walletBalance'] / 10 ** self.pos_power
-                pos_bitmex['XBTUSD']['amount'] += xbt_extra_pos
+            pos_bitmex[symbol] = {
+                'amount': float(position['homeNotional']),
+                'entry_price': float(position['avgEntryPrice']),
+                'unrealized_pnl_usd': 0,
+                'side': 'LONG',
+                'amount_usd': float(position['foreignNotional']),
+                'realized_pnl_usd': 0,
+                'leverage': float(position['leverage']),
+            }
+
+
+        #     if position['homeNotional'] >= 0:
+        #         pos_bitmex[symbol].update({'side': 'LONG', 'amount': position['homeNotional']})
+        #     else:
+        #         pos_bitmex[symbol].update({'side': 'SHORT', 'amount': position['homeNotional']})
+        # if self.symbol == 'XBTUSD':
+        #     pos_xbt = pos_bitmex.get('XBTUSD')
+        #     if pos_xbt:
+        #         bal_bitmex = [x for x in self.funds() if x['currency'] == self.currency][0]
+        #         xbt_extra_pos = bal_bitmex['walletBalance'] / 10 ** self.pos_power
+        #         pos_bitmex['XBTUSD']['amount'] += xbt_extra_pos
+        print(pos_bitmex)
+
         return pos_bitmex
 
     def get_orderbook(self):
