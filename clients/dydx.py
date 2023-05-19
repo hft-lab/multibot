@@ -89,7 +89,7 @@ class DydxClient(BaseClient):
                 }})
 
     def cancel_all_orders(self, orderID=None):
-        self.client.private.cancel_order(order_id=orderID)
+        self.client.private.cancel_active_orders(market=self.symbol)
 
     def get_real_balance(self):
         balance = None
@@ -351,6 +351,7 @@ class DydxClient(BaseClient):
         for position in positions:
             position = self._append_format_pos(position)
             self.positions.update({position['market']: position})
+            self.positions[position['market']]['entry_price'] = position['entryPrice']
             # position_example = [{'id': '312711e6-d172-5e5b-9dc8-362101e94756',
             # 'accountId': 'f47ae945-06ae-5c47-aaad-450c0ffc6164', 'market': 'SNX-USD',
             # 'side': 'LONG/SHORT',

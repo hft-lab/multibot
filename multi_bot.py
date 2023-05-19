@@ -317,7 +317,7 @@ class MultiBot:
                                                 max_sell_vol, expect_buy_px, expect_sell_px, max_deal_size, time_parser,
                                                 time_choose)
 
-        time.sleep(7)
+        time.sleep(3)
         await self.save_balance(**balance_message_buy)
         await self.save_balance_detalization(balance_buy_id, client_buy, 'buy')
         await self.save_balance(**balance_message_sell)
@@ -325,6 +325,8 @@ class MultiBot:
 
     async def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                            expect_sell_px, expect_amount_coin, time_parser, time_choose):
+        expect_profit_usd = (expect_sell_px - expect_buy_px) * expect_amount_coin - (
+                    client_buy.taker_fee + client_sell.taker_fee)
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
@@ -340,9 +342,8 @@ class MultiBot:
             'expect_sell_price': expect_sell_px,
             'expect_amount_usd': expect_amount_coin * (expect_sell_px + expect_buy_px) / 2,
             'expect_amount_coin': expect_amount_coin,
-            'expect_profit_usd': (expect_sell_px - expect_buy_px) * expect_amount_coin - (
-                    client_buy.taker_fee + client_sell.taker_fee),
-            'expect_profit_relative': 0,
+            'expect_profit_usd': expect_profit_usd,
+            'expect_profit_relative': expect_profit_usd / expect_amount_coin,
             'expect_fee_buy': client_buy.taker_fee,
             'expect_fee_sell': client_sell.taker_fee,
             'time_parser': time_parser,
@@ -418,6 +419,8 @@ class MultiBot:
                                    )
 
     async def save_balance_detalization(self, parent_id, client, side):
+        client_position_by_symbol = client.get_positions()[client.symbol]
+        print(client_position_by_symbol) # todo
         message = {
             'id': uuid.uuid4(),
             'datetime': datetime.datetime.utcnow(),
@@ -428,11 +431,13 @@ class MultiBot:
             'side': side,
             'symbol': client.symbol,
             'max_margin': client.leverage,
-            'current_margin': client.get_real_balance() * client.leverage / sum([x.get('amount_usd', 0) for _, x in client.get_positions()]),
-            'position_coin': client.get_positions()[client.symbol]['amount'],
-            'position_usd': client.get_positions()[client.symbol]['amount'],
-            'entry_price': client.get_positions()[client.symbol]['entry_price'],
-            'mark_price': (client.get_orderbook()[client.symbol]['asks'][0][0] + client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
+            'current_margin': client.get_real_balance() * client.leverage / sum(
+                [x.get('amount_usd', 0) for _, x in client.get_positions().items()]),
+            'position_coin': client_position_by_symbol['amount'],
+            'position_usd': client_position_by_symbol['amount'],
+            'entry_price': client_position_by_symbol['entry_price'],
+            'mark_price': (client.get_orderbook()[client.symbol]['asks'][0][0] +
+                           client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
         }
         await self.publish_message(connect=self.mq,
                                    message=message,
@@ -842,6 +847,23 @@ class MultiBot:
 
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
+    async def close_all_positions(self):
+        async with aiohttp.ClientSession() as session:
+            print('START')
+            while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
+                    and abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
+                print('START WHILE')
+                time.sleep(7)
+
+                for client in self.clients:
+                    print(f'START CLIENT {client.EXCHANGE_NAME}')
+                    client.cancel_all_orders()
+                    if res := client.get_positions().get(client.symbol, {}).get('amount'):
+                        orderbook = client.get_orderbook()[client.symbol]
+                        side = 'buy' if res < 0 else 'sell'
+                        price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
+                        await client.create_order(abs(res), price, side, session)
+
     def __check_env(self) -> bool:
         return 'DEV_' in self.env.upper()
 
@@ -906,7 +928,7 @@ class MultiBot:
                     self.start_time = int(round(time.time()))
                 # if int(round(time.time())) - self.start_time >= 35:
                 #     print(f"False order started to create")
-                #     await self.create_orders(self.client_1, self.client_2, 0.5, 0, 0, 0)
+                await self.create_orders(self.client_1, self.client_2, 0.5, 0, 0, 0)
 
 
 if __name__ == '__main__':
@@ -917,7 +939,7 @@ if __name__ == '__main__':
 
     loop = asyncio.get_event_loop()
     worker = MultiBot(args.client_1, args.client_2)
-    loop.run_until_complete(worker.run(loop))
+    loop.run_until_complete(worker.run(loop)) ####
 
     try:
         loop.run_forever()
