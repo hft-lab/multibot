@@ -259,12 +259,12 @@ class MultiBot:
             'context': 'pre-deal',
             'parent_id': arbitrage_possibilities_id,
             'client': client_buy,
-            'exchange_balance': client_buy.get_balance(),
+            'exchange_balance': client_buy.get_real_balance(),
             'exchange_available_for_buy': client_buy.get_available_balance('buy'),
             'exchange_available_for_sell': client_buy.get_available_balance('sell'),
-            'available_for_buy': client_buy.get_balance() * 10 - sum(
+            'available_for_buy': client_buy.get_real_balance() * 10 - sum(
                 [x.get('amount_usd', 0) for _, x in client_buy.get_positions().items()]),
-            'available_for_sell': client_buy.get_balance() * 10 + sum(
+            'available_for_sell': client_buy.get_real_balance() * 10 + sum(
                 [x.get('amount_usd', 0) for _, x in client_buy.get_positions().items()])
         }
 
@@ -273,12 +273,12 @@ class MultiBot:
             'context': 'pre-deal',
             'parent_id': arbitrage_possibilities_id,
             'client': client_sell,
-            'exchange_balance': client_sell.get_balance(),
+            'exchange_balance': client_sell.get_real_balance(),
             'exchange_available_for_buy': client_sell.get_available_balance('buy'),
             'exchange_available_for_sell': client_sell.get_available_balance('sell'),
-            'available_for_buy': client_sell.get_balance() * 10 - sum(
+            'available_for_buy': client_sell.get_real_balance() * 10 - sum(
                 [x.get('amount_usd', 0) for _, x in client_sell.get_positions().items()]),
-            'available_for_sell': client_sell.get_balance() * 10 + sum(
+            'available_for_sell': client_sell.get_real_balance() * 10 + sum(
                 [x.get('amount_usd', 0) for _, x in client_sell.get_positions().items()])
         }
 
@@ -428,7 +428,7 @@ class MultiBot:
             'side': side,
             'symbol': client.symbol,
             'max_margin': client.leverage,
-            'current_margin': '',
+            'current_margin': client.get_real_balance() * client.leverage / sum([x.get('amount_usd', 0) for _, x in client.get_positions()]),
             'position_coin': client.get_positions()[client.symbol]['amount'],
             'position_usd': client.get_positions()[client.symbol]['amount'],
             'entry_price': client.get_positions()[client.symbol]['entry_price'],

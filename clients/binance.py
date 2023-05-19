@@ -187,10 +187,6 @@ class BinanceClient(BaseClient):
 
         return hmac.new(self.__secret_key.encode(), msg=query.encode(), digestmod=hashlib.sha256).hexdigest()
 
-
-    def get_balance(self):
-        return self.balance['total']
-
     def _balance(self) -> None:
         while True:
             self.balance['total'], self.balance['avl_balance'] = self._get_balance()
