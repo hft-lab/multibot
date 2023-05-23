@@ -319,7 +319,7 @@ class MultiBot:
 
         await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                                 max_sell_vol, expect_buy_px, expect_sell_px, max_deal_size, time_parser,
-                                                time_choose)
+                                                time_choose, shift)
 
         time.sleep(10)
         await self.save_balance(**balance_message_buy)
@@ -328,9 +328,10 @@ class MultiBot:
         await self.save_balance_detalization(balance_sell_id, client_sell)
 
     async def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                           expect_sell_px, expect_amount_coin, time_parser, time_choose):
+                                           expect_sell_px, expect_amount_coin, time_parser, time_choose, shift):
         expect_profit_usd = (expect_sell_px - expect_buy_px) * expect_amount_coin - (
                 client_buy.taker_fee + client_sell.taker_fee)
+        expect_amount_usd = expect_amount_coin * (expect_sell_px + expect_buy_px) / 2
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
@@ -344,16 +345,17 @@ class MultiBot:
             'max_sell_vol_usd': max_sell_vol * expect_sell_px,
             'expect_buy_price': expect_buy_px,
             'expect_sell_price': expect_sell_px,
-            'expect_amount_usd': expect_amount_coin * (expect_sell_px + expect_buy_px) / 2,
+            'expect_amount_usd': expect_amount_usd,
             'expect_amount_coin': expect_amount_coin,
             'expect_profit_usd': expect_profit_usd,
-            'expect_profit_relative': expect_profit_usd / expect_amount_coin,
+            'expect_profit_relative': expect_profit_usd / expect_amount_usd,
             'expect_fee_buy': client_buy.taker_fee,
             'expect_fee_sell': client_sell.taker_fee,
             'time_parser': time_parser,
             'time_choose': time_choose,
             'chat_id': self.chat_id,
-            'bot_token': self.telegram_bot
+            'bot_token': self.telegram_bot,
+            'shift': shift
         }
 
         await self.publish_message(connect=self.mq,
