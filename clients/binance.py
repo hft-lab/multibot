@@ -22,7 +22,7 @@ class BinanceClient(BaseClient):
     EXCHANGE_NAME = 'BINANCE'
 
     def __init__(self, keys, leverage):
-        self.taker_fee = 0.00036
+        self.taker_fee = 0.0004
         self.leverage = leverage
         self.symbol = keys['symbol']
         self.__api_key = keys['api_key']
@@ -314,9 +314,10 @@ class BinanceClient(BaseClient):
 
 if __name__ == '__main__':
     client = BinanceClient(Config.BINANCE, Config.LEVERAGE)
-    client.run_updater()
-    time.sleep(15)
-
-    while True:
-        pprint(client.positions)
-        time.sleep(1)
+    client.get_fee()
+    # client.run_updater()
+    # time.sleep(15)
+    #
+    # while True:
+    #     pprint(client.positions)
+    #     time.sleep(1)

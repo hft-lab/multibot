@@ -246,8 +246,8 @@ class MultiBot:
         expect_buy_px = orderbook_buy['asks'][0][0]
         expect_sell_px = orderbook_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy = (orderbook_buy['asks'][0][0] * (1 - shift))
-        price_sell = (orderbook_sell['bids'][0][0] * (1 + shift))
+        price_buy = orderbook_buy['asks'][0][0]
+        price_sell = orderbook_sell['bids'][0][0]
 
         max_buy_vol = orderbook_buy['asks'][0][1]
         max_sell_vol = orderbook_sell['bids'][0][1]
@@ -426,7 +426,8 @@ class MultiBot:
 
     async def save_balance_detalization(self, parent_id, client):
         client_position_by_symbol = client.get_positions()[client.symbol]
-        mark_price = (client.get_orderbook()[client.symbol]['asks'][0][0] + client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
+        mark_price = (client.get_orderbook()[client.symbol]['asks'][0][0] +
+                      client.get_orderbook()[client.symbol]['bids'][0][0]) / 2
         message = {
             'id': uuid.uuid4(),
             'datetime': datetime.datetime.utcnow(),
@@ -909,13 +910,11 @@ class MultiBot:
             time.sleep(3)
             start_message = False
             while True:
-                # time.sleep(0.005)
-
                 if self.state == BotState.PARSER:
                     time.sleep(1)
 
                 if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                    self.state = BotState.PARSER
+                    # self.state = BotState.PARSER
 
                     if self.__check_env():
                         self.state = BotState.BOT
@@ -932,7 +931,7 @@ class MultiBot:
 
                 if int(round(time.time())) - self.start_time >= 180:
                     print(f"STARTED POSITION BALANCING")
-                    await self.position_balancing()
+                    # await self.position_balancing()
                     self.start_time = int(round(time.time()))
                 # if int(round(time.time())) - self.start_time >= 35:
                 #     print(f"False order started to create")
