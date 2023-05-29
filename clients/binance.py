@@ -230,7 +230,7 @@ class BinanceClient(BaseClient):
         if isinstance(res, list):
             for s in res:
                 if s['asset'] == 'USDT':
-                    return float(s['balance']), float(s['availableBalance'])
+                    return float(s['balance']) + float(s['crossUnPnl']), float(s['availableBalance'])
         else:
             print(res)
             time.sleep(1)
@@ -314,7 +314,7 @@ class BinanceClient(BaseClient):
 
 if __name__ == '__main__':
     client = BinanceClient(Config.BINANCE, Config.LEVERAGE)
-    client.get_fee()
+
     # client.run_updater()
     # time.sleep(15)
     #
