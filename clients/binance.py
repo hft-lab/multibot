@@ -22,7 +22,7 @@ class BinanceClient(BaseClient):
     EXCHANGE_NAME = 'BINANCE'
 
     def __init__(self, keys, leverage):
-        self.taker_fee = 0.0004
+        self.taker_fee = 0.00036
         self.leverage = leverage
         self.symbol = keys['symbol']
         self.__api_key = keys['api_key']
