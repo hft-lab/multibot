@@ -15,7 +15,7 @@ async def get_last_balance_jumps(cursor):
     sql = """
     select 
         total_balance,
-        TO_CHAR(TO_TIMESTAMP(ts  / 1000), 'DD/MM/YYYY HH24:MI:SS') as date_utc
+        TO_CHAR(TO_TIMESTAMP(ts  / 1000), 'YYYY-MM-DD HH24:MI:SS') as date_utc
     from 
         balance_jumps
     where 

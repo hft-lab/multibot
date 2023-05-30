@@ -4,6 +4,7 @@ import hmac
 import threading
 import time
 import traceback
+from pprint import pprint
 from urllib.parse import urlencode
 
 import aiohttp
@@ -21,7 +22,7 @@ class BinanceClient(BaseClient):
     EXCHANGE_NAME = 'BINANCE'
 
     def __init__(self, keys, leverage):
-        self.taker_fee = 0.00036
+        self.taker_fee = 0.0004
         self.leverage = leverage
         self.symbol = keys['symbol']
         self.__api_key = keys['api_key']
@@ -71,6 +72,7 @@ class BinanceClient(BaseClient):
         self.lk_check = threading.Thread(target=self._ping_listen_key)
 
         self._get_listen_key()
+        self._get_position()
 
     def get_available_balance(self, side: str) -> float:
         return self.__get_available_balance(side)
@@ -166,11 +168,10 @@ class BinanceClient(BaseClient):
     def _prepare_query(params: dict) -> str:
         return urlencode(params)
 
-
     def __get_available_balance(self, side):
         position_value = 0
         for market, position in self.positions.items():
-            if position.get('amount'): # and market.upper() == self.symbol.upper():
+            if position.get('amount'):  # and market.upper() == self.symbol.upper():
                 position_value += position['amount_usd']
 
         available_margin = self.balance['total'] * self.leverage
@@ -191,6 +192,32 @@ class BinanceClient(BaseClient):
             self.balance['total'], self.balance['avl_balance'] = self._get_balance()
             time.sleep(1)
 
+    def _get_position(self):
+        url_path = "/fapi/v2/account"
+        payload = {"timestamp": int(time.time() * 1000)}
+
+        query_string = self._prepare_query(payload)
+        payload["signature"] = self._create_signature(query_string)
+        query_string = self._prepare_query(payload)
+
+        res = requests.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers).json()
+
+        if isinstance(res, dict):
+            for s in res.get('positions', []):
+                if float(s['positionAmt']):
+                    self.positions.update({s['symbol']: {
+                        'side': PositionSideEnum.LONG if float(s['positionAmt']) > 0 else PositionSideEnum.SHORT,
+                        'amount_usd': float(s['positionAmt']) * float(s['entryPrice']),
+                        'amount': float(s['positionAmt']),
+                        'entry_price': float(s['entryPrice']),
+                        'unrealized_pnl_usd': float(s['unrealizedProfit']),
+                        'realized_pnl_usd': 0,
+                        'lever': self.leverage
+                    }})
+        else:
+            time.sleep(1)
+            self._get_position()
+
     def _get_balance(self) -> [float, float]:
         url_path = "/fapi/v2/balance"
         payload = {"timestamp": int(time.time() * 1000)}
@@ -203,7 +230,7 @@ class BinanceClient(BaseClient):
         if isinstance(res, list):
             for s in res:
                 if s['asset'] == 'USDT':
-                    return float(s['balance']), float(s['availableBalance'])
+                    return float(s['balance']) + float(s['crossUnPnl']), float(s['availableBalance'])
         else:
             print(res)
             time.sleep(1)
@@ -214,11 +241,12 @@ class BinanceClient(BaseClient):
         url_path = "https://fapi.binance.com/fapi/v1/order?"
         query_string = f"timestamp={int(time.time() * 1000)}&symbol={self.symbol}&side={side}&type=LIMIT&" \
                        f"price={float(round(float(round(price / self.tick_size) * self.tick_size), self.price_precision))}" \
-                       f"&quantity={float(round(float(round(amount / self.step_size) *  self.step_size), self.quantity_precision))}&timeInForce=GTC"
+                       f"&quantity={float(round(float(round(amount / self.step_size) * self.step_size), self.quantity_precision))}&timeInForce=GTC"
         query_string += f'&signature={self._create_signature(query_string)}'
 
         async with session.post(url=url_path + query_string, headers=self.headers) as resp:
             res = await resp.json()
+            print(f'BINANCE RESPONSE: {res}')
             timestamp = 0000000000000
             if res.get('code') and -5023 < res['code'] < -1099:
                 status = ResponseStatus.ERROR
@@ -280,16 +308,16 @@ class BinanceClient(BaseClient):
                                 }})
 
                     elif data['e'] == EventTypeEnum.ORDER_TRADE_UPDATE and data['o']['m'] is False \
-                            and self.symbol.upper() ==  data['o']['s'].upper():
+                            and self.symbol.upper() == data['o']['s'].upper():
                         self.last_price[data['o']['S'].lower()] = float(data['o']['ap'])
+
 
 if __name__ == '__main__':
     client = BinanceClient(Config.BINANCE, Config.LEVERAGE)
-    client.run_updater()
-    time.sleep(15)
 
-    while True:
-        print('sell', client.get_available_balance('sell'))
-        print('buy', client.get_available_balance('buy'))
-        print('\n')
-        time.sleep(1)
+    # client.run_updater()
+    # time.sleep(15)
+    #
+    # while True:
+    #     pprint(client.positions)
+    #     time.sleep(1)

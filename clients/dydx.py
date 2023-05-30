@@ -17,7 +17,7 @@ from web3 import Web3
 
 from config import Config
 from core.base_client import BaseClient
-from core.enums import ResponseStatus
+from core.enums import ResponseStatus, PositionSideEnum
 
 
 class DydxClient(BaseClient):
@@ -71,11 +71,25 @@ class DydxClient(BaseClient):
         self.time_sent = time.time()
 
         self.quantity_precision = len(str(self.step_size).split('.')[1]) if '.' in str(self.step_size) else 1
+        self.start_positions()
 
         self.wst = threading.Thread(target=self._run_ws_forever, daemon=True)
 
+    def start_positions(self):
+        for pos in self.client.private.get_positions().data.get('positions', []):
+            if pos['status'] != 'CLOSED':
+                self.positions.update({pos['market']: {
+                    'side': pos['side'],
+                    'amount_usd': float(pos['size']) * float(pos['entryPrice']),
+                    'amount': float(pos['size']),
+                    'entry_price': float(pos['entryPrice']),
+                    'unrealized_pnl_usd': float(pos['unrealizedPnl']),
+                    'realized_pnl_usd': float(pos['realizedPnl']),
+                    'lever': self.leverage
+                }})
+
     def cancel_all_orders(self, orderID=None):
-        self.client.private.cancel_order(order_id=orderID)
+        self.client.private.cancel_active_orders(market=self.symbol)
 
     def get_real_balance(self):
         balance = None
@@ -185,6 +199,7 @@ class DydxClient(BaseClient):
         async with session.post(url=self.BASE_URL + request_path, headers=headers,
                                 data=json.dumps(remove_nones(data))) as resp:
             res = await resp.json()
+            print(f'DYDEX RESPONSE: {res}')
             timestamp = 0000000000000
             if res.get('errors'):
                 status = ResponseStatus.ERROR
@@ -328,11 +343,13 @@ class DydxClient(BaseClient):
     @staticmethod
     def _append_format_pos(position):
         position.update({'timestamp': time.time(),
+                         'entry_price': float(position['entryPrice']),
                          'amount': float(position['size']),
                          'amount_usd': float(position['size']) * float(position['entryPrice'])})
         return position
 
     def _update_positions(self, positions):
+        print(f'DYDX UPDATE POSITIONS: {positions}')
         for position in positions:
             position = self._append_format_pos(position)
             self.positions.update({position['market']: position})
@@ -438,7 +455,7 @@ class DydxClient(BaseClient):
         return self.fills
 
     def get_balance(self):
-        return self.balance
+        return self.balance['total']
 
     def _update_account(self, account):
         self.balance = {'free': float(account['freeCollateral']),
@@ -499,6 +516,7 @@ class DydxClient(BaseClient):
                         self._channel_orderbook_update(obj)
                 elif obj['channel'] == 'v3_accounts':
                     if obj['contents'].get('positions'):
+                        print('> ' * 50)
                         if len(obj['contents']['positions']):
                             self._update_positions(obj['contents']['positions'])
                     if obj['contents'].get('orders'):
@@ -517,6 +535,7 @@ class DydxClient(BaseClient):
 
     def get_orderbook(self):
         return self.orderbook
+
 
 #
 
@@ -604,5 +623,4 @@ if __name__ == '__main__':
         print(f"{client.get_available_balance('sell')=}")
         print(f"{client.get_available_balance('buy')=}")
         print('\n')
-        time.sleep(1)
-
+        time.sleep(1000000)
