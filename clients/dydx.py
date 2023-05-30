@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 import threading
 import time
+from pprint import pprint
 
 import aiohttp
 from dydx3 import Client
@@ -217,6 +218,11 @@ class DydxClient(BaseClient):
                 'status': status
             }
 
+
+    def get_funding(self):
+        pprint(self.client.public.get_historical_funding(
+            market=self.symbol,
+        ).data)
     def run_updater(self):
         self.wst.start()
         # except Exception as e:
@@ -615,12 +621,12 @@ class DydxClient(BaseClient):
 
 if __name__ == '__main__':
     client = DydxClient(Config.DYDX, Config.LEVERAGE)
-    client.run_updater()
+    client.get_funding()
 
-    time.sleep(15)
-
-    while True:
-        print(f"{client.get_available_balance('sell')=}")
-        print(f"{client.get_available_balance('buy')=}")
-        print('\n')
-        time.sleep(1000000)
+    # time.sleep(15)
+    #
+    # while True:
+    #     print(f"{client.get_available_balance('sell')=}")
+    #     print(f"{client.get_available_balance('buy')=}")
+    #     print('\n')
+    #     time.sleep(1000000)

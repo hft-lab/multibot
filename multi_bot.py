@@ -437,7 +437,7 @@ class MultiBot:
             'exchange': client.EXCHANGE_NAME,
             'symbol': client.symbol,
             'max_margin': client.leverage,
-            'current_margin': abs(client_position_by_symbol['amount'] * mark_price / client.get_real_balance()),
+            'current_margin': abs(client_position_by_symbol['amount_usd'] / client.get_real_balance()),
             'position_coin': client_position_by_symbol['amount'],
             'position_usd': client_position_by_symbol['amount_usd'],
             'entry_price': client_position_by_symbol['entry_price'],

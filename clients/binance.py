@@ -218,6 +218,22 @@ class BinanceClient(BaseClient):
             time.sleep(1)
             self._get_position()
 
+
+    async def get_funding_history(self, session):
+        url_path = "/fapi/v1/fundingRate"
+        payload = {
+            "timestamp": int(time.time() * 1000),
+            'symbol': self.symbol
+        }
+
+        query_string = self._prepare_query(payload)
+        payload["signature"] = self._create_signature(query_string)
+        query_string = self._prepare_query(payload)
+
+        async with session.get(url=self.BASE_URL + url_path + '?' + query_string, headers=self.headers) as resp:
+            pprint(await resp.json())
+
+
     def _get_balance(self) -> [float, float]:
         url_path = "/fapi/v2/balance"
         payload = {"timestamp": int(time.time() * 1000)}
@@ -314,6 +330,13 @@ class BinanceClient(BaseClient):
 
 if __name__ == '__main__':
     client = BinanceClient(Config.BINANCE, Config.LEVERAGE)
+
+
+    async def f():
+        async with aiohttp.ClientSession() as session:
+            await client.get_funding_history(session)
+
+    asyncio.run(f())
 
     # client.run_updater()
     # time.sleep(15)
