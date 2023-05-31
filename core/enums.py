@@ -54,3 +54,7 @@ class ResponseStatus:
     SUCCESS = 'success'
     NO_CONNECTION = 'no_connection'
     ERROR = 'error'
+    
+class ClientsOrderStatuses:
+    DELAYED_FULLY_EXECUTED = ['FILLED']
+    NOT_EXECUTED = ['CANCELED']
