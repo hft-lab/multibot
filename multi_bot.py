@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import datetime
 import logging
+import threading
 import time
 import traceback
 import uuid
@@ -19,7 +20,7 @@ from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
 from config import Config
-from core.enums import BotState, RabbitMqQueues
+from clients.enums import BotState, RabbitMqQueues, OrderStatus
 from core.queries import get_last_balance_jumps, get_total_balance
 from tools.shifts import Shifts
 
@@ -40,8 +41,8 @@ class MultiBot:
     __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'client_1', 'client_2', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
-                 'session', 'clients', 'exchanges', 'mq', 'min_disbalance', 'ribs', 'env', 'exchanges_len', 'db',
-                 'start', 'finish', 's_time', 'f_time']
+                 'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db',
+                 'start', 'finish', 's_time', 'f_time', 'run_cycle', 'run_check_orders']
 
     def __init__(self, client_1: str, client_2: str):
         self.start = None
@@ -89,37 +90,17 @@ class MultiBot:
         self.deals_counter = []
         self.deals_executed = []
         self.available_balances = {'+DYDX-OKEX': 0}
-        self.min_disbalance = 100
         self.session = None
+
+        self.run_cycle = threading.Thread(target=self.run_await_in_thread, args=[self.__cycle_parser])
+        self.run_check_orders = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status])
 
         for client in self.clients:
             client.run_updater()
 
         time.sleep(10)
-        self.get_sizes()
 
-    @staticmethod
-    def day_deals_count(base_data):
-        timestamp = int(round(time.time() - 86400))
-        data = {'deal_count': 0,
-                'volume': 0,
-                'theory_profit': 0,
-                }
-        for deal in base_data[::-1]:
-            if deal[1] < timestamp:
-                break
-            data['deal_count'] += 1
-            data['volume'] += deal[8]
-            data['theory_profit'] += deal[10]
-            if not data.get(deal[2] + 'SELL'):
-                data.update({deal[2] + 'SELL': 1})
-            else:
-                data[deal[2] + 'SELL'] += 1
-            if not data.get(deal[3] + 'BUY'):
-                data.update({deal[3] + 'BUY': 1})
-            else:
-                data[deal[3] + 'BUY'] += 1
-        return data
+        self.get_sizes()
 
     def __prepare_shifts(self):
         time.sleep(10)
@@ -170,21 +151,26 @@ class MultiBot:
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
         self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
 
-    async def cycle_parser(self):
-        for client_buy, client_sell in self.ribs:
-            self.available_balance_update(client_buy, client_sell)
-            orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
-            shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-            sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
-            buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
-            if sell_price > buy_price:
-                self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
+    @staticmethod
+    def run_await_in_thread(func):
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(func())
 
-            await self.potential_real_deals(client_sell, client_buy, orderbook_buy, orderbook_sell)
+    async def __cycle_parser(self):
+        while True:
+            for client_buy, client_sell in self.ribs:
+                self.available_balance_update(client_buy, client_sell)
+                orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
+                shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
+                buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
+                if sell_price > buy_price:
+                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
+
+                await self.potential_real_deals(client_sell, client_buy, orderbook_buy, orderbook_sell)
 
     async def find_price_diffs(self):
         time_start = time.time()
-        await self.cycle_parser()
         time_parser = time.time() - time_start
         chosen_deal = None
 
@@ -297,6 +283,11 @@ class MultiBot:
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
 
         deal_time = time.time() - time_start - time_parser - time_choose
+        await self.save_orders(client_buy, price_buy_limit_taker, 'buy', arbitrage_possibilities_id, max_deal_size,
+                               deal_time)
+        await self.save_orders(client_sell, price_sell_limit_taker, 'sell', arbitrage_possibilities_id, max_deal_size,
+                               deal_time)
+
         for response in responses:
             try:
                 await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
@@ -308,20 +299,14 @@ class MultiBot:
         await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
                                 time_parser, time_choose)
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(1)
         await self.balance_message(client_buy)
         await self.balance_message(client_sell)
-
-        await self.save_orders(client_buy, price_buy_limit_taker, 'buy', arbitrage_possibilities_id, max_deal_size,
-                               deal_time)
-        await self.save_orders(client_sell, price_sell_limit_taker, 'sell', arbitrage_possibilities_id, max_deal_size,
-                               deal_time)
 
         await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                                 max_sell_vol, expect_buy_px, expect_sell_px, max_deal_size, time_parser,
                                                 time_choose, shift)
 
-        time.sleep(10)
         await self.save_balance(**balance_message_buy)
         await self.save_balance_detalization(balance_buy_id, client_buy)
         await self.save_balance(**balance_message_sell)
@@ -467,23 +452,15 @@ class MultiBot:
                                       )
 
     async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
-        try:
-            channel = await connect.channel()
-            exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
-            queue = await channel.declare_queue(queue_name, durable=True)
-            await queue.bind(exchange, routing_key=routing_key)
-            message_body = orjson.dumps(message)
-            message = Message(message_body)
-            await exchange.publish(message, routing_key=routing_key)
-            await channel.close()
-            return True
-
-        except Exception as e:
-            traceback.print_exc()
-
-            if 'RuntimeError' in str(e):
-                print(f"RABBIT MQ RESTART")
-                await self.setup_mq(self.loop)
+        channel = await connect.channel()
+        exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
+        queue = await channel.declare_queue(queue_name, durable=True)
+        await queue.bind(exchange, routing_key=routing_key)
+        message_body = orjson.dumps(message)
+        message = Message(message_body)
+        await exchange.publish(message, routing_key=routing_key)
+        await channel.close()
+        return True
 
     async def balance_message(self, client):
         orderbook = client.get_orderbook()[client.symbol]
@@ -656,15 +633,6 @@ class MultiBot:
 
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
-    async def time_based_messages(self):
-        time_from = (int(round(time.time())) - 10 - self.start_time) % 180
-        if not time_from:
-            if self.state == BotState.BOT:
-                print(f"STARTED POSITION BALANCING")
-                await self.position_balancing()  # no need
-
-            self.start_time -= 1
-
     def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
         message = f"For last 3 min\n"
         message += f'ENV: {Config.ENV}\n'
@@ -726,34 +694,6 @@ class MultiBot:
 
         await asyncio.sleep(3)
         await self.balance_message(client)
-
-    async def position_balancing(self):
-        position_gap, amount_to_balancing = self.find_balancing_elements()
-        position_gap = position_gap / len(self.clients)
-
-        ob_side = 'bids' if position_gap > 0 else 'asks'
-        side = 'sell' if position_gap > 0 else 'buy'
-        exchanges = ''
-        av_price = 0
-        av_fee = 0
-
-        for client in self.clients:
-            # CREATE ORDER PRICE TO BE SURE IT CLOSES
-            orderbook = client.get_orderbook()[client.symbol]
-            price = orderbook[ob_side][0][0]
-            av_price += price
-            av_fee += client.taker_fee
-            await self.create_balancing_order(client, position_gap, price, side)
-            exchanges += client.EXCHANGE_NAME + ' '
-            await self.balance_message(client)
-
-        if amount_to_balancing < self.min_disbalance:
-            return
-
-        price = av_price / len(self.clients)
-        taker_fee = av_fee / len(self.clients)
-
-        await self.balancing_bd_update(exchanges, client, position_gap, price, side, taker_fee)
 
     async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
@@ -859,19 +799,16 @@ class MultiBot:
             while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
                     or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
                 print('START WHILE')
-                time.sleep(7)
 
                 for client in self.clients:
                     print(f'START CLIENT {client.EXCHANGE_NAME}')
                     client.cancel_all_orders()
                     if res := client.get_positions().get(client.symbol, {}).get('amount'):
-                        print('1212212')
                         orderbook = client.get_orderbook()[client.symbol]
                         side = 'buy' if res < 0 else 'sell'
                         price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
                         await client.create_order(abs(res), price, side, session)
                         time.sleep(7)
-                    print('- ' * 30)
 
     def __check_env(self) -> bool:
         return 'DEV_' in self.env.upper()
@@ -896,6 +833,22 @@ class MultiBot:
 
         await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
 
+    async def __check_order_status(self):
+        while True:
+            for client in self.clients:
+                for order_id, order_data in client.orders.items():
+                    await self.publish_message(connect=self.mq,
+                                               message=order_data,
+                                               routing_key=RabbitMqQueues.UPDATE_ORDERS,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(
+                                                   RabbitMqQueues.UPDATE_ORDERS),
+                                               queue_name=RabbitMqQueues.UPDATE_ORDERS)
+
+                    if order_data['status'] != OrderStatus.PROCESSING:
+                        client.orders.pop(order_id)
+
+            await asyncio.sleep(5)
+
     async def run(self, loop):
         self.loop = loop
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
@@ -909,12 +862,16 @@ class MultiBot:
             self.session = session
             time.sleep(3)
             start_message = False
+
+            self.run_cycle.start()
+            self.run_check_orders.start()
+
             while True:
                 if self.state == BotState.PARSER:
                     time.sleep(1)
 
                 if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                    # self.state = BotState.PARSER
+                    self.state = BotState.PARSER
 
                     if self.__check_env():
                         self.state = BotState.BOT
@@ -926,16 +883,8 @@ class MultiBot:
                     await self.start_message()
                     await self.start_balance_message()
                     start_message = True
-                await self.find_price_diffs()
-                # await self.time_based_messages()
 
-                if int(round(time.time())) - self.start_time >= 180:
-                    print(f"STARTED POSITION BALANCING")
-                    # await self.position_balancing()
-                    self.start_time = int(round(time.time()))
-                # if int(round(time.time())) - self.start_time >= 35:
-                #     print(f"False order started to create")
-                # await self.create_orders(self.client_1, self.client_2, 0.005, 0, 0, 0)
+                await self.find_price_diffs()
 
 
 if __name__ == '__main__':
