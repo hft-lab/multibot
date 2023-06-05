@@ -43,7 +43,7 @@ class MultiBot:
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
-                 'loop_3', 'loop_4']
+                 'loop_3', 'loop_4', 'need_check_shift']
 
     def __init__(self, client_1: str, client_2: str):
         self.start = None
@@ -57,7 +57,7 @@ class MultiBot:
         self.s_time = ''
         self.f_time = ''
         self.tasks = []
-
+        self.need_check_shift = True
 
         # ORDER CONFIGS
         self.deal_pause = Config.DEALS_PAUSE
@@ -257,6 +257,8 @@ class MultiBot:
         await self.create_orders(client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose)
 
     async def create_orders(self, client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose):
+        print(1212121121212)
+
         orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
         expect_buy_px = orderbook_buy['asks'][0][0]
         expect_sell_px = orderbook_sell['bids'][0][0]
@@ -301,14 +303,15 @@ class MultiBot:
                 [x.get('amount_usd', 0) for _, x in client_sell.get_positions().items()])
         }
 
-        print('CREATE ORDER', max_deal_size, price_buy_limit_taker)
-
+        print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
+        asyncio.set_event_loop(self.loop_1)
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
                 client_buy.create_order(max_deal_size, price_buy_limit_taker, 'buy', self.session)),
             self.loop_1.create_task(
                 client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
+        print(responses)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
 
         deal_time = time.time() - time_start - time_parser - time_choose
@@ -316,20 +319,20 @@ class MultiBot:
                                deal_time)
         await self.save_orders(client_sell, price_sell_limit_taker, 'sell', arbitrage_possibilities_id, max_deal_size,
                                deal_time)
-        for response in responses:
-            try:
-                await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
-                                                 time.time() * 1000, response['status'])
+        # for response in responses:
+        #     try:
+        #         await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
+        #                                          time.time() * 1000, response['status'])
+        #
+        #     except Exception:
+        #         traceback.print_exc()
 
-            except Exception:
-                traceback.print_exc()
-
-        await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
-                                time_parser, time_choose)
+        # await self.deal_details(client_buy, client_sell, expect_buy_px, expect_sell_px, max_deal_size, deal_time,
+        #                         time_parser, time_choose)
 
         await asyncio.sleep(1)
-        await self.balance_message(client_buy)
-        await self.balance_message(client_sell)
+        # await self.balance_message(client_buy)
+        # await self.balance_message(client_sell)
 
         await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                                 max_sell_vol, expect_buy_px, expect_sell_px, max_deal_size, time_parser,
@@ -579,8 +582,10 @@ class MultiBot:
         for client in self.clients:
             message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
-        with open('rates.txt', 'a') as file:
-            file.write(message + '\n')
+        if self.need_check_shift:
+
+            with open('rates.txt', 'a') as file:
+                file.write(message + '\n')
 
     def _update_log(self, sell_exch, buy_exch, orderbook_buy, orderbook_sell):
         message = f"{buy_exch} BUY: {orderbook_buy['asks'][1]}\n"
@@ -694,11 +699,11 @@ class MultiBot:
         self.__rates_update()
         self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
 
-        if not (int(round(time.time())) - self.start_time) % 600:
-            message = self.create_result_message(deals_potential, deals_executed, 600)
-            # await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
-            self.deals_counter = []
-            self.deals_executed = []
+        # if not (int(round(time.time())) - self.start_time) % 600:
+        #     message = self.create_result_message(deals_potential, deals_executed, 600)
+        #     # await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
+        #     self.deals_counter = []
+        #     self.deals_executed = []
 
         self.start_time -= 1
 
@@ -864,7 +869,9 @@ class MultiBot:
     async def __check_order_status(self):
         while True:
             for client in self.clients:
-                for order_id, order_data in client.orders.items():
+                orders = client.orders.copy()
+
+                for order_id, order_data in orders.items():
                     await asyncio.sleep(5)
                     self.tasks.append(self.publish_message(connect=self.mq,
                                                message=order_data,
@@ -873,8 +880,8 @@ class MultiBot:
                                                    RabbitMqQueues.UPDATE_ORDERS),
                                                queue_name=RabbitMqQueues.UPDATE_ORDERS))
 
-                    if order_data['status'] != OrderStatus.PROCESSING:
-                        client.orders.pop(order_id)
+                    for order in orders:
+                        client.orders.pop(order)
 
             await asyncio.sleep(1)
 
@@ -882,6 +889,8 @@ class MultiBot:
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
+
+        self.need_check_shift = False
 
         await self.setup_postgres()
 
