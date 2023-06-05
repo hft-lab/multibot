@@ -304,9 +304,9 @@ class MultiBot:
         print('CREATE ORDER', max_deal_size, price_buy_limit_taker)
 
         responses = await asyncio.gather(*[
-            self.loop.create_task(
+            self.loop_1.create_task(
                 client_buy.create_order(max_deal_size, price_buy_limit_taker, 'buy', self.session)),
-            self.loop.create_task(
+            self.loop_1.create_task(
                 client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
@@ -316,7 +316,6 @@ class MultiBot:
                                deal_time)
         await self.save_orders(client_sell, price_sell_limit_taker, 'sell', arbitrage_possibilities_id, max_deal_size,
                                deal_time)
-
         for response in responses:
             try:
                 await self.save_order_timestamps(response['exchange_name'], deal_time, response['timestamp'],
@@ -866,6 +865,7 @@ class MultiBot:
         while True:
             for client in self.clients:
                 for order_id, order_data in client.orders.items():
+                    await asyncio.sleep(5)
                     self.tasks.append(self.publish_message(connect=self.mq,
                                                message=order_data,
                                                routing_key=RabbitMqQueues.UPDATE_ORDERS,
@@ -876,7 +876,7 @@ class MultiBot:
                     if order_data['status'] != OrderStatus.PROCESSING:
                         client.orders.pop(order_id)
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)
 
     async def __start(self):
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
