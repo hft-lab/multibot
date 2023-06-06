@@ -696,8 +696,8 @@ class MultiBot:
             deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
             deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
 
-        self.__rates_update()
-        self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
+            self.__rates_update()
+            self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
 
         # if not (int(round(time.time())) - self.start_time) % 600:
         #     message = self.create_result_message(deals_potential, deals_executed, 600)
