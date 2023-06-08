@@ -84,7 +84,7 @@ class MultiBot:
         self.exchanges = [x.EXCHANGE_NAME for x in self.clients]
         self.ribs = [self.clients, list(reversed(self.clients))]
 
-        self.start_time = int(round(time.time()))
+        self.start_time = datetime.datetime.utcnow()
         self.last_message = None
         self.last_max_deal_size = 0
         self.potential_deals = []
@@ -119,7 +119,7 @@ class MultiBot:
         self.run_4.start()
 
     def __prepare_shifts(self):
-        time.sleep(3)
+        time.sleep(10)
         self.__rates_update()
 
         for x, y in Shifts().get_shifts().items():
@@ -183,7 +183,7 @@ class MultiBot:
 
     async def __cycle_parser(self):
 
-        await asyncio.sleep(10)
+        time.sleep(12)
 
         while True:
             for client_buy, client_sell in self.ribs:
@@ -192,6 +192,7 @@ class MultiBot:
                 shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
                 sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
                 buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
+
                 if sell_price > buy_price:
                     self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
 
@@ -476,12 +477,12 @@ class MultiBot:
 
     def __rates_update(self):
         message = ''
-        for client in self.clients:
-            message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
-            with open('rates.txt', 'a') as file:
-                file.write(message + '\n')
+        with open('rates.txt', 'a') as file:
+            for client in self.clients:
+                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
-        print(121212121212)
+            file.write(message + '\n')
+
 
     def _update_log(self, sell_exch, buy_exch, orderbook_buy, orderbook_sell):
         message = f"{buy_exch} BUY: {orderbook_buy['asks'][1]}\n"
@@ -491,10 +492,10 @@ class MultiBot:
         message += f"Max deal size: {self.available_balances[f'+{buy_exch}-{sell_exch}']} USD\n"
         message += f"Datetime: {datetime.datetime.now()}\n\n"
 
-        if message != self.last_message:
-            with open('arbi.txt', 'a') as file:  # TODO send to DB, not txt
-                file.write(message)
-                self.last_message = message
+        # if message != self.last_message:
+        #     with open('arbi.txt', 'a') as file:  # TODO send to DB, not txt
+        #         file.write(message)
+        #         self.last_message = message
 
     @staticmethod
     def get_orderbooks(client_sell, client_buy):
@@ -582,7 +583,9 @@ class MultiBot:
         return message
 
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
-        if (int(round(time.time())) - self.start_time) % 15:
+        if datetime.datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
+            self.start_time = datetime.datetime.utcnow()
+
             deals_potential = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
             deals_executed = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
 
@@ -593,7 +596,9 @@ class MultiBot:
             deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
 
             self.__rates_update()
-            self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
+
+            # self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
+
 
             # self.start_time = int(round(time.time()))
 
@@ -603,7 +608,7 @@ class MultiBot:
         #     self.deals_counter = []
         #     self.deals_executed = []
 
-        self.start_time -= 1
+
 
     async def send_message(self, message: str, chat_id: int, bot_token: str) -> None:
         self.tasks.append(self.publish_message(connect=self.mq,
