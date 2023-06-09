@@ -790,7 +790,7 @@ class MultiBot:
             await asyncio.sleep(1)
 
     async def __start(self):
-        print('rewrwerwerewrwe')
+        print(Config.BINANCE)
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
@@ -816,8 +816,8 @@ class MultiBot:
                     await self.prepare_alert()
 
                 if not start_message:
-                    # await self.start_message()
-                    # await self.start_balance_message()
+                    await self.start_message()
+                    await self.start_balance_message()
                     start_message = True
 
                 await self.find_price_diffs()
