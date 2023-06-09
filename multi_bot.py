@@ -100,23 +100,24 @@ class MultiBot:
 
         self.get_sizes()
 
-        self.loop_1 = asyncio.new_event_loop()
-        self.loop_2 = asyncio.new_event_loop()
-        self.loop_3 = asyncio.new_event_loop()
-        self.loop_4 = asyncio.new_event_loop()
+        # self.loop_1 =
+        # self.loop_2 = asyncio.new_event_loop()
+        # self.loop_3 = asyncio.new_event_loop()
+        # self.loop_4 = asyncio.new_event_loop()
 
-        self.run_1 = threading.Thread(target=self.run_await_in_thread, args=[self.__start, self.loop_1])
-        self.run_2 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_2])
-        self.run_3 = threading.Thread(target=self.run_await_in_thread, args=[self.__cycle_parser, self.loop_3])
-        self.run_4 = threading.Thread(target=self.run_await_in_thread, args=[self.__send_messages, self.loop_4])
+        threading.Thread(target=self.run_await_in_thread, args=[self.__start, asyncio.new_event_loop()]).start()
+        threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, asyncio.new_event_loop()]).start()
+        threading.Thread(target=self.run_await_in_thread, args=[self.__cycle_parser, asyncio.new_event_loop()])
+        threading.Thread(target=self.run_await_in_thread, args=[self.__send_messages, asyncio.new_event_loop()])
 
-        self.run()
 
-    def run(self) -> None:
-        self.run_1.start()
-        self.run_2.start()
-        self.run_3.start()
-        self.run_4.start()
+    #     self.run()
+    #
+    # def run(self) -> None:
+
+
+
+
 
     def __prepare_shifts(self):
         time.sleep(10)
@@ -138,7 +139,6 @@ class MultiBot:
         position_gap = self.find_position_gap()
         amount_to_balancing = abs(position_gap) / len(self.clients)
         return position_gap, amount_to_balancing
-
 
     async def __send_messages(self):
         await self.setup_mq(self.loop_4)
@@ -168,18 +168,21 @@ class MultiBot:
         }
 
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=to_base,
-                                   routing_key=RabbitMqQueues.BALANCING_REPORTS,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCING_REPORTS),
-                                   queue_name=RabbitMqQueues.BALANCING_REPORTS
-                                   ))
+                                               message=to_base,
+                                               routing_key=RabbitMqQueues.BALANCING_REPORTS,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(
+                                                   RabbitMqQueues.BALANCING_REPORTS),
+                                               queue_name=RabbitMqQueues.BALANCING_REPORTS
+                                               ))
 
     def available_balance_update(self, client_buy, client_sell):
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
         self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
 
     def run_await_in_thread(self, func, loop):
-        loop.run_until_complete(func())
+        asyncio.set_event_loop(loop)
+        asyncio.run_coroutine_threadsafe(func(), loop)
+        loop.run_forever()
 
     async def __cycle_parser(self):
 
@@ -273,11 +276,11 @@ class MultiBot:
         arbitrage_possibilities_id = uuid.uuid4()
 
         print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
-        asyncio.set_event_loop(self.loop_1)
+
         responses = await asyncio.gather(*[
-            self.loop_1.create_task(
+            asyncio.create_task(
                 client_buy.create_order(max_deal_size, price_buy_limit_taker, 'buy', self.session)),
-            self.loop_1.create_task(
+            asyncio.create_task(
                 client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
         print(responses)
@@ -324,12 +327,12 @@ class MultiBot:
         }
 
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=message,
-                                   routing_key=RabbitMqQueues.ARBITRAGE_POSSIBILITIES,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(
-                                       RabbitMqQueues.ARBITRAGE_POSSIBILITIES),
-                                   queue_name=RabbitMqQueues.ARBITRAGE_POSSIBILITIES
-                                   ))
+                                               message=message,
+                                               routing_key=RabbitMqQueues.ARBITRAGE_POSSIBILITIES,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(
+                                                   RabbitMqQueues.ARBITRAGE_POSSIBILITIES),
+                                               queue_name=RabbitMqQueues.ARBITRAGE_POSSIBILITIES
+                                               ))
 
     async def save_orders(self, client, side, parent_id, order_place_time) -> None:
         message = {
@@ -357,12 +360,11 @@ class MultiBot:
         }
 
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=message,
-                                   routing_key=RabbitMqQueues.ORDERS,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.ORDERS),
-                                   queue_name=RabbitMqQueues.ORDERS
-                                   ))
-
+                                               message=message,
+                                               routing_key=RabbitMqQueues.ORDERS,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.ORDERS),
+                                               queue_name=RabbitMqQueues.ORDERS
+                                               ))
 
     async def deal_details(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, deal_time,
                            time_parser, time_choose):
@@ -410,11 +412,12 @@ class MultiBot:
         }
 
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=to_base,
-                                   routing_key=RabbitMqQueues.BALANCE_CHECK,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_CHECK),
-                                   queue_name=RabbitMqQueues.BALANCE_CHECK
-                                   ))
+                                               message=to_base,
+                                               routing_key=RabbitMqQueues.BALANCE_CHECK,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(
+                                                   RabbitMqQueues.BALANCE_CHECK),
+                                               queue_name=RabbitMqQueues.BALANCE_CHECK
+                                               ))
 
     async def send_data_for_base(self, client_buy, client_sell, expect_buy_px, expect_sell_px, deal_size, sell_ob_ask,
                                  buy_ob_bid, deal_time, time_parser, time_choose):
@@ -465,11 +468,12 @@ class MultiBot:
             'bot_token': Config.TELEGRAM_TOKEN
         }
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=to_base,
-                                   routing_key=RabbitMqQueues.DEALS_REPORT,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.DEALS_REPORT),
-                                   queue_name=RabbitMqQueues.DEALS_REPORT
-                                   ))
+                                               message=to_base,
+                                               routing_key=RabbitMqQueues.DEALS_REPORT,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(
+                                                   RabbitMqQueues.DEALS_REPORT),
+                                               queue_name=RabbitMqQueues.DEALS_REPORT
+                                               ))
 
     def avail_balance_define(self, client_buy, client_sell):
         return min(client_buy.get_available_balance('buy'), client_sell.get_available_balance('sell'),
@@ -482,7 +486,6 @@ class MultiBot:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
             file.write(message + '\n')
-
 
     def _update_log(self, sell_exch, buy_exch, orderbook_buy, orderbook_sell):
         message = f"{buy_exch} BUY: {orderbook_buy['asks'][1]}\n"
@@ -509,8 +512,8 @@ class MultiBot:
                 elif orderbook_buy['timestamp'] > 10 * orderbook_sell['timestamp']:
                     orderbook_buy['timestamp'] = orderbook_buy['timestamp'] / 1000
                 func_time = time.time() - time_start
-                if func_time > 0.001:
-                    print(f"GET ORDERBOOKS FUNC TIME: {func_time} sec")
+                # if func_time > 0.001:
+                #     print(f"GET ORDERBOOKS FUNC TIME: {func_time} sec")
                 return orderbook_sell, orderbook_buy
             except Exception as e:
                 print(f"Exception with orderbooks: {e}")
@@ -538,11 +541,11 @@ class MultiBot:
         }
 
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message=data,
-                                   routing_key=RabbitMqQueues.PING,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.PING),
-                                   queue_name=RabbitMqQueues.PING
-                                   ))
+                                               message=data,
+                                               routing_key=RabbitMqQueues.PING,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.PING),
+                                               queue_name=RabbitMqQueues.PING
+                                               ))
 
     async def start_message(self):
         coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
@@ -599,7 +602,6 @@ class MultiBot:
 
             # self._update_log(sell_client.EXCHANGE_NAME, buy_client.EXCHANGE_NAME, orderbook_buy, orderbook_sell)
 
-
             # self.start_time = int(round(time.time()))
 
         # if not (int(round(time.time())) - self.start_time) % 600:
@@ -608,15 +610,13 @@ class MultiBot:
         #     self.deals_counter = []
         #     self.deals_executed = []
 
-
-
     async def send_message(self, message: str, chat_id: int, bot_token: str) -> None:
         self.tasks.append(self.publish_message(connect=self.mq,
-                                   message={"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
-                                   routing_key=RabbitMqQueues.TELEGRAM,
-                                   exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-                                   queue_name=RabbitMqQueues.TELEGRAM
-                                   ))
+                                               message={"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
+                                               routing_key=RabbitMqQueues.TELEGRAM,
+                                               exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+                                               queue_name=RabbitMqQueues.TELEGRAM
+                                               ))
 
     async def create_balancing_order(self, client, position_gap, price, side):
         time_start = time.time()
@@ -662,11 +662,12 @@ class MultiBot:
             }
 
             self.tasks.append(self.publish_message(connect=self.mq,
-                                       message=to_base,
-                                       routing_key=RabbitMqQueues.BALANCE_JUMP,
-                                       exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_JUMP),
-                                       queue_name=RabbitMqQueues.BALANCE_JUMP
-                                       ))
+                                                   message=to_base,
+                                                   routing_key=RabbitMqQueues.BALANCE_JUMP,
+                                                   exchange_name=RabbitMqQueues.get_exchange_name(
+                                                       RabbitMqQueues.BALANCE_JUMP),
+                                                   queue_name=RabbitMqQueues.BALANCE_JUMP
+                                                   ))
 
     async def get_total_balance_calc(self, cursor, asc_desc):
         result = 0
@@ -777,11 +778,11 @@ class MultiBot:
                 for order_id, order_data in orders.items():
                     await asyncio.sleep(5)
                     self.tasks.append(self.publish_message(connect=self.mq,
-                                               message=order_data,
-                                               routing_key=RabbitMqQueues.UPDATE_ORDERS,
-                                               exchange_name=RabbitMqQueues.get_exchange_name(
-                                                   RabbitMqQueues.UPDATE_ORDERS),
-                                               queue_name=RabbitMqQueues.UPDATE_ORDERS))
+                                                           message=order_data,
+                                                           routing_key=RabbitMqQueues.UPDATE_ORDERS,
+                                                           exchange_name=RabbitMqQueues.get_exchange_name(
+                                                               RabbitMqQueues.UPDATE_ORDERS),
+                                                           queue_name=RabbitMqQueues.UPDATE_ORDERS))
 
                     for order in orders:
                         client.orders.pop(order)
@@ -789,6 +790,7 @@ class MultiBot:
             await asyncio.sleep(1)
 
     async def __start(self):
+        print('rewrwerwerewrwe')
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
@@ -814,12 +816,11 @@ class MultiBot:
                     await self.prepare_alert()
 
                 if not start_message:
-                    await self.start_message()
-                    await self.start_balance_message()
+                    # await self.start_message()
+                    # await self.start_balance_message()
                     start_message = True
 
                 await self.find_price_diffs()
-
 
 
 if __name__ == '__main__':
@@ -829,5 +830,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     MultiBot(args.client_1, args.client_2)
-
-
