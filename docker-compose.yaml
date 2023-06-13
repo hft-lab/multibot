@@ -2,7 +2,7 @@ version: '3.5'
 
 services:
 
-  multibot_test_dydx_binance:
+  multibot_eth_dydx_binance:
     logging:
       driver: "json-file"
       options:
@@ -11,6 +11,19 @@ services:
       context: .
       dockerfile: "Dockerfile.multibot"
     env_file:
-      - .env
+      - .env.eth
+    restart: always
+    command: 'python multi_bot.py -c1 dydx -c2 binance'
+
+  multibot_btc_dydx_binance:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+    build:
+      context: .
+      dockerfile: "Dockerfile.multibot"
+    env_file:
+      - .env.btc
     restart: always
     command: 'python multi_bot.py -c1 dydx -c2 binance'
