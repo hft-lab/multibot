@@ -619,7 +619,7 @@ class MultiBot:
 
                     client.orders.pop(order_id)
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)
 
     async def __start(self):
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
