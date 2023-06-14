@@ -150,8 +150,6 @@ class MultiBot:
 
             for task in tasks:
                 task.update({'connect': self.mq})
-
-                print(task)
                 await self.publish_message(**task)
 
             time.sleep(3)
@@ -441,6 +439,9 @@ class MultiBot:
 
             deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
             deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
+
+            self.deals_counter = []
+            self.deals_executed = []
 
             self.__rates_update()
 
