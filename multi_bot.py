@@ -154,14 +154,19 @@ class MultiBot:
                 print(task)
                 await self.publish_message(**task)
 
-            time.sleep(2)
+            time.sleep(3)
 
     def available_balance_update(self, client_buy, client_sell):
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
         self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
 
     def run_await_in_thread(self, func, loop):
-        loop.run_until_complete(func())
+        try:
+            loop.run_until_complete(func())
+        except:
+            traceback.print_exc()
+        finally:
+            loop.close()
 
     async def __cycle_parser(self):
 
@@ -268,12 +273,9 @@ class MultiBot:
         deal_time = time.time() - time_start - time_parser - time_choose
         await self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, deal_time)
         await self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, deal_time)
-        try:
-            await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
+        await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                                     max_sell_vol, expect_buy_px, expect_sell_px, time_parser,
                                                     time_choose, shift)
-        except:
-            traceback.print_exc()
 
     async def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                            expect_sell_px, time_parser, time_choose, shift):
@@ -369,19 +371,6 @@ class MultiBot:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
             file.write(message + '\n')
-
-    def _update_log(self, sell_exch, buy_exch, orderbook_buy, orderbook_sell):
-        message = f"{buy_exch} BUY: {orderbook_buy['asks'][1]}\n"
-        message += f"{sell_exch} SELL: {orderbook_sell['bids'][1]}\n"
-        shift = self.shifts[sell_exch + ' ' + buy_exch] / 2
-        message += f"Shifts: {sell_exch}={shift}, {buy_exch}={-shift}\n"
-        message += f"Max deal size: {self.available_balances[f'+{buy_exch}-{sell_exch}']} USD\n"
-        message += f"Datetime: {datetime.datetime.now()}\n\n"
-
-        # if message != self.last_message:
-        #     with open('arbi.txt', 'a') as file:  # TODO send to DB, not txt
-        #         file.write(message)
-        #         self.last_message = message
 
     @staticmethod
     def get_orderbooks(client_sell, client_buy):
@@ -647,8 +636,8 @@ class MultiBot:
                     await self.prepare_alert()
 
                 if not start_message:
-                    # await self.start_message()
-                    # await self.start_balance_message()
+                    await self.start_message()
+                    await self.start_balance_message()
                     start_message = True
 
                 await self.find_price_diffs()
