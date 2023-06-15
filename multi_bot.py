@@ -183,6 +183,9 @@ class MultiBot:
 
                 await self.potential_real_deals(client_sell, client_buy, orderbook_buy, orderbook_sell)
 
+            await asyncio.sleep(0.7)
+
+
     async def find_price_diffs(self):
         time_start = time.time()
         time_parser = time.time() - time_start
@@ -274,6 +277,8 @@ class MultiBot:
         await self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                                     max_sell_vol, expect_buy_px, expect_sell_px, time_parser,
                                                     time_choose, shift)
+
+        await asyncio.sleep(self.deal_pause)
 
     async def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                            expect_sell_px, time_parser, time_choose, shift):
