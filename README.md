@@ -41,6 +41,22 @@ cancel_all_orders() = response
 taker_fee = taker_fee
 #taker fee value in absolute, float
 
+async def get_funding_payments(session) = [{'market': 'BTCUSDT',
+      'payment': '-0.12578175',
+      'datetime': '2023-06-16T05:00:00.000Z',
+      'time': 1686297600000,
+      'rate': '0.00007916',
+      'price': '26481.005738095',
+      'position': +-'0.060003608918484885'},
+     {'market': 'BTCUSDT',
+      'payment': '-0.12578175',
+      'datetime': '2023-06-16T05:00:00.000Z',
+      'time': 1686297600000,
+      'rate': '0.00007916',
+      'price': '26481.005738095',
+      'position': +-'0.060003608918484885'}
+     ]
+
 
 
 
