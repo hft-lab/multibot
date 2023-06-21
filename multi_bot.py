@@ -171,15 +171,15 @@ class MultiBot:
         while True:
             for client_buy, client_sell in self.ribs:
                 self.available_balance_update(client_buy, client_sell)
-                orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
+                ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
                 shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                sell_price = orderbook_sell['bids'][0][0] * (1 + shift)
-                buy_price = orderbook_buy['asks'][0][0] * (1 - shift)
+                sell_price = ob_sell['bids'][0][0] * (1 + shift)
+                buy_price = ob_buy['asks'][0][0] * (1 - shift)
 
                 if sell_price > buy_price:
-                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price)
+                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_sell, ob_buy)
 
-                await self.potential_real_deals(client_sell, client_buy, orderbook_buy, orderbook_sell)
+                await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
 
             await asyncio.sleep(0.7)
 
@@ -198,6 +198,7 @@ class MultiBot:
                 await self.execute_deal(chosen_deal['buy_exch'],
                                         chosen_deal['sell_exch'],
                                         chosen_deal['orderbook_buy'],
+                                        chosen_deal['orderbook_sell'],
                                         time_start,
                                         time_parser,
                                         time_choose)
@@ -212,48 +213,45 @@ class MultiBot:
                                        "profit": deal['profit']})
 
             if deal['profit'] > max_profit:
-                if self.available_balances[
-                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
-                        'sell_exch'].EXCHANGE_NAME in self.exchanges:
+                if self.available_balances[f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size: # noqa
+                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges: # noqa
                         max_profit = deal['profit']
                         chosen_deal = deal
 
         self.potential_deals = []
         return chosen_deal
 
-    def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price):
-        orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
+    def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell):
         profit = (sell_price - buy_price) / buy_price
-
         if profit > self.profit_taker + client_sell.taker_fee + client_buy.taker_fee:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
-                                         "orderbook_buy": orderbook_buy,
-                                         "orderbook_sell": orderbook_sell,
+                                         "orderbook_buy": ob_buy,
+                                         "orderbook_sell": ob_sell,
                                          'max_deal_size': self.available_balances[
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
                                          "profit": profit})
 
-    async def execute_deal(self, client_buy, client_sell, orderbook_buy, time_start, time_parser, time_choose):
+    async def execute_deal(self, client_buy, client_sell, ob_buy, ob_sell, time_start, time_parser, time_choose):
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
         self.deals_executed.append([f'+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}', max_deal_size])
-        max_deal_size = max_deal_size / ((orderbook_buy['asks'][0][0] + orderbook_buy['bids'][0][0]) / 2)
-        await self.create_orders(client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose)
+        max_deal_size = max_deal_size / ((ob_buy['asks'][0][0] + ob_sell['bids'][0][0]) / 2)
+        await self.create_orders(client_buy, client_sell, ob_buy, ob_sell,
+                                 max_deal_size, time_start, time_parser, time_choose)
 
-    async def create_orders(self, client_buy, client_sell, max_deal_size, time_start, time_parser, time_choose):
-        orderbook_sell, orderbook_buy = self.get_orderbooks(client_sell, client_buy)
-        expect_buy_px = orderbook_buy['asks'][0][0]
-        expect_sell_px = orderbook_sell['bids'][0][0]
+    async def create_orders(self, client_buy, client_sell, ob_buy, ob_sell, max_deal_size,
+                            time_start, time_parser, time_choose):
+        expect_buy_px = ob_buy['asks'][0][0]
+        expect_sell_px = ob_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy = orderbook_buy['asks'][0][0]
-        price_sell = orderbook_sell['bids'][0][0]
+        price_buy_limit_taker = ob_buy['asks'][1][0]
+        price_sell_limit_taker = ob_sell['bids'][1][0]
 
-        max_buy_vol = orderbook_buy['asks'][0][1]
-        max_sell_vol = orderbook_sell['bids'][0][1]
+        max_buy_vol = ob_buy['asks'][0][1]
+        max_sell_vol = ob_sell['bids'][0][1]
 
-        price_buy_limit_taker = price_buy * self.shifts['TAKER']
-        price_sell_limit_taker = price_sell / self.shifts['TAKER']
+        # price_buy_limit_taker = price_buy * self.shifts['TAKER']
+        # price_sell_limit_taker = price_sell / self.shifts['TAKER']
         timer = time.time() * 1000
         arbitrage_possibilities_id = uuid.uuid4()
 
