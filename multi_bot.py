@@ -147,10 +147,20 @@ class MultiBot:
 
         while True:
             task = self.tasks.get()
-            task.update({'connect': self.mq})
+            try:
+                task.update({'connect': self.mq})
+                await self.publish_message(**task)
 
-            await self.publish_message(**task)
-            await asyncio.sleep(0.1)
+            except:
+                await self.setup_mq(self.loop_4)
+                await asyncio.sleep(1)
+                task.update({'connect': self.mq})
+                await self.publish_message(**task)
+
+            finally:
+                self.tasks.task_done()
+                await asyncio.sleep(0.1)
+
 
     def available_balance_update(self, client_buy, client_sell):
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
