@@ -28,15 +28,15 @@ services:
     restart: always
     command: 'python multi_bot.py -c1 dydx -c2 apollox'
 
-    multibot_eth_apollox_binance:
-      logging:
-        driver: "json-file"
-        options:
-          max-size: "5m"
-      build:
-        context: .
-        dockerfile: "dockerfile.multibot"
-      env_file:
-        - .env.eth
-      restart: always
-      command: 'python multi_bot.py -c1 apollox -c2 binance'
+  multibot_eth_apollox_binance:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+    build:
+      context: .
+      dockerfile: "dockerfile.multibot"
+    env_file:
+      - .env.eth
+    restart: always
+    command: 'python multi_bot.py -c1 apollox -c2 binance'
