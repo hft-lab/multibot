@@ -161,12 +161,12 @@ class MultiBot:
                 self.tasks.task_done()
                 await asyncio.sleep(0.1)
 
-
     def available_balance_update(self, client_buy, client_sell):
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
         self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
 
-    def run_await_in_thread(self, func, loop):
+    @staticmethod
+    def run_await_in_thread(func, loop):
         try:
             loop.run_until_complete(func())
         except:
@@ -233,6 +233,7 @@ class MultiBot:
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell):
         profit = (sell_price - buy_price) / buy_price
+        print(f"BUY: {client_buy.EXCHANGE_NAME}\nSELL: {client_sell.EXCHANGE_NAME}\nPROFIT: {profit}\n\n")
         if profit > self.profit_taker + client_sell.taker_fee + client_buy.taker_fee:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
@@ -413,7 +414,7 @@ class MultiBot:
 
         for exchange, shift in self.shifts.items():
             message += f"{exchange}: {round(shift, 6)}\n"
-
+        print(80 * '*' + f"START MESSAGE SENT")
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
     def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
@@ -554,7 +555,7 @@ class MultiBot:
             message += f"INDEX PX: {round(sum(index_price) / len(index_price), 2)} USD\n"
         except:
             traceback.print_exc()
-
+        print(80 * '*' + f"START BALANCE MESSAGE SENT")
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
     async def close_all_positions(self):
