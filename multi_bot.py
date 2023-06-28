@@ -187,7 +187,7 @@ class MultiBot:
                 buy_price = ob_buy['asks'][0][0] * (1 - shift)
 
                 if sell_price > buy_price:
-                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_sell, ob_buy)
+                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
 
                 await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
 
@@ -202,8 +202,7 @@ class MultiBot:
             chosen_deal = self.choose_deal()
 
         if self.state == BotState.BOT:
-            position_gap, amount_to_balancing = self.find_balancing_elements()
-            if chosen_deal and amount_to_balancing < self.max_order_size:  # todo REFACTOR THIS
+            if chosen_deal:
                 time_choose = time.time() - time_start - time_parser
                 await self.execute_deal(chosen_deal['buy_exch'],
                                         chosen_deal['sell_exch'],
@@ -233,7 +232,6 @@ class MultiBot:
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell):
         profit = (sell_price - buy_price) / buy_price
-        print(f"BUY: {client_buy.EXCHANGE_NAME}\nSELL: {client_sell.EXCHANGE_NAME}\nPROFIT: {profit}\n\n")
         if profit > self.profit_taker + client_sell.taker_fee + client_buy.taker_fee:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
@@ -255,8 +253,8 @@ class MultiBot:
         expect_buy_px = ob_buy['asks'][0][0]
         expect_sell_px = ob_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy_limit_taker = ob_buy['asks'][1][0]
-        price_sell_limit_taker = ob_sell['bids'][1][0]
+        price_buy_limit_taker = ob_buy['asks'][4][0]
+        price_sell_limit_taker = ob_sell['bids'][4][0]
 
         max_buy_vol = ob_buy['asks'][0][1]
         max_sell_vol = ob_sell['bids'][0][1]
@@ -414,7 +412,7 @@ class MultiBot:
 
         for exchange, shift in self.shifts.items():
             message += f"{exchange}: {round(shift, 6)}\n"
-        print(80 * '*' + f"START MESSAGE SENT")
+        # print(80 * '*' + f"START MESSAGE SENT")
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
     def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
@@ -555,7 +553,7 @@ class MultiBot:
             message += f"INDEX PX: {round(sum(index_price) / len(index_price), 2)} USD\n"
         except:
             traceback.print_exc()
-        print(80 * '*' + f"START BALANCE MESSAGE SENT")
+        # print(80 * '*' + f"START BALANCE MESSAGE SENT")
         await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
 
     async def close_all_positions(self):
@@ -613,7 +611,7 @@ class MultiBot:
 
                     client.orders.pop(order_id)
 
-            await asyncio.sleep(self.deal_pause * 2)
+            await asyncio.sleep(3)
 
     async def __start(self):
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
