@@ -278,7 +278,7 @@ class MultiBot:
 
         print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
 
-        amount = self.__get_amount_for_all_clients(max_deal_size)
+        self.__get_amount_for_all_clients(max_deal_size)
 
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
