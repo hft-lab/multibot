@@ -222,8 +222,10 @@ class MultiBot:
                                        "profit": deal['profit']})
 
             if deal['profit'] > max_profit:
-                if self.available_balances[f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size: # noqa
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges: # noqa
+                if self.available_balances[
+                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
+                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
+                        'sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -240,6 +242,12 @@ class MultiBot:
                                          'max_deal_size': self.available_balances[
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
                                          "profit": profit})
+
+    def __get_amount_for_all_clients(self, amount) -> float:
+        for client in self.clients:
+            client.fit_amount(amount)
+
+        return max([client.expect_amount_coin for client in self.clients])
 
     async def execute_deal(self, client_buy, client_sell, ob_buy, ob_sell, time_start, time_parser, time_choose):
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
@@ -266,16 +274,19 @@ class MultiBot:
 
         print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
 
+        amount = self.__get_amount_for_all_clients(max_deal_size)
+
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
-                client_buy.create_order(max_deal_size, price_buy_limit_taker, 'buy', self.session)),
+                client_buy.create_order(amount, price_buy_limit_taker, 'buy', self.session)),
             self.loop_1.create_task(
-                client_sell.create_order(max_deal_size, price_sell_limit_taker, 'sell', self.session))
+                client_sell.create_order(amount, price_sell_limit_taker, 'sell', self.session))
         ], return_exceptions=True)
         print(responses)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
 
         deal_time = time.time() - time_start - time_parser - time_choose
+        await asyncio.sleep(0.5)
         self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, deal_time)
         self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, deal_time)
         self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
@@ -324,8 +335,9 @@ class MultiBot:
         })
 
     def save_orders(self, client, side, parent_id, order_place_time) -> None:
+        order_id = uuid.uuid4()
         message = {
-            'id': uuid.uuid4(),
+            'id': order_id,
             'datetime': datetime.datetime.utcnow(),
             'ts': time.time(),
             'context': 'bot',
@@ -348,12 +360,28 @@ class MultiBot:
             'env': self.env,
         }
 
+        if client.LAST_ORDER_ID == 'default':
+            error_message = {
+                "chat_id": Config.TELEGRAM_CHAT_ID,
+                "msg": f"ALERT NAME: Order Mistake\nOrder Id:{order_id}\nError:{client.error_info}",
+                'bot_token': Config.TELEGRAM_TOKEN
+            }
+            self.tasks.put({
+                'message': error_message,
+                'routing_key': RabbitMqQueues.TELEGRAM,
+                'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+                'queue_name': RabbitMqQueues.TELEGRAM
+            })
+
         self.tasks.put({
             'message': message,
             'routing_key': RabbitMqQueues.ORDERS,
             'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.ORDERS),
             'queue_name': RabbitMqQueues.ORDERS
         })
+
+        client.error_info = None
+        client.LAST_ORDER_ID = 'default'
 
     async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
         channel = await connect.channel()
