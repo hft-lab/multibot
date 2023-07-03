@@ -243,11 +243,15 @@ class MultiBot:
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
                                          "profit": profit})
 
-    def __get_amount_for_all_clients(self, amount) -> float:
+    def __get_amount_for_all_clients(self, amount):
         for client in self.clients:
             client.fit_amount(amount)
 
-        return max([client.expect_amount_coin for client in self.clients])
+        max_amount = max([client.expect_amount_coin for client in self.clients])
+
+        for client in self.clients:
+            client.expect_amount_coin = max_amount
+
 
     async def execute_deal(self, client_buy, client_sell, ob_buy, ob_sell, time_start, time_parser, time_choose):
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
@@ -278,9 +282,9 @@ class MultiBot:
 
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
-                client_buy.create_order(amount, price_buy_limit_taker, 'buy', self.session, client_ID='api_deal_')),
+                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_ID='api_deal_')),
             self.loop_1.create_task(
-                client_sell.create_order(amount, price_sell_limit_taker, 'sell', self.session, client_ID='api_deal_'))
+                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_ID='api_deal_'))
         ], return_exceptions=True)
         print(responses)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
