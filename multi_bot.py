@@ -230,7 +230,7 @@ class MultiBot:
                     self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
 
                 await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
-            self.time_parser = time.time() - time_start  # noqa
+            self.time_parser = time.time() - self.time_start  # noqa
             await asyncio.sleep(0.1)
 
     async def find_price_diffs(self):
@@ -327,7 +327,7 @@ class MultiBot:
         await asyncio.sleep(self.deal_pause)
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                     expect_sell_px, time_parser, time_choose, shift):
+                                     expect_sell_px, time_choose, shift):
         expect_profit_usd = (expect_sell_px - expect_buy_px) * client_buy.expect_amount_coin - (
                 client_buy.taker_fee + client_sell.taker_fee)
         expect_amount_usd = client_buy.expect_amount_coin * (expect_sell_px + expect_buy_px) / 2
@@ -350,7 +350,7 @@ class MultiBot:
             'expect_profit_relative': expect_profit_usd / expect_amount_usd,
             'expect_fee_buy': client_buy.taker_fee,
             'expect_fee_sell': client_sell.taker_fee,
-            'time_parser': time_parser,
+            'time_parser': self.time_parser,
             'time_choose': time_choose,
             'chat_id': self.chat_id,
             'bot_token': self.telegram_bot,
@@ -438,7 +438,7 @@ class MultiBot:
             file.write(message + '\n')
 
     def get_orderbooks(self, client_sell, client_buy):
-        time_start = time.time()
+        # time_start = time.time()
         while True:
             try:
                 orderbook_sell = client_sell.get_orderbook()[client_sell.symbol]
@@ -447,7 +447,7 @@ class MultiBot:
                     orderbook_sell['timestamp'] = orderbook_sell['timestamp'] / 1000
                 elif orderbook_buy['timestamp'] > 10 * orderbook_sell['timestamp']:
                     orderbook_buy['timestamp'] = orderbook_buy['timestamp'] / 1000
-                func_time = time.time() - self.time_start
+                # func_time = time.time() - time_start
                 # if func_time > 0.001:
                 #     print(f"GET ORDERBOOKS FUNC TIME: {func_time} sec")
                 return orderbook_sell, orderbook_buy
