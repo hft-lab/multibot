@@ -279,12 +279,13 @@ class MultiBot:
         print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
 
         self.__get_amount_for_all_clients(max_deal_size)
-
+        client_order_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+        client_order_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
-                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_ID='api_deal_')),
+                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_id=client_order_id_buy)),
             self.loop_1.create_task(
-                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_ID='api_deal_'))
+                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_id=client_order_id_sell))
         ], return_exceptions=True)
         print(responses)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
