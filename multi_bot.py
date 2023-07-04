@@ -61,7 +61,7 @@ class MultiBot:
         self.s_time = ''
         self.f_time = ''
         self.tasks = queue.Queue()
-        self.create_csv('extra_countings.csv')
+        # self.create_csv('extra_countings.csv')
         self.last_orderbooks = {}
 
         # ORDER CONFIGS
@@ -233,7 +233,7 @@ class MultiBot:
 
                 await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
             self.time_parser = time.time() - self.time_start  # noqa
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.7)
 
     async def find_price_diffs(self):
         chosen_deal = None
