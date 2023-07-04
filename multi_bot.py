@@ -45,7 +45,7 @@ class MultiBot:
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
-                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks']
+                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser']
 
     def __init__(self, client_1: str, client_2: str):
         self.start = None
