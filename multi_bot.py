@@ -339,6 +339,12 @@ class MultiBot:
             'queue_name': RabbitMqQueues.ARBITRAGE_POSSIBILITIES
         })
 
+        client_buy.error_info = None
+        client_buy.LAST_ORDER_ID = 'default'
+
+        client_sell.error_info = None
+        client_sell.LAST_ORDER_ID = 'default'
+
     def save_orders(self, client, side, parent_id, order_place_time) -> None:
         order_id = uuid.uuid4()
         message = {
@@ -384,9 +390,6 @@ class MultiBot:
             'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.ORDERS),
             'queue_name': RabbitMqQueues.ORDERS
         })
-
-        client.error_info = None
-        client.LAST_ORDER_ID = 'default'
 
     async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
         channel = await connect.channel()
