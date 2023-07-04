@@ -674,6 +674,45 @@ class MultiBot:
 
             await asyncio.sleep(3)
 
+    def save_config(self):
+        launch_id = uuid.uuid4()
+        message = {
+            'id': launch_id,
+            'datetime': datetime.datetime.utcnow(),
+            'ts': time.time(),
+            'exchange_1': self.client_1.EXCHANGE_NAME,
+            'exchange_2': self.client_2.EXCHANGE_NAME,
+            'coin': self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', ''),
+            'env': self.env,
+            'fee_exchange_1': self.client_1.taker_fee,
+            'fee_exchange_2': self.client_2.taker_fee,
+            'shift': 1,
+            'order_delay': self.deal_pause,
+            'max_order_usd': self.max_order_size,
+            'max_leverage': self.client_1.leverage
+        }
+        self.tasks.put({
+            'message': message,
+            'routing_key': RabbitMqQueues.BOT_CONFIG,
+            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.BOT_CONFIG),
+            'queue_name': RabbitMqQueues.BOT_CONFIG
+        })
+
+        message = {
+            'parent_id': launch_id,
+            'context': 'bot-launch',
+            'env': self.env,
+            'chat_id': self.chat_id,
+            'telegram_bot': self.telegram_bot,
+        }
+
+        self.tasks.put({
+            'message': message,
+            'routing_key': RabbitMqQueues.CHECK_BALANCE,
+            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
+            'queue_name': RabbitMqQueues.CHECK_BALANCE
+        })
+
     async def __start(self):
         while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
@@ -702,6 +741,7 @@ class MultiBot:
                 if not start_message:
                     await self.start_message()
                     await self.start_balance_message()
+                    self.save_config()
                     start_message = True
 
                 await self.find_price_diffs()
