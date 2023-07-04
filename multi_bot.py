@@ -221,7 +221,7 @@ class MultiBot:
 
                 self.available_balance_update(client_buy, client_sell)
                 ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-                self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy)
+                # self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy)
                 shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
                 sell_price = ob_sell['bids'][0][0] * (1 + shift)
                 buy_price = ob_buy['asks'][0][0] * (1 - shift)
