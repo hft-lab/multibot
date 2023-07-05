@@ -209,12 +209,13 @@ class MultiBot:
 
     async def __cycle_parser(self):
         time.sleep(12)
+        count = 0
         while True:
+            count += 1
             self.time_start = time.time()  # noqa
             for client_buy, client_sell in self.ribs:
                 ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
                 if self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy):
-                    self.available_balance_update(client_buy, client_sell)
                     shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
                     sell_price = ob_sell['bids'][0][0] * (1 + shift)
                     buy_price = ob_buy['asks'][0][0] * (1 - shift)
@@ -222,7 +223,11 @@ class MultiBot:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
             self.time_parser = time.time() - self.time_start  # noqa
-            await asyncio.sleep(0.01)
+            if count == 10:
+                count = 0
+                for client_buy, client_sell in self.ribs:
+                    self.available_balance_update(client_buy, client_sell)
+            await asyncio.sleep(0.03)
 
     async def find_price_diffs(self):
         chosen_deal = None
