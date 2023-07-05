@@ -45,9 +45,11 @@ class MultiBot:
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
-                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser']
+                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id'
+                 ]
 
     def __init__(self, client_1: str, client_2: str):
+        self.bot_launch_id = None
         self.start = None
         self.finish = None
         self.db = None
@@ -354,8 +356,8 @@ class MultiBot:
             'time_choose': time_choose,
             'chat_id': self.chat_id,
             'bot_token': self.telegram_bot,
-            'shift': shift,
-            'status': 'Processing'
+            'status': 'Processing',
+            'bot_launch_id': self.bot_launch_id
         }
 
         self.tasks.put({
@@ -675,9 +677,9 @@ class MultiBot:
             await asyncio.sleep(3)
 
     def save_config(self):
-        launch_id = uuid.uuid4()
+        self.bot_launch_id = uuid.uuid4()
         message = {
-            'id': launch_id,
+            'id': self.bot_launch_id,
             'datetime': datetime.datetime.utcnow(),
             'ts': time.time(),
             'exchange_1': self.client_1.EXCHANGE_NAME,
@@ -686,7 +688,8 @@ class MultiBot:
             'env': self.env,
             'fee_exchange_1': self.client_1.taker_fee,
             'fee_exchange_2': self.client_2.taker_fee,
-            'shift': 1,
+            'shift': self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME],
+            'profit_taker': self.profit_taker,
             'order_delay': self.deal_pause,
             'max_order_usd': self.max_order_size,
             'max_leverage': self.client_1.leverage
@@ -699,7 +702,7 @@ class MultiBot:
         })
 
         message = {
-            'parent_id': launch_id,
+            'parent_id': self.bot_launch_id,
             'context': 'bot-launch',
             'env': self.env,
             'chat_id': self.chat_id,
