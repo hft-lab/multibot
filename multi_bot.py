@@ -682,7 +682,7 @@ class MultiBot:
             'env': self.env,
             'fee_exchange_1': self.client_1.taker_fee,
             'fee_exchange_2': self.client_2.taker_fee,
-            'shift': self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME],
+            'shift': 1 - self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME] / 2,
             'profit_taker': self.profit_taker,
             'order_delay': self.deal_pause,
             'max_order_usd': self.max_order_size,
