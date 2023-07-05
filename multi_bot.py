@@ -198,42 +198,31 @@ class MultiBot:
     def check_last_ob(self, client_buy, client_sell, ob_sell, ob_buy):
         exchanges = client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME
         last_obs = self.last_orderbooks.get(exchanges, None)
+        self.last_orderbooks.update({exchanges: {'ob_buy': ob_buy['asks'][0][0], 'ob_sell': ob_sell['bids'][0][0]}})
         if last_obs:
-            if ob_buy['asks'][0][0] == last_obs['ob_buy']['asks'][0][0] and \
-                    ob_sell['bids'][0][0] == last_obs['ob_sell']['bids'][0][0]:
-                self.append_to_csv('extra_countings.csv', [datetime.datetime.utcnow(),
-                                                           time.time(),
-                                                           exchanges,
-                                                           client_buy.symbol,
-                                                           0])
+            if ob_buy['asks'][0][0] == last_obs['ob_buy'] and ob_sell['bids'][0][0] == last_obs['ob_sell']:
+                return False
             else:
-                self.append_to_csv('extra_countings.csv', [datetime.datetime.utcnow(),
-                                                           time.time(),
-                                                           exchanges,
-                                                           client_buy.symbol,
-                                                           1])
-        self.last_orderbooks.update({exchanges: {'ob_buy': ob_buy, 'ob_sell': ob_sell}})
+                return True
+        else:
+            return True
 
     async def __cycle_parser(self):
-
         time.sleep(12)
         while True:
             self.time_start = time.time()  # noqa
             for client_buy, client_sell in self.ribs:
-
-                self.available_balance_update(client_buy, client_sell)
                 ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-                # self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy)
-                shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                sell_price = ob_sell['bids'][0][0] * (1 + shift)
-                buy_price = ob_buy['asks'][0][0] * (1 - shift)
-
-                if sell_price > buy_price:
-                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
-
-                await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
+                if self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy):
+                    self.available_balance_update(client_buy, client_sell)
+                    shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                    sell_price = ob_sell['bids'][0][0] * (1 + shift)
+                    buy_price = ob_buy['asks'][0][0] * (1 - shift)
+                    if sell_price > buy_price:
+                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
+                    await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
             self.time_parser = time.time() - self.time_start  # noqa
-            await asyncio.sleep(0.7)
+            await asyncio.sleep(0.01)
 
     async def find_price_diffs(self):
         chosen_deal = None
