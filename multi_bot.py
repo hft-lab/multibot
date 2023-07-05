@@ -210,11 +210,19 @@ class MultiBot:
     async def __cycle_parser(self):
         time.sleep(12)
         count = 0
+        try_list = []
+
         while True:
             count += 1
             self.time_start = time.time()  # noqa
+
             for client_buy, client_sell in self.ribs:
+                if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
+                    self.available_balance_update(client_buy, client_sell)
+                    try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
+
                 ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
+
                 if self.check_last_ob(client_buy, client_sell, ob_sell, ob_buy):
                     shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
                     sell_price = ob_sell['bids'][0][0] * (1 + shift)
@@ -222,11 +230,15 @@ class MultiBot:
                     if sell_price > buy_price:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
+
             self.time_parser = time.time() - self.time_start  # noqa
+
             if count == 10:
-                count = 0
                 for client_buy, client_sell in self.ribs:
                     self.available_balance_update(client_buy, client_sell)
+
+                count = 0
+
             await asyncio.sleep(0.03)
 
     async def find_price_diffs(self):
@@ -304,11 +316,13 @@ class MultiBot:
 
         print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
         self.__get_amount_for_all_clients(max_deal_size)
+        client_order_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+        client_order_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         responses = await asyncio.gather(*[
             self.loop_1.create_task(
-                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_ID='api_deal_')),
+                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_id=client_order_id_buy)),
             self.loop_1.create_task(
-                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_ID='api_deal_'))
+                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_id=client_order_id_sell))
         ], return_exceptions=True)
         print(responses)
         print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
