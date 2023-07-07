@@ -453,10 +453,10 @@ class MultiBot:
             try:
                 orderbook_sell = client_sell.get_orderbook()[client_sell.symbol]
                 orderbook_buy = client_buy.get_orderbook()[client_buy.symbol]
-                if orderbook_sell['timestamp'] > 10 * orderbook_buy['timestamp']:
-                    orderbook_sell['timestamp'] = orderbook_sell['timestamp'] / 1000
-                elif orderbook_buy['timestamp'] > 10 * orderbook_sell['timestamp']:
-                    orderbook_buy['timestamp'] = orderbook_buy['timestamp'] / 1000
+                # if orderbook_sell['timestamp'] > 10 * orderbook_buy['timestamp']:
+                #     orderbook_sell['timestamp'] = orderbook_sell['timestamp'] / 1000
+                # elif orderbook_buy['timestamp'] > 10 * orderbook_sell['timestamp']:
+                #     orderbook_buy['timestamp'] = orderbook_buy['timestamp'] / 1000
                 # func_time = time.time() - time_start
                 # if func_time > 0.001:
                 #     print(f"GET ORDERBOOKS FUNC TIME: {func_time} sec")
