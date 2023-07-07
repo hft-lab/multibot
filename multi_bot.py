@@ -145,9 +145,9 @@ class MultiBot:
     def __prepare_shifts(self):
         time.sleep(10)
         self.__rates_update()
-
+        #!!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
         for x, y in Shifts().get_shifts().items():
-            self.shifts.update({x: y})
+            self.shifts.update({x: 0})
 
     def find_position_gap(self):
         position_gap = 0
@@ -225,7 +225,7 @@ class MultiBot:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.time_parser = time.time() - self.time_start  # noqa
-            await asyncio.sleep(0.001)
+            await asyncio.sleep(0.003)
 
     async def find_price_diffs(self):
         time_start = time.time()
