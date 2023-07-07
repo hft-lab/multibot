@@ -225,6 +225,7 @@ class MultiBot:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.time_parser = time.time() - self.time_start  # noqa
+            await asyncio.sleep(0.001)
 
     async def find_price_diffs(self):
         time_start = time.time()
