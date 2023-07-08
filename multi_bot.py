@@ -145,9 +145,10 @@ class MultiBot:
     def __prepare_shifts(self):
         time.sleep(10)
         self.__rates_update()
-        #!!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
+        # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
         for x, y in Shifts().get_shifts().items():
             self.shifts.update({x: 0})
+        print(f"{self.shifts=}")
 
     def find_position_gap(self):
         position_gap = 0
@@ -448,21 +449,14 @@ class MultiBot:
             file.write(message + '\n')
 
     def get_orderbooks(self, client_sell, client_buy):
-        # time_start = time.time()
         while True:
             try:
-                orderbook_sell = client_sell.get_orderbook()[client_sell.symbol]
-                orderbook_buy = client_buy.get_orderbook()[client_buy.symbol]
-                # if orderbook_sell['timestamp'] > 10 * orderbook_buy['timestamp']:
-                #     orderbook_sell['timestamp'] = orderbook_sell['timestamp'] / 1000
-                # elif orderbook_buy['timestamp'] > 10 * orderbook_sell['timestamp']:
-                #     orderbook_buy['timestamp'] = orderbook_buy['timestamp'] / 1000
-                # func_time = time.time() - time_start
-                # if func_time > 0.001:
-                #     print(f"GET ORDERBOOKS FUNC TIME: {func_time} sec")
-                return orderbook_sell, orderbook_buy
-            except Exception as e:
-                print(f"Exception with orderbooks: {e}")
+                ob_sell = client_sell.get_orderbook()[client_sell.symbol]
+                ob_buy = client_buy.get_orderbook()[client_buy.symbol]
+                if ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
+                    return ob_sell, ob_buy
+            except Exception:
+                traceback.print_exc()
 
     async def start_message(self):
         coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
@@ -722,17 +716,17 @@ class MultiBot:
         })
 
     async def __start(self):
-        while not self.shifts.get(self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME):
+        exchanges = self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME
+        while not exchanges in self.shifts:
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
 
         await self.setup_postgres()
-
+        print(f"POSTGRES STARTED SUCCESFULLY")
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
             start_message = False
-
             while True:
                 if self.state == BotState.PARSER:
                     time.sleep(1)
