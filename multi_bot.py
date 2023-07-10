@@ -148,7 +148,6 @@ class MultiBot:
         # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
         for x, y in Shifts().get_shifts().items():
             self.shifts.update({x: 0})
-        print(f"{self.shifts=}")
 
 
 
@@ -230,8 +229,7 @@ class MultiBot:
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.client_1.count_flag = False
                 self.client_2.count_flag = False
-
-            # await asyncio.sleep(0.003)
+            await asyncio.sleep(0.002)
 
     async def find_price_diffs(self):
         time_start = time.time()
@@ -242,8 +240,7 @@ class MultiBot:
             if chosen_deal:
                 time_choose = time.time() - time_start
                 await self.execute_deal(chosen_deal,
-                                        time_choose,
-                                        )
+                                        time_choose)
 
     def choose_deal(self):
         max_profit = 0
@@ -264,7 +261,7 @@ class MultiBot:
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
         profit = (sell_price - buy_price) / buy_price - client_sell.taker_fee - client_buy.taker_fee
-        print(f"{profit=}")
+        # print(f"{profit=}")
         if profit > self.profit_taker:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
@@ -299,10 +296,8 @@ class MultiBot:
         # shifted_sell_px = price_sell / self.shifts['TAKER']
         max_buy_vol = ob_buy['asks'][0][1]
         max_sell_vol = ob_sell['bids'][0][1]
-
         # timer = time.time()
         arbitrage_possibilities_id = uuid.uuid4()
-
         self.__get_amount_for_all_clients(max_deal_size)
         cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
@@ -313,28 +308,23 @@ class MultiBot:
         ], return_exceptions=True)
         print(responses)
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
-
         await asyncio.sleep(0.5)
-
         # !!! ALL TIMERS !!!
         time_start_parsing = chosen_deal['start_time']
         time_parser = chosen_deal['time_parser']
-        time_choose = time_choose
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-
         self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
         self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
         self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                           max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
-
         await asyncio.sleep(self.deal_pause)
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
             if response['exchange_name'] == client.EXCHANGE_NAME:
-                print(f"LINE 342: ORDER PLACE TIME: {response['timestamp'] - time_sent} ms\nEXCHANGE: {client.EXCHANGE_NAME}")
+                # print(f"LINE 342: ORDER PLACE TIME: {response['timestamp'] - time_sent} ms\nEXCHANGE: {client.EXCHANGE_NAME}")
                 return response['timestamp'] - time_sent
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
