@@ -213,6 +213,7 @@ class MultiBot:
     async def __cycle_parser(self):
         time.sleep(12)
         while True:
+            # print(f"{self.client_1.count_flag} {self.client_2.count_flag}")
             if self.client_1.count_flag or self.client_2.count_flag:
                 try_list = []
                 time_start = time.time()  # noqa
@@ -227,8 +228,9 @@ class MultiBot:
                     if sell_price > buy_price:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
-            self.client_1.count_flag = False
-            self.client_2.count_flag = False
+                self.client_1.count_flag = False
+                self.client_2.count_flag = False
+
             # await asyncio.sleep(0.003)
 
     async def find_price_diffs(self):
