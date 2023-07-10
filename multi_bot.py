@@ -150,6 +150,8 @@ class MultiBot:
             self.shifts.update({x: 0})
         print(f"{self.shifts=}")
 
+
+
     def find_position_gap(self):
         position_gap = 0
 
@@ -213,7 +215,7 @@ class MultiBot:
         while True:
             if self.client_1.count_flag or self.client_2.count_flag:
                 try_list = []
-                self.time_start = time.time()  # noqa
+                time_start = time.time()  # noqa
                 for client_buy, client_sell in self.ribs:
                     if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
                         self.available_balance_update(client_buy, client_sell)
@@ -223,10 +225,11 @@ class MultiBot:
                     sell_price = ob_sell['bids'][0][0] * (1 + shift)
                     buy_price = ob_buy['asks'][0][0] * (1 - shift)
                     if sell_price > buy_price:
-                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell)
+                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
-                self.time_parser = time.time() - self.time_start  # noqa
-            await asyncio.sleep(0.003)
+            self.client_1.count_flag = False
+            self.client_2.count_flag = False
+            # await asyncio.sleep(0.003)
 
     async def find_price_diffs(self):
         time_start = time.time()
@@ -236,42 +239,40 @@ class MultiBot:
         if self.state == BotState.BOT:
             if chosen_deal:
                 time_choose = time.time() - time_start
-                await self.execute_deal(chosen_deal['buy_exch'],
-                                        chosen_deal['sell_exch'],
-                                        chosen_deal['orderbook_buy'],
-                                        chosen_deal['orderbook_sell'],
-                                        time_choose)
+                await self.execute_deal(chosen_deal,
+                                        time_choose,
+                                        )
 
     def choose_deal(self):
         max_profit = 0
         chosen_deal = None
 
         for deal in self.potential_deals:
-            self.deals_counter.append({'buy_exch': deal['buy_exch'],
-                                       "sell_exch": deal['sell_exch'],
-                                       "profit": deal['profit']})
-
+            # self.deals_counter.append({'buy_exch': deal['buy_exch'],
+            #                            "sell_exch": deal['sell_exch'],
+            #                            "profit": deal['profit']})
             if deal['profit'] > max_profit:
-                if self.available_balances[
-                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
-                        'sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
+                if self.available_balances[f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
+                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
                         max_profit = deal['profit']
                         chosen_deal = deal
 
         self.potential_deals = []
         return chosen_deal
 
-    def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell):
-        profit = (sell_price - buy_price) / buy_price
-        if profit > self.profit_taker + client_sell.taker_fee + client_buy.taker_fee:
+    def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
+        profit = (sell_price - buy_price) / buy_price - client_sell.taker_fee - client_buy.taker_fee
+        print(f"{profit=}")
+        if profit > self.profit_taker:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
-                                         "orderbook_buy": ob_buy,
-                                         "orderbook_sell": ob_sell,
+                                         "ob_buy": ob_buy,
+                                         "ob_sell": ob_sell,
                                          'max_deal_size': self.available_balances[
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
-                                         "profit": profit})
+                                         "profit": profit,
+                                         'time_start': time_start,
+                                         'time_parser': time.time() - time_start})
 
     def __get_amount_for_all_clients(self, amount):
         for client in self.clients:
@@ -280,58 +281,58 @@ class MultiBot:
         for client in self.clients:
             client.expect_amount_coin = max_amount
 
-    async def execute_deal(self, client_buy, client_sell, ob_buy, ob_sell, time_choose):
+    async def execute_deal(self, chosen_deal, time_choose):
+        client_buy = chosen_deal['buy_exch']
+        client_sell = chosen_deal['sell_exch']
+        ob_buy = chosen_deal['ob_buy']
+        ob_sell = chosen_deal['ob_sell']
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
-        self.deals_executed.append([f'+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}', max_deal_size])
         max_deal_size = max_deal_size / ((ob_buy['asks'][0][0] + ob_sell['bids'][0][0]) / 2)
-        await self.create_orders(client_buy, client_sell, ob_buy, ob_sell,
-                                 max_deal_size, time_choose)
-
-    async def create_orders(self, client_buy, client_sell, ob_buy, ob_sell, max_deal_size, time_choose):
         expect_buy_px = ob_buy['asks'][0][0]
         expect_sell_px = ob_sell['bids'][0][0]
         shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        price_buy_limit_taker = ob_buy['asks'][4][0]
-        price_sell_limit_taker = ob_sell['bids'][4][0]
-
+        shifted_buy_px = ob_buy['asks'][4][0]
+        shifted_sell_px = ob_sell['bids'][4][0]
+        # shifted_buy_px = price_buy * self.shifts['TAKER']
+        # shifted_sell_px = price_sell / self.shifts['TAKER']
         max_buy_vol = ob_buy['asks'][0][1]
         max_sell_vol = ob_sell['bids'][0][1]
 
-        # price_buy_limit_taker = price_buy * self.shifts['TAKER']
-        # price_sell_limit_taker = price_sell / self.shifts['TAKER']
-        timer = time.time() * 1000
+        # timer = time.time()
         arbitrage_possibilities_id = uuid.uuid4()
 
-        print('CREATE ORDER', f'{max_deal_size=}', f'{price_buy_limit_taker=}')
         self.__get_amount_for_all_clients(max_deal_size)
-        client_order_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
-        client_order_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+        cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+        cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         time_sent = time.time() * 1000
         responses = await asyncio.gather(*[
-            self.loop_1.create_task(
-                client_buy.create_order(price_buy_limit_taker, 'buy', self.session, client_id=client_order_id_buy)),
-            self.loop_1.create_task(
-                client_sell.create_order(price_sell_limit_taker, 'sell', self.session, client_id=client_order_id_sell))
+            self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
+            self.loop_1.create_task(client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
         ], return_exceptions=True)
         print(responses)
-        print(f"FULL POOL ADDING AND CALLING TIME: {time.time() * 1000 - timer}")
+        # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
 
         await asyncio.sleep(0.5)
-        self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, self._check_order_place_time(client_buy,
-                                                                                                     time_sent,
-                                                                                                     responses))
-        self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, self._check_order_place_time(client_sell,
-                                                                                                       time_sent,
-                                                                                                       responses))
+
+        # !!! ALL TIMERS !!!
+        time_start_parsing = chosen_deal['start_time']
+        time_parser = chosen_deal['time_parser']
+        time_choose = time_choose
+        buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
+        sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+
+        self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
+        self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
         self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                           max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
 
         await asyncio.sleep(self.deal_pause)
 
     @staticmethod
-    def _check_order_place_time(self, client, time_sent, responses) -> int:
+    def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
             if response['exchange_name'] == client.EXCHANGE_NAME:
+                print(f"LINE 342: ORDER PLACE TIME: {response['timestamp'] - time_sent} ms\nEXCHANGE: {client.EXCHANGE_NAME}")
                 return response['timestamp'] - time_sent
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
