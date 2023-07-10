@@ -324,7 +324,6 @@ class MultiBot:
     def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
             if response['exchange_name'] == client.EXCHANGE_NAME:
-                # print(f"LINE 342: ORDER PLACE TIME: {response['timestamp'] - time_sent} ms\nEXCHANGE: {client.EXCHANGE_NAME}")
                 return response['timestamp'] - time_sent
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
@@ -400,9 +399,9 @@ class MultiBot:
 
         if client.LAST_ORDER_ID == 'default':
             error_message = {
-                "chat_id": Config.TELEGRAM_CHAT_ID,
-                "msg": f"ALERT NAME: Order Mistake\nOrder Id:{order_id}\nError:{client.error_info}",
-                'bot_token': Config.TELEGRAM_TOKEN
+                "chat_id": Config.ALERT_CHAT_ID,
+                "msg": f"ALERT NAME: Order Mistake\nEXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
+                'bot_token': Config.ALERT_BOT_TOKEN
             }
             self.tasks.put({
                 'message': error_message,
