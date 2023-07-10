@@ -6,7 +6,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
+        max-size: "100m"
     build:
       context: .
       dockerfile: "dockerfile.multibot"
@@ -19,7 +19,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
+        max-size: "100m"
     build:
       context: .
       dockerfile: "dockerfile.multibot"
@@ -32,7 +32,7 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
+        max-size: "100m"
     build:
       context: .
       dockerfile: "dockerfile.multibot"
@@ -40,3 +40,43 @@ services:
       - .env.eth
     restart: always
     command: 'python multi_bot.py -c1 apollox -c2 binance'
+
+
+  multibot_eth_apollox_kraken:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    build:
+      context: .
+      dockerfile: "dockerfile.multibot"
+    env_file:
+      - .env.eth
+    restart: always
+    command: 'python multi_bot.py -c1 apollox -c2 kraken'
+
+  multibot_eth_binance_kraken:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    build:
+      context: .
+      dockerfile: "dockerfile.multibot"
+    env_file:
+      - .env.eth
+    restart: always
+    command: 'python multi_bot.py -c1 binance -c2 kraken'
+
+  multibot_eth_dydx_kraken:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+    build:
+      context: .
+      dockerfile: "dockerfile.multibot"
+    env_file:
+      - .env.eth
+    restart: always
+    command: 'python multi_bot.py -c1 dydx -c2 kraken'

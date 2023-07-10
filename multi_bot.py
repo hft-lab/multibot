@@ -310,8 +310,8 @@ class MultiBot:
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         await asyncio.sleep(0.5)
         # !!! ALL TIMERS !!!
-        time_start_parsing = chosen_deal['start_time']
-        time_parser = chosen_deal['time_parser']
+        time_start_parsing = chosen_deal['time_start']
+        self.time_parser = chosen_deal['time_parser']
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
         self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
@@ -384,7 +384,7 @@ class MultiBot:
             'status': 'Processing',
             'exchange': client.EXCHANGE_NAME,
             'side': side,
-            'symbol': client.symbol,
+            'symbol': client.symbol.upper(),
             'expect_price': client.expect_price,
             'expect_amount_coin': client.expect_amount_coin,
             'expect_amount_usd': client.expect_amount_coin * client.expect_price,
@@ -743,8 +743,8 @@ class MultiBot:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c1', nargs='?', const=True, default='binance', dest='client_1')
+    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
     args = parser.parse_args()
 
     MultiBot(args.client_1, args.client_2)
