@@ -149,8 +149,6 @@ class MultiBot:
         for x, y in Shifts().get_shifts().items():
             self.shifts.update({x: 0})
 
-
-
     def find_position_gap(self):
         position_gap = 0
 
@@ -225,7 +223,8 @@ class MultiBot:
                     sell_price = ob_sell['bids'][0][0] * (1 + shift)
                     buy_price = ob_buy['asks'][0][0] * (1 - shift)
                     if sell_price > buy_price:
-                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
+                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell,
+                                                time_start)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.client_1.count_flag = False
                 self.client_2.count_flag = False
@@ -251,8 +250,10 @@ class MultiBot:
             #                            "sell_exch": deal['sell_exch'],
             #                            "profit": deal['profit']})
             if deal['profit'] > max_profit:
-                if self.available_balances[f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
+                if self.available_balances[
+                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
+                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
+                        'sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -304,7 +305,8 @@ class MultiBot:
         time_sent = time.time() * 1000
         responses = await asyncio.gather(*[
             self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
-            self.loop_1.create_task(client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
+            self.loop_1.create_task(
+                client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
         ], return_exceptions=True)
         print(responses)
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
@@ -440,11 +442,20 @@ class MultiBot:
 
             file.write(message + '\n')
 
-    def ob_alert_send(self, client):
+    def ob_alert_send(self, client, ts):
+        if self.state == BotState.SLIPPAGE:
+            msg = "ALERT NAME: Exchange Slippage Suspicion\n"
+            msg += f"ENV: {self.env}\nEXCHANGE: {client.EXCHANGE_NAME}\n"
+            msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+            msg += f"Last Order Book Update DT: {datetime.datetime.fromtimestamp(ts / 1000)}"
+        else:
+            msg = "ALERT NAME: Exchange Slippage Suspicion\n"
+            msg += f"ENV: {self.env}\nEXCHANGES: {self.client_1.EXCHANGE_NAME}|{self.client_2.EXCHANGE_NAME}\n"
+            msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+            msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
         message = {
             "chat_id": Config.ALERT_CHAT_ID,
-            "msg": f"ALERT NAME: Order Mistake\nENV: {self.env}\nEXCHANGE: {client.EXCHANGE_NAME}\n \
-                                   Error: orderbook is older than deal_pause",
+            "msg": msg,
             'bot_token': Config.ALERT_BOT_TOKEN
         }
         self.tasks.put({
@@ -458,15 +469,23 @@ class MultiBot:
         while True:
             ob_sell = client_sell.get_orderbook()[client_sell.symbol]
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
-            if (time.time() * 1000) - ob_sell['timestamp'] > self.deal_pause * 1000:
-                self.ob_alert_send(client_sell)
+            current_timestamp = (time.time() * 1000)
+            deal_pause_ms = self.deal_pause * 1000
+            if current_timestamp - ob_sell['timestamp'] > deal_pause_ms:
+                if self.state == BotState.BOT:
+                    self.state = BotState.SLIPPAGE
+                    self.ob_alert_send(client_sell, ob_sell['timestamp'])
                 time.sleep(5)
                 continue
-            elif (time.time() * 1000) - ob_buy['timestamp'] > self.deal_pause * 1000:
-                self.ob_alert_send(client_buy)
+            elif current_timestamp - ob_buy['timestamp'] > deal_pause_ms:
+                if self.state == BotState.BOT:
+                    self.state = BotState.SLIPPAGE
+                    self.ob_alert_send(client_buy, ob_buy['timestamp'])
                 time.sleep(5)
                 continue
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
+                if self.state == BotState.SLIPPAGE:
+                    self.state = BotState.BOT
                 return ob_sell, ob_buy
 
     async def start_message(self):
