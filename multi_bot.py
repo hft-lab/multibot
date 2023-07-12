@@ -447,7 +447,7 @@ class MultiBot:
             msg = "ALERT NAME: Exchange Slippage Suspicion\n"
             msg += f"ENV: {self.env}\nEXCHANGE: {client.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
-            msg += f"Last Order Book Update DT: {datetime.datetime.fromtimestamp(ts / 1000)}"
+            msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
         else:
             msg = "ALERT NAME: Exchange Slippage Suspicion\n"
             msg += f"ENV: {self.env}\nEXCHANGES: {self.client_1.EXCHANGE_NAME}|{self.client_2.EXCHANGE_NAME}\n"
