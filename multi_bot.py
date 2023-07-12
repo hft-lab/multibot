@@ -440,18 +440,30 @@ class MultiBot:
 
             file.write(message + '\n')
 
+    def ob_alert_send(self, client):
+        message = {
+            "chat_id": Config.ALERT_CHAT_ID,
+            "msg": f"ALERT NAME: Order Mistake\nENV: {self.env}\nEXCHANGE: {client.EXCHANGE_NAME}\n \
+                                   Error: orderbook is older than deal_pause",
+            'bot_token': Config.ALERT_BOT_TOKEN
+        }
+        self.tasks.put({
+            'message': message,
+            'routing_key': RabbitMqQueues.TELEGRAM,
+            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+            'queue_name': RabbitMqQueues.TELEGRAM
+        })
+
     def get_orderbooks(self, client_sell, client_buy):
         while True:
             ob_sell = client_sell.get_orderbook()[client_sell.symbol]
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
             if (time.time() * 1000) - ob_sell['timestamp'] > self.deal_pause * 1000:
-                alert_message = f"{client_sell.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
-                asyncio.run(self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN))
+                self.ob_alert_send(client_sell)
                 time.sleep(5)
                 continue
             elif (time.time() * 1000) - ob_buy['timestamp'] > self.deal_pause * 1000:
-                alert_message = f"{client_buy.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
-                asyncio.run(self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN))
+                self.ob_alert_send(client_buy)
                 time.sleep(5)
                 continue
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
