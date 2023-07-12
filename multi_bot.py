@@ -444,12 +444,12 @@ class MultiBot:
         while True:
             ob_sell = client_sell.get_orderbook()[client_sell.symbol]
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
-            if (time.time() * 1000) - ob_sell['timestamp'] > 1000:
+            if (time.time() * 1000) - ob_sell['timestamp'] > self.deal_pause * 1000:
                 alert_message = f"{client_sell.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
                 await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
                 time.sleep(5)
                 continue
-            elif (time.time() * 1000) - ob_buy['timestamp'] > 1000:
+            elif (time.time() * 1000) - ob_buy['timestamp'] > self.deal_pause * 1000:
                 alert_message = f"{client_buy.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
                 await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
                 time.sleep(5)
