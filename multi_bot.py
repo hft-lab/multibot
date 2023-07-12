@@ -229,7 +229,7 @@ class MultiBot:
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.client_1.count_flag = False
                 self.client_2.count_flag = False
-            await asyncio.sleep(0.002)
+            await asyncio.sleep(0.02)
 
     async def find_price_diffs(self):
         time_start = time.time()
