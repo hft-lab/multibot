@@ -446,12 +446,12 @@ class MultiBot:
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
             if (time.time() * 1000) - ob_sell['timestamp'] > self.deal_pause * 1000:
                 alert_message = f"{client_sell.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
-                await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+                asyncio.run(self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN))
                 time.sleep(5)
                 continue
             elif (time.time() * 1000) - ob_buy['timestamp'] > self.deal_pause * 1000:
                 alert_message = f"{client_buy.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
-                await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+                asyncio.run(self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN))
                 time.sleep(5)
                 continue
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
