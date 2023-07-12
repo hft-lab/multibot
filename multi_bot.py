@@ -442,13 +442,20 @@ class MultiBot:
 
     def get_orderbooks(self, client_sell, client_buy):
         while True:
-            try:
-                ob_sell = client_sell.get_orderbook()[client_sell.symbol]
-                ob_buy = client_buy.get_orderbook()[client_buy.symbol]
-                if ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
-                    return ob_sell, ob_buy
-            except Exception:
-                traceback.print_exc()
+            ob_sell = client_sell.get_orderbook()[client_sell.symbol]
+            ob_buy = client_buy.get_orderbook()[client_buy.symbol]
+            if (time.time() * 1000) - ob_sell['timestamp'] > 1000:
+                alert_message = f"{client_sell.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
+                await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+                time.sleep(5)
+                continue
+            elif (time.time() * 1000) - ob_buy['timestamp'] > 1000:
+                alert_message = f"{client_buy.EXCHANGE_NAME} ORDERBOOK OLDER THAN 1s"
+                await self.send_message(alert_message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+                time.sleep(5)
+                continue
+            elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
+                return ob_sell, ob_buy
 
     async def start_message(self):
         coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
