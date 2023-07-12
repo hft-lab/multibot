@@ -486,6 +486,7 @@ class MultiBot:
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
                 if self.state == BotState.SLIPPAGE:
                     self.state = BotState.BOT
+                    self.ob_alert_send(client_sell, ob_sell['timestamp'])
                 return ob_sell, ob_buy
 
     async def start_message(self):
