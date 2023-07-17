@@ -242,7 +242,7 @@ class MultiBot:
                                         time_choose)
 
     def choose_deal(self):
-        max_profit = 0
+        max_profit = self.profit_taker
         chosen_deal = None
 
         for deal in self.potential_deals:
@@ -262,8 +262,8 @@ class MultiBot:
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
         profit = (sell_price - buy_price) / buy_price - client_sell.taker_fee - client_buy.taker_fee
-        # print(f"{profit=}")
         if profit > self.profit_taker:
+            print(f"BUY {client_buy.EXCHANGE_NAME}|SELL {client_sell.EXCHANGE_NAME}: {profit=}")
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
                                          "ob_buy": ob_buy,
@@ -442,15 +442,17 @@ class MultiBot:
 
             file.write(message + '\n')
 
-    def ob_alert_send(self, client, ts):
+    def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
         if self.state == BotState.SLIPPAGE:
             msg = "ALERT NAME: Exchange Slippage Suspicion\n"
-            msg += f"ENV: {self.env}\nEXCHANGE: {client.EXCHANGE_NAME}\n"
+            msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
+            msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
         else:
             msg = "ALERT NAME: Exchange Slippage Suspicion\n"
-            msg += f"ENV: {self.env}\nEXCHANGES: {self.client_1.EXCHANGE_NAME}|{self.client_2.EXCHANGE_NAME}\n"
+            msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
+            mag += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
         message = {
@@ -466,27 +468,31 @@ class MultiBot:
         })
 
     def get_orderbooks(self, client_sell, client_buy):
+        client_slippage = None
         while True:
             ob_sell = client_sell.get_orderbook()[client_sell.symbol]
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
             current_timestamp = (time.time() * 1000)
             deal_pause_ms = self.deal_pause * 1000
-            if current_timestamp - ob_sell['timestamp'] > deal_pause_ms:
+            if current_timestamp - ob_sell['timestamp'] > 3 * deal_pause_ms:
                 if self.state == BotState.BOT:
                     self.state = BotState.SLIPPAGE
-                    # self.ob_alert_send(client_sell, ob_sell['timestamp'])
+                    self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'])
+                    client_slippage = client_sell
                 time.sleep(5)
                 continue
-            elif current_timestamp - ob_buy['timestamp'] > deal_pause_ms:
+            elif current_timestamp - ob_buy['timestamp'] > 3 * deal_pause_ms:
                 if self.state == BotState.BOT:
                     self.state = BotState.SLIPPAGE
-                    # self.ob_alert_send(client_buy, ob_buy['timestamp'])
+                    self.ob_alert_send(client_buy, client_sell, ob_buy['timestamp'])
+                    client_slippage = client_buy
                 time.sleep(5)
                 continue
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
                 if self.state == BotState.SLIPPAGE:
                     self.state = BotState.BOT
-                    # self.ob_alert_send(client_sell, ob_sell['timestamp'])
+                    self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'], client_slippage)
+                    client_slippage = None
                 return ob_sell, ob_buy
 
     async def start_message(self):
@@ -785,5 +791,26 @@ if __name__ == '__main__':
     parser.add_argument('-c1', nargs='?', const=True, default='binance', dest='client_1')
     parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
     args = parser.parse_args()
+
+    # import cProfile
+    #
+    #
+    # def your_function():
+    #
+    #
+    # # Your code here
+    #
+    # # Start the profiler
+    # profiler = cProfile.Profile()
+    # profiler.enable()
+    #
+    # # Run your code
+    # your_function()
+    #
+    # # Stop the profiler
+    # profiler.disable()
+    #
+    # # Print the profiling results
+    # profiler.print_stats(sort='time')
 
     MultiBot(args.client_1, args.client_2)
