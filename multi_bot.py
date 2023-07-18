@@ -219,10 +219,9 @@ class MultiBot:
                         self.available_balance_update(client_buy, client_sell)
                         try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
                     ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-                    shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                    print(f"SHIFT: {shift}")
-                    sell_price = ob_sell['bids'][0][0] * (1 + shift)
-                    buy_price = ob_buy['asks'][0][0] * (1 - shift)
+                    # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                    sell_price = ob_sell['bids'][0][0]  # * (1 + shift)
+                    buy_price = ob_buy['asks'][0][0]  # * (1 - shift)
                     if sell_price > buy_price:
                         self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell,
                                                 time_start)
@@ -245,11 +244,7 @@ class MultiBot:
     def choose_deal(self):
         max_profit = self.profit_taker
         chosen_deal = None
-
         for deal in self.potential_deals:
-            # self.deals_counter.append({'buy_exch': deal['buy_exch'],
-            #                            "sell_exch": deal['sell_exch'],
-            #                            "profit": deal['profit']})
             if deal['profit'] > max_profit:
                 buy_exch = deal['buy_exch'].EXCHANGE_NAME
                 sell_exch = deal['sell_exch'].EXCHANGE_NAME
@@ -294,7 +289,7 @@ class MultiBot:
         expect_buy_px = ob_buy['asks'][0][0]
         expect_sell_px = ob_sell['bids'][0][0]
 
-        if expect_buy_px == chosen_deal["sell_price"] and expect_buy_px == chosen_deal["buy_price"]:
+        if expect_buy_px <= chosen_deal["buy_price"] and expect_sell_px >= chosen_deal["sell_price"]:
             shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
             shifted_buy_px = ob_buy['asks'][4][0]
             shifted_sell_px = ob_sell['bids'][4][0]
