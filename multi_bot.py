@@ -220,6 +220,7 @@ class MultiBot:
                         try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
                     ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
                     shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                    print(f"SHIFT: {shift}")
                     sell_price = ob_sell['bids'][0][0] * (1 + shift)
                     buy_price = ob_buy['asks'][0][0] * (1 - shift)
                     if sell_price > buy_price:
@@ -250,10 +251,11 @@ class MultiBot:
             #                            "sell_exch": deal['sell_exch'],
             #                            "profit": deal['profit']})
             if deal['profit'] > max_profit:
-                if self.available_balances[
-                    f"+{deal['buy_exch'].EXCHANGE_NAME}-{deal['sell_exch'].EXCHANGE_NAME}"] >= self.max_order_size:  # noqa
-                    if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal[
-                        'sell_exch'].EXCHANGE_NAME in self.exchanges:  # noqa
+                buy_exch = deal['buy_exch'].EXCHANGE_NAME
+                sell_exch = deal['sell_exch'].EXCHANGE_NAME
+                if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:  # noqa
+                        print(f"BUY {buy_exch} {deal['ob_buy']['asks'][0][0]}")
+                        print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]}\n{deal['profit']=}")
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -261,9 +263,8 @@ class MultiBot:
         return chosen_deal
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
-        profit = (sell_price - buy_price) / buy_price - client_sell.taker_fee - client_buy.taker_fee
+        profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
         if profit > self.profit_taker:
-            print(f"BUY {client_buy.EXCHANGE_NAME}|SELL {client_sell.EXCHANGE_NAME}: {profit=}")
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
                                          "ob_buy": ob_buy,
@@ -491,7 +492,12 @@ class MultiBot:
             elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
                 if self.state == BotState.SLIPPAGE:
                     self.state = BotState.BOT
-                    self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'], client_slippage)
+                    try:
+                        self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'], client_slippage)
+                    except Exception:
+                        print("\n" * 10)
+                        traceback.print_exc()
+                        print("\n" * 10)
                     client_slippage = None
                 return ob_sell, ob_buy
 
@@ -537,17 +543,17 @@ class MultiBot:
         if datetime.datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
             self.start_time = datetime.datetime.utcnow()
 
-            deals_potential = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
-            deals_executed = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
-
-            deals_potential['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_counter)
-            deals_potential['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_counter)
-
-            deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
-            deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
-
-            self.deals_counter = []
-            self.deals_executed = []
+            # deals_potential = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
+            # deals_executed = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
+            #
+            # deals_potential['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_counter)
+            # deals_potential['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_counter)
+            #
+            # deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
+            # deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
+            #
+            # self.deals_counter = []
+            # self.deals_executed = []
 
             self.__rates_update()
 
@@ -565,6 +571,7 @@ class MultiBot:
         print(f"SETUP MQ ENDED")
 
     async def setup_postgres(self) -> None:
+        print(Config.POSTGRES)
         self.db = await asyncpg.create_pool(**Config.POSTGRES)
 
     def get_sizes(self):
