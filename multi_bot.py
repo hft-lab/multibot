@@ -267,6 +267,8 @@ class MultiBot:
         if profit > self.profit_taker:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
+                                         "sell_price": sell_price,
+                                         "buy_price": buy_price,
                                          "ob_buy": ob_buy,
                                          "ob_sell": ob_sell,
                                          'max_deal_size': self.available_balances[
@@ -291,37 +293,39 @@ class MultiBot:
         max_deal_size = max_deal_size / ((ob_buy['asks'][0][0] + ob_sell['bids'][0][0]) / 2)
         expect_buy_px = ob_buy['asks'][0][0]
         expect_sell_px = ob_sell['bids'][0][0]
-        shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        shifted_buy_px = ob_buy['asks'][4][0]
-        shifted_sell_px = ob_sell['bids'][4][0]
-        # shifted_buy_px = price_buy * self.shifts['TAKER']
-        # shifted_sell_px = price_sell / self.shifts['TAKER']
-        max_buy_vol = ob_buy['asks'][0][1]
-        max_sell_vol = ob_sell['bids'][0][1]
-        # timer = time.time()
-        arbitrage_possibilities_id = uuid.uuid4()
-        self.__get_amount_for_all_clients(max_deal_size)
-        cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
-        cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
-        time_sent = time.time() * 1000
-        responses = await asyncio.gather(*[
-            self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
-            self.loop_1.create_task(
-                client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
-        ], return_exceptions=True)
-        print(responses)
-        # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
-        await asyncio.sleep(0.5)
-        # !!! ALL TIMERS !!!
-        time_start_parsing = chosen_deal['time_start']
-        self.time_parser = chosen_deal['time_parser']
-        buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
-        sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-        self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
-        self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
-        self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
-                                          max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
-        await asyncio.sleep(self.deal_pause)
+
+        if expect_buy_px == chosen_deal["sell_price"] and expect_buy_px == chosen_deal["buy_price"]:
+            shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
+            shifted_buy_px = ob_buy['asks'][4][0]
+            shifted_sell_px = ob_sell['bids'][4][0]
+            # shifted_buy_px = price_buy * self.shifts['TAKER']
+            # shifted_sell_px = price_sell / self.shifts['TAKER']
+            max_buy_vol = ob_buy['asks'][0][1]
+            max_sell_vol = ob_sell['bids'][0][1]
+            # timer = time.time()
+            arbitrage_possibilities_id = uuid.uuid4()
+            self.__get_amount_for_all_clients(max_deal_size)
+            cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+            cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+            time_sent = time.time() * 1000
+            responses = await asyncio.gather(*[
+                self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
+                self.loop_1.create_task(
+                    client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
+            ], return_exceptions=True)
+            print(responses)
+            # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
+            await asyncio.sleep(0.5)
+            # !!! ALL TIMERS !!!
+            time_start_parsing = chosen_deal['time_start']
+            self.time_parser = chosen_deal['time_parser']
+            buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
+            sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+            self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
+            self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
+            self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
+                                              max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
+            await asyncio.sleep(self.deal_pause)
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:

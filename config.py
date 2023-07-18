@@ -1,3 +1,4 @@
+import os
 from os import getenv
 
 from dotenv import load_dotenv
@@ -14,6 +15,9 @@ class Config:
     ORDER_SIZE = float(getenv("ORDER_SIZE", 0))
     TARGET_PROFIT = float(getenv("TARGET_PROFIT", 0))
     LIMIT_SHIFTS = float(getenv("LIMIT_SHIFTS", 0))
+    COIN = getenv('COIN')
+    API_TOKEN = getenv('API_TOKEN')
+    API_URL = getenv('API_TOKEN')
 
     TELEGRAM_TOKEN = getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID = getenv("TELEGRAM_CHAT_ID") # this is tests chat
