@@ -316,8 +316,8 @@ class MultiBot:
             self.time_parser = chosen_deal['time_parser']
             buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
             sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-            self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time)
-            self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
+            self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time, expect_buy_px)
+            self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time, expect_sell_px)
             self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                               max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
             self.save_balance(arbitrage_possibilities_id)
@@ -394,7 +394,7 @@ class MultiBot:
         client_sell.error_info = None
         client_sell.LAST_ORDER_ID = 'default'
 
-    def save_orders(self, client, side, parent_id, order_place_time) -> None:
+    def save_orders(self, client, side, parent_id, order_place_time, expect_price) -> None:
         order_id = uuid.uuid4()
         message = {
             'id': order_id,
@@ -408,7 +408,7 @@ class MultiBot:
             'exchange': client.EXCHANGE_NAME,
             'side': side,
             'symbol': client.symbol.upper(),
-            'expect_price': client.expect_price,
+            'expect_price': expect_price,
             'expect_amount_coin': client.expect_amount_coin,
             'expect_amount_usd': client.expect_amount_coin * client.expect_price,
             'expect_fee': client.taker_fee,
