@@ -423,7 +423,8 @@ class MultiBot:
         if client.LAST_ORDER_ID == 'default':
             error_message = {
                 "chat_id": Config.ALERT_CHAT_ID,
-                "msg": f"ALERT NAME: Order Mistake\nEXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
+                "msg": f"ALERT NAME: Order Mistake\nCOIN: {Config.COIN}\nCONTEXT: BOT\nENV: {self.env}\nEXCHANGE: "
+                       f"{client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
                 'bot_token': Config.ALERT_BOT_TOKEN
             }
             self.tasks.put({
@@ -817,8 +818,8 @@ class MultiBot:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
+    parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     # import cProfile
