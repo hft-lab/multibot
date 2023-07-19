@@ -279,7 +279,7 @@ class MultiBot:
         for client in self.clients:
             client.expect_amount_coin = max_amount
 
-    async def execute_deal(self, chosen_deal: dict, time_choose: int) -> None:
+    async def execute_deal(self, chosen_deal: dict, time_choose) -> None:
         client_buy = chosen_deal['buy_exch']
         client_sell = chosen_deal['sell_exch']
         ob_buy = chosen_deal['ob_buy']
@@ -345,7 +345,7 @@ class MultiBot:
         for response in responses:
             if response['exchange_name'] == client.EXCHANGE_NAME:
                 if response['timestamp']:
-                    return response['timestamp'] - time_sent
+                    return (response['timestamp'] - time_sent) / 1000
                 else:
                     return 0
 
@@ -357,7 +357,7 @@ class MultiBot:
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': int(time.time() * 1000),
+            'ts': int(time.time()),
             'buy_exchange': client_buy.EXCHANGE_NAME,
             'sell_exchange': client_sell.EXCHANGE_NAME,
             'symbol': client_buy.symbol,
@@ -399,7 +399,7 @@ class MultiBot:
         message = {
             'id': order_id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': time.time(),
+            'ts': int(time.time()),
             'context': 'bot',
             'parent_id': parent_id,
             'exchange_order_id': client.LAST_ORDER_ID,
@@ -473,7 +473,7 @@ class MultiBot:
         else:
             msg = "ALERT NAME: Exchange Slippage Suspicion\n"
             msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
-            mag += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
+            msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
         message = {
@@ -493,7 +493,7 @@ class MultiBot:
         while True:
             ob_sell = client_sell.get_orderbook()[client_sell.symbol]
             ob_buy = client_buy.get_orderbook()[client_buy.symbol]
-            current_timestamp = (time.time() * 1000)
+            current_timestamp = int(time.time() * 1000)
             deal_pause_ms = self.deal_pause * 1000
             if current_timestamp - ob_sell['timestamp'] > 3 * deal_pause_ms:
                 if self.state == BotState.BOT:
@@ -612,7 +612,7 @@ class MultiBot:
         if self.start and self.finish:
             self.tasks.put({
                 'message': {
-                    'timestamp': int(round(time.time() * 1000)),
+                    'timestamp': int(time.time()),
                     'total_balance': self.finish,
                     'env': self.env
                 },
