@@ -279,7 +279,7 @@ class MultiBot:
         for client in self.clients:
             client.expect_amount_coin = max_amount
 
-    async def execute_deal(self, chosen_deal, time_choose):
+    async def execute_deal(self, chosen_deal: dict, time_choose: int) -> None:
         client_buy = chosen_deal['buy_exch']
         client_sell = chosen_deal['sell_exch']
         ob_buy = chosen_deal['ob_buy']
@@ -302,7 +302,7 @@ class MultiBot:
             self.__get_amount_for_all_clients(max_deal_size)
             cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
             cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
-            time_sent = time.time() * 1000
+            time_sent = int(datetime.datetime.utcnow().timestamp() * 1000)
             responses = await asyncio.gather(*[
                 self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
                 self.loop_1.create_task(
@@ -320,13 +320,34 @@ class MultiBot:
             self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time)
             self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                               max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
+            self.save_balance(arbitrage_possibilities_id)
+
             await asyncio.sleep(self.deal_pause)
+
+    def save_balance(self, parent_id) -> None:
+        message = {
+            'parent_id': parent_id,
+            'context': 'post-deal',
+            'env': self.env,
+            'chat_id': self.chat_id,
+            'telegram_bot': self.telegram_bot,
+        }
+
+        self.tasks.put({
+            'message': message,
+            'routing_key': RabbitMqQueues.CHECK_BALANCE,
+            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
+            'queue_name': RabbitMqQueues.CHECK_BALANCE
+        })
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
             if response['exchange_name'] == client.EXCHANGE_NAME:
-                return response['timestamp'] - time_sent
+                if response['timestamp']:
+                    return response['timestamp'] - time_sent
+                else:
+                    return 0
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift):
@@ -336,7 +357,7 @@ class MultiBot:
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': time.time(),
+            'ts': int(time.time() * 1000),
             'buy_exchange': client_buy.EXCHANGE_NAME,
             'sell_exchange': client_sell.EXCHANGE_NAME,
             'symbol': client_buy.symbol,
@@ -730,7 +751,7 @@ class MultiBot:
             'env': self.env,
             'fee_exchange_1': self.client_1.taker_fee,
             'fee_exchange_2': self.client_2.taker_fee,
-            'shift': 1 - self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME] / 2,
+            'shift': self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME] / 2,
             'profit_taker': self.profit_taker,
             'order_delay': self.deal_pause,
             'max_order_usd': self.max_order_size,
@@ -765,7 +786,7 @@ class MultiBot:
             self.__prepare_shifts()
 
         await self.setup_postgres()
-        print(f"POSTGRES STARTED SUCCESFULLY")
+        print(f"POSTGRES STARTED SUCCESSFULLY")
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
@@ -794,7 +815,7 @@ class MultiBot:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c1', nargs='?', const=True, default='binance', dest='client_1')
+    parser.add_argument('-c1', nargs='?', const=True, default='dydx', dest='client_1')
     parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
     args = parser.parse_args()
 
