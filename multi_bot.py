@@ -249,8 +249,8 @@ class MultiBot:
                 buy_exch = deal['buy_exch'].EXCHANGE_NAME
                 sell_exch = deal['sell_exch'].EXCHANGE_NAME
                 if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:  # noqa
-                        print(f"BUY {buy_exch} {deal['ob_buy']['asks'][0][0]}")
-                        print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]}\n{deal['profit']=}")
+                        print(f"\n\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]}")
+                        print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]}\n{deal['profit']=}\n\n\n")
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -312,7 +312,7 @@ class MultiBot:
             # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
             await asyncio.sleep(0.5)
             # !!! ALL TIMERS !!!
-            time_start_parsing = chosen_deal['time_start']
+            # time_start_parsing = chosen_deal['time_start']
             self.time_parser = chosen_deal['time_parser']
             buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
             sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
@@ -351,8 +351,8 @@ class MultiBot:
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift):
-        expect_profit_usd = (expect_sell_px - expect_buy_px) * client_buy.expect_amount_coin - (
-                client_buy.taker_fee + client_sell.taker_fee)
+        expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
+                client_buy.taker_fee + client_sell.taker_fee)) * client_buy.expect_amount_coin
         expect_amount_usd = client_buy.expect_amount_coin * (expect_sell_px + expect_buy_px) / 2
         message = {
             'id': _id,
@@ -380,7 +380,7 @@ class MultiBot:
             'status': 'Processing',
             'bot_launch_id': self.bot_launch_id
         }
-
+        print(f"\n\n\nAP output sending: {message}\n\n\n")
         self.tasks.put({
             'message': message,
             'routing_key': RabbitMqQueues.ARBITRAGE_POSSIBILITIES,
@@ -465,13 +465,13 @@ class MultiBot:
 
     def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
         if self.state == BotState.SLIPPAGE:
-            msg = "ALERT NAME: Exchange Slippage Suspicion\n"
+            msg = "🔴ALERT NAME: Exchange Slippage Suspicion\n"
             msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
             msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
         else:
-            msg = "ALERT NAME: Exchange Slippage Suspicion\n"
+            msg = "🟢ALERT NAME: Exchange Slippage Suspicion\n"
             msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
             msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
