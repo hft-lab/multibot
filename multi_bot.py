@@ -320,8 +320,8 @@ class MultiBot:
             # self.time_parser = chosen_deal['time_parser']
             buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
             sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-            self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time, expect_buy_px)
-            self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time, expect_sell_px)
+            self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time, shifted_buy_px)
+            self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time, shifted_sell_px)
             self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
                                               max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
                                               time_parser=chosen_deal['time_parser'])
