@@ -104,7 +104,7 @@ class MultiBot:
 
         time.sleep(10)
 
-        self.get_sizes()
+        # self.get_sizes()
 
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
@@ -222,9 +222,8 @@ class MultiBot:
                     # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
                     sell_price = ob_sell['bids'][0][0]  # * (1 + shift)
                     buy_price = ob_buy['asks'][0][0]  # * (1 - shift)
-                    if sell_price > buy_price:
-                        self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell,
-                                                time_start)
+                    # if sell_price > buy_price:
+                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
                 self.client_1.count_flag = False
                 self.client_2.count_flag = False
@@ -248,9 +247,12 @@ class MultiBot:
             if deal['profit'] > max_profit:
                 buy_exch = deal['buy_exch'].EXCHANGE_NAME
                 sell_exch = deal['sell_exch'].EXCHANGE_NAME
+                print(f"\n\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
+                print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
+                print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+                print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
+                print(f"{deal['profit']=}\n\n\n")
                 if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:  # noqa
-                        print(f"\n\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]}")
-                        print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]}\n{deal['profit']=}\n\n\n")
                         max_profit = deal['profit']
                         chosen_deal = deal
 
@@ -273,8 +275,10 @@ class MultiBot:
                                          'time_parser': time.time() - time_start})
 
     def __get_amount_for_all_clients(self, amount):
+        print(f"Started __get_amount_for_all_clients: AMOUNT: {amount}")
         for client in self.clients:
             client.fit_amount(amount)
+            print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         max_amount = max([client.expect_amount_coin for client in self.clients])
         for client in self.clients:
             client.expect_amount_coin = max_amount
@@ -285,12 +289,12 @@ class MultiBot:
         ob_buy = chosen_deal['ob_buy']
         ob_sell = chosen_deal['ob_sell']
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
-        max_deal_size = max_deal_size / ((ob_buy['asks'][0][0] + ob_sell['bids'][0][0]) / 2)
+        max_deal_size = max_deal_size / ob_buy['asks'][0][0]
         expect_buy_px = ob_buy['asks'][0][0]
         expect_sell_px = ob_sell['bids'][0][0]
 
         if expect_buy_px <= chosen_deal["buy_price"] and expect_sell_px >= chosen_deal["sell_price"]:
-            shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
+            # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
             shifted_buy_px = ob_buy['asks'][4][0]
             shifted_sell_px = ob_sell['bids'][4][0]
             # shifted_buy_px = price_buy * self.shifts['TAKER']
@@ -313,13 +317,14 @@ class MultiBot:
             await asyncio.sleep(0.5)
             # !!! ALL TIMERS !!!
             # time_start_parsing = chosen_deal['time_start']
-            self.time_parser = chosen_deal['time_parser']
+            # self.time_parser = chosen_deal['time_parser']
             buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
             sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
             self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time, expect_buy_px)
             self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time, expect_sell_px)
             self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
-                                              max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift)
+                                              max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
+                                              time_parser=chosen_deal['time_parser'])
             self.save_balance(arbitrage_possibilities_id)
 
             await asyncio.sleep(self.deal_pause)
@@ -350,7 +355,7 @@ class MultiBot:
                     return 0
 
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                     expect_sell_px, time_choose, shift):
+                                     expect_sell_px, time_choose, shift, time_parser):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
                 client_buy.taker_fee + client_sell.taker_fee)) * client_buy.expect_amount_coin
         expect_amount_usd = client_buy.expect_amount_coin * (expect_sell_px + expect_buy_px) / 2
@@ -373,7 +378,7 @@ class MultiBot:
             'expect_profit_relative': expect_profit_usd / expect_amount_usd,
             'expect_fee_buy': client_buy.taker_fee,
             'expect_fee_sell': client_sell.taker_fee,
-            'time_parser': self.time_parser,
+            'time_parser': time_parser,
             'time_choose': time_choose,
             'chat_id': self.chat_id,
             'bot_token': self.telegram_bot,
@@ -819,7 +824,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
     args = parser.parse_args()
 
     # import cProfile
