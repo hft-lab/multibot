@@ -635,11 +635,11 @@ class MultiBot:
         result = 0
         exchanges = []
         time_ = 0
-        for r in await get_total_balance(cursor, asc_desc):
-            if not r['exchange_name'] in exchanges:
-                result += r['total_balance']
-                exchanges.append(r['exchange_name'])
-                time_ = max(time_, r['ts'])
+        for row in await get_total_balance(cursor, asc_desc):
+            if not row['exchange_name'] in exchanges:
+                result += row['total_balance']
+                exchanges.append(row['exchange_name'])
+                time_ = max(time_, row['ts'])
 
             if len(exchanges) >= self.exchanges_len:
                 break
@@ -805,14 +805,14 @@ class MultiBot:
                 if self.state == BotState.PARSER:
                     time.sleep(1)
 
-                if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                    self.state = BotState.PARSER
-
-                    if self.__check_env():
-                        self.state = BotState.BOT
-
-                    await self.save_new_balance_jump()
-                    await self.prepare_alert()
+                # if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
+                #     self.state = BotState.PARSER
+                #
+                #     if self.__check_env():
+                #         self.state = BotState.BOT
+                #
+                #     await self.save_new_balance_jump()
+                #     await self.prepare_alert()
 
                 if not start_message:
                     await self.start_message()
