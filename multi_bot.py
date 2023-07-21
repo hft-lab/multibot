@@ -264,8 +264,10 @@ class MultiBot:
         if profit > self.profit_taker:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
-                                         "sell_price": sell_price,
-                                         "buy_price": buy_price,
+                                         "sell_px": sell_price,
+                                         "buy_px": buy_price,
+                                         'expect_buy_px': ob_buy['asks'][0][0],
+                                         'expect_sell_px': ob_sell['bids'][0][0],
                                          "ob_buy": ob_buy,
                                          "ob_sell": ob_sell,
                                          'max_deal_size': self.available_balances[
@@ -290,8 +292,8 @@ class MultiBot:
         ob_sell = chosen_deal['ob_sell']
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
-        expect_buy_px = ob_buy['asks'][0][0]
-        expect_sell_px = ob_sell['bids'][0][0]
+        expect_buy_px = ob_buy['expect_buy_px']
+        expect_sell_px = ob_sell['expect_sell_px']
 
         if expect_buy_px <= chosen_deal["buy_price"] and expect_sell_px >= chosen_deal["sell_price"]:
             # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
