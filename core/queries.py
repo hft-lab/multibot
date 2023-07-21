@@ -10,6 +10,7 @@ async def get_total_balance(cursor, asc_desc):
 
     return await cursor.fetch(sql)
 
+
 async def get_last_launch(cursor, exchange_1: str, exchange_2: str, coin: str, updated_flag: int, limit: bool) -> dict:
     sql = f"""
     select 
@@ -22,7 +23,7 @@ async def get_last_launch(cursor, exchange_1: str, exchange_2: str, coin: str, u
         coin = '{coin}' and 
         updated_flag = {updated_flag}
     order by 
-    	datetime desc
+        datetime desc
     {"limit 1" if limit else ""}
     """
 
@@ -44,5 +45,5 @@ async def get_last_balance_jumps(cursor):
     limit 
         1
     """
-    if res:= await cursor.fetchrow(sql):
+    if res := await cursor.fetchrow(sql):
         return res['total_balance'], res['date_utc']
