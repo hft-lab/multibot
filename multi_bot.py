@@ -292,10 +292,9 @@ class MultiBot:
         ob_sell = chosen_deal['ob_sell']
         max_deal_size = self.available_balances[f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"]
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
-        expect_buy_px = ob_buy['expect_buy_px']
-        expect_sell_px = ob_sell['expect_sell_px']
-
-        if expect_buy_px <= chosen_deal["buy_price"] and expect_sell_px >= chosen_deal["sell_price"]:
+        expect_buy_px = chosen_deal['expect_buy_px']
+        expect_sell_px = chosen_deal['expect_sell_px']
+        if expect_buy_px <= chosen_deal["buy_px"] and expect_sell_px >= chosen_deal["sell_px"]:
             # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
             shifted_buy_px = ob_buy['asks'][4][0]
             shifted_sell_px = ob_sell['bids'][4][0]
