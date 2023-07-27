@@ -19,3 +19,12 @@ services:
             ./.env.eth
         restart: always
         command: 'python3 clients/binance.py'
+
+    test_ping_kraken:
+        build:
+            context: .
+            dockerfile: "dockerfile.clients"
+        env_file:
+            ./.env.eth
+        restart: always
+        command: 'python3 clients/kraken.py'
