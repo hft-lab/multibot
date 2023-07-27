@@ -1,0 +1,21 @@
+version: '3.5'
+
+services:
+
+    test_ping_dydx:
+        build:
+            context: .
+            dockerfile: "dockerfile.clients"
+        env_file:
+            ./.env.eth
+        restart: always
+        command: 'python3 clients/dydx.py'
+
+    test_ping_binance:
+        build:
+            context: .
+            dockerfile: "dockerfile.clients"
+        env_file:
+            ./.env.eth
+        restart: always
+        command: 'python3 clients/binance.py'
