@@ -13,6 +13,7 @@ import csv
 import aiohttp
 import asyncpg
 import orjson
+import requests
 from aio_pika import Message, ExchangeType, connect_robust
 
 from clients.apollox import ApolloxClient
@@ -22,8 +23,8 @@ from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
 from config import Config
-from clients.enums import BotState, RabbitMqQueues, OrderStatus
-from core.queries import get_last_balance_jumps, get_total_balance
+from clients.enums import BotState, RabbitMqQueues
+from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch
 from tools.shifts import Shifts
 
 dictConfig(Config.LOGGING)
@@ -45,8 +46,8 @@ class MultiBot:
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
-                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id'
-                 ]
+                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
+                 'bot_launch_id', 'base_launch_config', 'launch_fields']
 
     def __init__(self, client_1: str, client_2: str):
         self.bot_launch_id = None
@@ -57,6 +58,8 @@ class MultiBot:
         self.rabbit_url = f"amqp://{Config.RABBIT['username']}:{Config.RABBIT['password']}@{Config.RABBIT['host']}:{Config.RABBIT['port']}/"
 
         self.env = Config.ENV
+        self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
+                              'max_order_usd', 'max_leverage', 'shift_use_flag']
 
         self.s_time = ''
         self.f_time = ''
@@ -104,7 +107,21 @@ class MultiBot:
 
         time.sleep(10)
 
-        # self.get_sizes()
+        self.base_launch_config = {
+            "env": Config.ENV,
+            "shift_use_flag": 0,
+            "target_profit": 0.01,
+            "orders_delay": 300,
+            "max_order_usd": 50,
+            "max_leverage": 2,
+            'fee_exchange_1': self.client_1.taker_fee,
+            'fee_exchange_2': self.client_2.taker_fee,
+            'exchange_1': self.client_1.EXCHANGE_NAME,
+            'exchange_2': self.client_2.EXCHANGE_NAME,
+            'updated_flag': 1,
+            'datetime_update': datetime.datetime.utcnow(),
+            'ts_update': int(time.time() * 1000)
+        }
 
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
@@ -147,7 +164,7 @@ class MultiBot:
         self.__rates_update()
         # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
         for x, y in Shifts().get_shifts().items():
-            self.shifts.update({x: 0})
+            self.shifts.update({x: y})
 
     def find_position_gap(self):
         position_gap = 0
@@ -176,6 +193,7 @@ class MultiBot:
                 await self.setup_mq(self.loop_4)
                 await asyncio.sleep(1)
                 task.update({'connect': self.mq})
+                print(task)
                 await self.publish_message(**task)
 
             finally:
@@ -253,8 +271,8 @@ class MultiBot:
                 print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
                 print(f"{deal['profit']=}\n\n\n")
                 if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:  # noqa
-                        max_profit = deal['profit']
-                        chosen_deal = deal
+                    max_profit = deal['profit']
+                    chosen_deal = deal
 
         self.potential_deals = []
         return chosen_deal
@@ -309,7 +327,8 @@ class MultiBot:
             cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
             time_sent = int(datetime.datetime.utcnow().timestamp() * 1000)
             responses = await asyncio.gather(*[
-                self.loop_1.create_task(client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
+                self.loop_1.create_task(
+                    client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
                 self.loop_1.create_task(
                     client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
             ], return_exceptions=True)
@@ -748,75 +767,138 @@ class MultiBot:
 
             await asyncio.sleep(3)
 
-    def save_config(self):
-        self.bot_launch_id = uuid.uuid4()
-        message = {
-            'id': self.bot_launch_id,
-            'datetime': datetime.datetime.utcnow(),
-            'ts': time.time(),
-            'exchange_1': self.client_1.EXCHANGE_NAME,
-            'exchange_2': self.client_2.EXCHANGE_NAME,
-            'coin': self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', ''),
-            'env': self.env,
-            'fee_exchange_1': self.client_1.taker_fee,
-            'fee_exchange_2': self.client_2.taker_fee,
-            'shift': self.shifts[self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME] / 2,
-            'profit_taker': self.profit_taker,
-            'order_delay': self.deal_pause,
-            'max_order_usd': self.max_order_size,
-            'max_leverage': self.client_1.leverage
-        }
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.BOT_CONFIG,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.BOT_CONFIG),
-            'queue_name': RabbitMqQueues.BOT_CONFIG
-        })
+    async def __check_start_launch_config(self):
+        async with self.db.acquire() as cursor:
+            if not await get_last_launch(cursor, self.client_1.EXCHANGE_NAME, self.client_2.EXCHANGE_NAME, Config.COIN):
+                print(12121212121)
+                if launch := await get_last_launch(cursor, self.client_1.EXCHANGE_NAME, self.client_2.EXCHANGE_NAME,
+                                                   Config.COIN, 1):
 
-        message = {
-            'parent_id': self.bot_launch_id,
-            'context': 'bot-launch',
-            'env': self.env,
-            'chat_id': self.chat_id,
-            'telegram_bot': self.telegram_bot,
-        }
+                    launch = launch[0]
+                    data = {
+                        "env": Config.ENV,
+                        "shift_use_flag": launch['shift_use_flag'],
+                        "target_profit": launch['target_profit'],
+                        "orders_delay": launch['orders_delay'],
+                        "max_order_usd": launch['max_order_usd'],
+                        "max_leverage": launch['max_leverage'],
+                        'exchange_1': self.client_1.EXCHANGE_NAME,
+                        'exchange_2': self.client_2.EXCHANGE_NAME,
+                    }
+                    headers = {
+                        'token': 'jnfXhfuherfihvijnfjigt',
+                        'context': 'bot-start'
+                    }
+                else:
+                    data = self.base_launch_config
 
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.CHECK_BALANCE,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
-            'queue_name': RabbitMqQueues.CHECK_BALANCE
-        })
+                url = f'http://{Config.CONFIG_API_HOST}:{Config.CONFIG_API_PORT}/api/v1/configs'
+
+                requests.post(url=url, headers=headers, json=data)
 
     async def __start(self):
+        await self.setup_postgres()
+        print(f"POSTGRES STARTED SUCCESSFULLY")
+        start = datetime.datetime.utcnow()
+        first_launch = True
         exchanges = self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME
+
+        await self.__check_start_launch_config()
+
         while not exchanges in self.shifts:
             print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
             self.__prepare_shifts()
 
-        await self.setup_postgres()
-        print(f"POSTGRES STARTED SUCCESSFULLY")
+        start_shifts = self.shifts.copy()
+
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
             start_message = False
+
             while True:
                 if self.state == BotState.PARSER:
                     time.sleep(1)
 
-                # if self.state == BotState.BOT and Config.STOP_PERCENT < await self.get_balance_percent():
-                #     self.state = BotState.PARSER
-                #
-                #     if self.__check_env():
-                #         self.state = BotState.BOT
-                #
-                #     await self.save_new_balance_jump()
-                #     await self.prepare_alert()
+                if (start - datetime.datetime.utcnow()).seconds >= 30 or first_launch:
+                    first_launch = False
+                    start = datetime.datetime.utcnow()
+
+                    async with self.db.acquire() as cursor:
+                        if launches := await get_last_launch(cursor,
+                                                             self.client_1.EXCHANGE_NAME,
+                                                             self.client_2.EXCHANGE_NAME,
+                                                             Config.COIN):
+                            launch = launches.pop(0)
+                            self.bot_launch_id = str(launch['id'])
+
+                            for field in launch:
+                                if not launch.get('field') and field not in ['id', 'datetime', 'ts', 'bot_config_id',
+                                                                             'coin', 'shift']:
+                                    launch[field] = self.base_launch_config[field]
+
+                            launch['launch_id'] = str(launch.pop('id'))
+                            launch['bot_config_id'] = str(launch['bot_config_id'])
+
+                            if not launch.get('shift_use_flag'):
+                                for client_1, client_2 in self.ribs:
+                                    self.shifts.update({f'{client_1.EXCHANGE_NAME} {client_2.EXCHANGE_NAME}': 0})
+                            else:
+                                self.shifts = start_shifts
+
+                            self.tasks.put({
+                                'message': launch,
+                                'routing_key': RabbitMqQueues.UPDATE_LAUNCH,
+                                'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.UPDATE_LAUNCH),
+                                'queue_name': RabbitMqQueues.UPDATE_LAUNCH
+                            })
+
+                            for launch in launches:
+                                launch['datetime_update'] = self.base_launch_config['datetime_update']
+                                launch['ts_update'] = self.base_launch_config['ts_update']
+                                launch['updated_flag'] = -1
+                                launch['launch_id'] = str(launch.pop('id'))
+                                launch['bot_config_id'] = str(launch['bot_config_id'])
+                                self.tasks.put({
+                                    'message': launch,
+                                    'routing_key': RabbitMqQueues.UPDATE_LAUNCH,
+                                    'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.UPDATE_LAUNCH),
+                                    'queue_name': RabbitMqQueues.UPDATE_LAUNCH
+                                })
+
+                            # UPDATE BALANCES
+                            message = {
+                                'parent_id': self.bot_launch_id,
+                                'context': 'bot-config-update',
+                                'env': self.env,
+                                'chat_id': self.chat_id,
+                                'telegram_bot': self.telegram_bot,
+                            }
+
+                            self.tasks.put({
+                                'message': message,
+                                'routing_key': RabbitMqQueues.CHECK_BALANCE,
+                                'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
+                                'queue_name': RabbitMqQueues.CHECK_BALANCE
+                            })
 
                 if not start_message:
                     await self.start_message()
                     await self.start_balance_message()
-                    self.save_config()
+                    message = {
+                        'parent_id': self.bot_launch_id,
+                        'context': 'bot-launch',
+                        'env': self.env,
+                        'chat_id': self.chat_id,
+                        'telegram_bot': self.telegram_bot,
+                    }
+
+                    self.tasks.put({
+                        'message': message,
+                        'routing_key': RabbitMqQueues.CHECK_BALANCE,
+                        'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
+                        'queue_name': RabbitMqQueues.CHECK_BALANCE
+                    })
                     start_message = True
 
                 await self.find_price_diffs()
@@ -825,7 +907,7 @@ class MultiBot:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='kraken', dest='client_2')
+    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
     args = parser.parse_args()
 
     # import cProfile

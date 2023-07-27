@@ -19,6 +19,9 @@ class Config:
     API_TOKEN = getenv('API_TOKEN')
     API_URL = getenv('API_TOKEN')
 
+    CONFIG_API_HOST = getenv('CONFIG_API_HOST')
+    CONFIG_API_PORT = getenv('CONFIG_API_PORT')
+
     TELEGRAM_TOKEN = getenv("TELEGRAM_TOKEN")
     TELEGRAM_CHAT_ID = getenv("TELEGRAM_CHAT_ID") # this is tests chat
     TELEGRAM_DAILY_CHAT_ID = getenv("TELEGRAM_DAILY_CHAT_ID")
