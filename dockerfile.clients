@@ -1,0 +1,15 @@
+FROM python:3.9
+
+COPY ./requirements.txt ./requirements.txt
+RUN pip install --upgrade pip
+RUN pip3 install dydx_v3_python
+RUN pip install python-dotenv
+RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --upgrade urllib3
+
+RUN mkdir multibot
+WORKDIR ./multibot
+COPY . .
+
+ENV PYTHONPATH="/:$PYTHONPATH"
+ENV TZ=Europe/London
