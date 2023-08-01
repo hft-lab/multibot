@@ -231,7 +231,7 @@ class MultiBot:
             # print(f"{self.client_1.count_flag} {self.client_2.count_flag}")
             if self.client_1.count_flag or self.client_2.count_flag:
                 try_list = []
-                time_start = time.time()  # noqa
+                time_start = int(time.time() * 1000)  # noqa
                 for client_buy, client_sell in self.ribs:
                     if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
                         self.available_balance_update(client_buy, client_sell)
@@ -248,13 +248,13 @@ class MultiBot:
             await asyncio.sleep(0.02)
 
     async def find_price_diffs(self):
-        time_start = time.time()
+        time_start = int(time.time() * 1000)
         chosen_deal = None
         if len(self.potential_deals):
             chosen_deal = self.choose_deal()
         if self.state == BotState.BOT:
             if chosen_deal:
-                time_choose = time.time() - time_start
+                time_choose = int(time.time() * 1000) - time_start
                 await self.execute_deal(chosen_deal,
                                         time_choose)
 
@@ -292,7 +292,7 @@ class MultiBot:
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
                                          "profit": profit,
                                          'time_start': time_start,
-                                         'time_parser': time.time() - time_start})
+                                         'time_parser': int(time.time() * 1000) - time_start})
 
     def __get_amount_for_all_clients(self, amount):
         print(f"Started __get_amount_for_all_clients: AMOUNT: {amount}")
@@ -382,7 +382,7 @@ class MultiBot:
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': int(time.time()),
+            'ts': int(time.time() * 1000),
             'buy_exchange': client_buy.EXCHANGE_NAME,
             'sell_exchange': client_sell.EXCHANGE_NAME,
             'symbol': client_buy.symbol,
@@ -424,7 +424,7 @@ class MultiBot:
         message = {
             'id': order_id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': int(time.time()),
+            'ts': int(time.time() * 1000),
             'context': 'bot',
             'parent_id': parent_id,
             'exchange_order_id': client.LAST_ORDER_ID,
@@ -485,7 +485,7 @@ class MultiBot:
         message = ''
         with open('rates.txt', 'a') as file:
             for client in self.clients:
-                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
+                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {int(time.time() * 1000)}\n"
 
             file.write(message + '\n')
 
@@ -640,7 +640,7 @@ class MultiBot:
         if self.start and self.finish:
             self.tasks.put({
                 'message': {
-                    'timestamp': int(time.time()),
+                    'timestamp': int(time.time() * 1000),
                     'total_balance': self.finish,
                     'env': self.env
                 },
