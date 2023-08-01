@@ -13,7 +13,7 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 dydx -c2 binance'
+    command: 'python3 multi_bot.py -c1 dydx -c2 binance'
 
   multibot_eth_dydx_apollox:
     logging:
@@ -26,7 +26,7 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 dydx -c2 apollox'
+    command: 'python3 multi_bot.py -c1 dydx -c2 apollox'
 
   multibot_eth_apollox_binance:
     logging:
@@ -39,7 +39,7 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 apollox -c2 binance'
+    command: 'python3 multi_bot.py -c1 apollox -c2 binance'
 
 
   multibot_eth_apollox_kraken:
@@ -53,7 +53,7 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 apollox -c2 kraken'
+    command: 'python3 multi_bot.py -c1 apollox -c2 kraken'
 
   multibot_eth_binance_kraken:
     logging:
@@ -66,7 +66,7 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 binance -c2 kraken'
+    command: 'python3 multi_bot.py -c1 binance -c2 kraken'
 
   multibot_eth_dydx_kraken:
     logging:
@@ -79,4 +79,4 @@ services:
     env_file:
       - .env.eth
     restart: always
-    command: 'python multi_bot.py -c1 dydx -c2 kraken'
+    command: 'python3 multi_bot.py -c1 dydx -c2 kraken'
