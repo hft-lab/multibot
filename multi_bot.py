@@ -22,21 +22,30 @@ from clients.bitmex import BitmexClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
-from config import Config
+# from config import Config
 from clients.enums import BotState, RabbitMqQueues
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch
 from tools.shifts import Shifts
 
-dictConfig(Config.LOGGING)
+import configparser
+import sys
+config = configparser.ConfigParser()
+config.read(sys.argv[1], "utf-8")
+
+dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
+                'simple': {'format': '[%(asctime)s][%(threadName)s] %(funcName)s: %(message)s'}},
+            'handlers': {'console': {'class': 'logging.StreamHandler', 'level': 'DEBUG', 'formatter': 'simple',
+                'stream': 'ext://sys.stdout'}},
+            'loggers': {'': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False}}})
 logger = logging.getLogger(__name__)
 
 CLIENTS_WITH_CONFIGS = {
-    'BITMEX': [BitmexClient, Config.BITMEX, Config.LEVERAGE],
-    'DYDX': [DydxClient, Config.DYDX, Config.LEVERAGE],
-    'BINANCE': [BinanceClient, Config.BINANCE, Config.LEVERAGE],
-    'APOLLOX': [ApolloxClient, Config.APOLLOX, Config.LEVERAGE],
-    'OKX': [OkxClient, Config.OKX, Config.LEVERAGE],
-    'KRAKEN': [KrakenClient, Config.KRAKEN, Config.LEVERAGE]
+    'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
+    'DYDX': [DydxClient, config['DYDX'], config['SETTINGS']['LEVERAGE']],
+    'BINANCE': [BinanceClient, config['BINANCE'], config['SETTINGS']['LEVERAGE']],
+    'APOLLOX': [ApolloxClient, config['APOLLOX'], config['SETTINGS']['LEVERAGE']],
+    'OKX': [OkxClient, config['OKX'], config['SETTINGS']['LEVERAGE']],
+    'KRAKEN': [KrakenClient, config['KRAKEN'], config['SETTINGS']['LEVERAGE']]
 }
 
 
@@ -47,7 +56,7 @@ class MultiBot:
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
-                 'bot_launch_id', 'base_launch_config', 'launch_fields']
+                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts']
 
     def __init__(self, client_1: str, client_2: str):
         self.bot_launch_id = None
@@ -55,9 +64,11 @@ class MultiBot:
         self.finish = None
         self.db = None
         self.mq = None
-        self.rabbit_url = f"amqp://{Config.RABBIT['username']}:{Config.RABBIT['password']}@{Config.RABBIT['host']}:{Config.RABBIT['port']}/"
+        self.setts = config['SETTINGS']
+        rabbit = config['RABBIT']
+        self.rabbit_url = f"amqp://{rabbit['USERNAME']}:{rabbit['PASSWORD']}@{rabbit['HOST']}:{rabbit['PORT']}/"
 
-        self.env = Config.ENV
+        self.env = self.setts['ENV']
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
 
@@ -68,19 +79,19 @@ class MultiBot:
         self.last_orderbooks = {}
 
         # ORDER CONFIGS
-        self.deal_pause = Config.DEALS_PAUSE
-        self.max_order_size = Config.ORDER_SIZE
-        self.profit_taker = Config.TARGET_PROFIT
-        self.shifts = {'TAKER': Config.LIMIT_SHIFTS}
+        self.deal_pause = int(self.setts['DEALS_PAUSE'])
+        self.max_order_size = int(self.setts['ORDER_SIZE'])
+        self.profit_taker = float(self.setts['TARGET_PROFIT'])
+        self.shifts = {'TAKER': float(self.setts['LIMIT_SHIFTS'])}
 
         # TELEGRAM
-        self.telegram_bot = Config.TELEGRAM_TOKEN
-        self.chat_id = Config.TELEGRAM_CHAT_ID
-        self.daily_chat_id = Config.TELEGRAM_DAILY_CHAT_ID
-        self.inv_chat_id = Config.TELEGRAM_INV_CHAT_ID
+        self.telegram_bot = config['TELEGRAM']['TOKEN']
+        self.chat_id = int(config['TELEGRAM']['CHAT_ID'])
+        self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
+        self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
 
-        self.state = Config.STATE
-        self.exchanges_len = len(Config.EXCHANGES)
+        self.state = self.setts['STATE']
+        self.exchanges_len = len(self.setts['EXCHANGES'].split(', '))
 
         # CLIENTS
         client_1 = CLIENTS_WITH_CONFIGS[client_1.upper()]
@@ -108,7 +119,7 @@ class MultiBot:
         time.sleep(10)
 
         self.base_launch_config = {
-            "env": Config.ENV,
+            "env": self.setts['ENV'],
             "shift_use_flag": 0,
             "target_profit": 0.01,
             "orders_delay": 300,
@@ -231,7 +242,7 @@ class MultiBot:
             # print(f"{self.client_1.count_flag} {self.client_2.count_flag}")
             if self.client_1.count_flag or self.client_2.count_flag:
                 try_list = []
-                time_start = int(time.time() * 1000)  # noqa
+                time_start = time.time()  # noqa
                 for client_buy, client_sell in self.ribs:
                     if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
                         self.available_balance_update(client_buy, client_sell)
@@ -248,13 +259,13 @@ class MultiBot:
             await asyncio.sleep(0.02)
 
     async def find_price_diffs(self):
-        time_start = int(time.time() * 1000)
+        time_start = time.time()
         chosen_deal = None
         if len(self.potential_deals):
             chosen_deal = self.choose_deal()
         if self.state == BotState.BOT:
             if chosen_deal:
-                time_choose = int(time.time() * 1000) - time_start
+                time_choose = time.time() - time_start
                 await self.execute_deal(chosen_deal,
                                         time_choose)
 
@@ -292,7 +303,7 @@ class MultiBot:
                                              f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
                                          "profit": profit,
                                          'time_start': time_start,
-                                         'time_parser': int(time.time() * 1000) - time_start})
+                                         'time_parser': time.time() - time_start})
 
     def __get_amount_for_all_clients(self, amount):
         print(f"Started __get_amount_for_all_clients: AMOUNT: {amount}")
@@ -382,7 +393,7 @@ class MultiBot:
         message = {
             'id': _id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': int(time.time() * 1000),
+            'ts': int(time.time()),
             'buy_exchange': client_buy.EXCHANGE_NAME,
             'sell_exchange': client_sell.EXCHANGE_NAME,
             'symbol': client_buy.symbol,
@@ -424,7 +435,7 @@ class MultiBot:
         message = {
             'id': order_id,
             'datetime': datetime.datetime.utcnow(),
-            'ts': int(time.time() * 1000),
+            'ts': int(time.time()),
             'context': 'bot',
             'parent_id': parent_id,
             'exchange_order_id': client.LAST_ORDER_ID,
@@ -447,10 +458,10 @@ class MultiBot:
 
         if client.LAST_ORDER_ID == 'default':
             error_message = {
-                "chat_id": Config.ALERT_CHAT_ID,
-                "msg": f"ALERT NAME: Order Mistake\nCOIN: {Config.COIN}\nCONTEXT: BOT\nENV: {self.env}\nEXCHANGE: "
-                       f"{client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
-                'bot_token': Config.ALERT_BOT_TOKEN
+                "chat_id": config['TELEGRAM']['ALERT_CHAT_ID'],
+                "msg": f"ALERT NAME: Order Mistake\nCOIN: {self.setts['COIN']}\nCONTEXT: BOT\nENV: {self.env}\n"
+                       f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
+                'bot_token': config['TELEGRAM']['ALERT_BOT_TOKEN']
             }
             self.tasks.put({
                 'message': error_message,
@@ -485,7 +496,7 @@ class MultiBot:
         message = ''
         with open('rates.txt', 'a') as file:
             for client in self.clients:
-                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {int(time.time() * 1000)}\n"
+                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
             file.write(message + '\n')
 
@@ -503,9 +514,9 @@ class MultiBot:
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
         message = {
-            "chat_id": Config.ALERT_CHAT_ID,
+            "chat_id": config['TELEGRAM']['ALERT_CHAT_ID'],
             "msg": msg,
-            'bot_token': Config.ALERT_BOT_TOKEN
+            'bot_token': config['TELEGRAM']['ALERT_BOT_TOKEN']
         }
         self.tasks.put({
             'message': message,
@@ -554,23 +565,23 @@ class MultiBot:
         message = f'MULTIBOT STARTED\n{self.client_1.EXCHANGE_NAME} | {self.client_2.EXCHANGE_NAME}\n'
         message += f"COIN: {coin}\n"
         message += f"ENV: {self.env}\n"
-        message += f"STATE: {Config.STATE}\n"
-        message += f"LEVERAGE: {Config.LEVERAGE}\n"
+        message += f"STATE: {self.setts['STATE']}\n"
+        message += f"LEVERAGE: {self.setts['LEVERAGE']}\n"
         message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
-        message += f"DEALS_PAUSE: {Config.DEALS_PAUSE}\n"
-        message += f"ORDER_SIZE: {Config.ORDER_SIZE}\n"
-        message += f"TARGET_PROFIT: {Config.TARGET_PROFIT}\n"
+        message += f"DEALS_PAUSE: {self.setts['DEALS_PAUSE']}\n"
+        message += f"ORDER_SIZE: {self.setts['ORDER_SIZE']}\n"
+        message += f"TARGET_PROFIT: {self.setts['TARGET_PROFIT']}\n"
         message += f"START BALANCE: {self.start}\n"
         message += f"CURRENT BALANCE: {self.finish}\n"
 
         for exchange, shift in self.shifts.items():
             message += f"{exchange}: {round(shift, 6)}\n"
         # print(80 * '*' + f"START MESSAGE SENT")
-        await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
+        await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
 
     def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
         message = f"For last 3 min\n"
-        message += f'ENV: {Config.ENV}\n'
+        message += f"ENV: {self.setts['ENV']}\n"
 
         if self.__check_env():
             message += f'SYMBOL: {self.client_1.symbol}'
@@ -619,8 +630,13 @@ class MultiBot:
         print(f"SETUP MQ ENDED")
 
     async def setup_postgres(self) -> None:
-        print(Config.POSTGRES)
-        self.db = await asyncpg.create_pool(**Config.POSTGRES)
+        # print(config.POSTGRES)
+        postgres = config['POSTGRES']
+        self.db = await asyncpg.create_pool(database=postgres['NAME'],
+                                            user=postgres['USER'],
+                                            password=postgres['PASSWORD'],
+                                            host=postgres['HOST'],
+                                            port=postgres['PORT'])
 
     def get_sizes(self):
         tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
@@ -640,7 +656,7 @@ class MultiBot:
         if self.start and self.finish:
             self.tasks.put({
                 'message': {
-                    'timestamp': int(time.time() * 1000),
+                    'timestamp': int(time.time()),
                     'total_balance': self.finish,
                     'env': self.env
                 },
@@ -689,7 +705,7 @@ class MultiBot:
             try:
                 coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-                message += f"ENV: {Config.ENV}\n"
+                message += f"ENV: {self.setts['ENV']}\n"
                 message += f"TOT BAL: {client.get_real_balance()} USD\n"
                 message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
@@ -708,7 +724,7 @@ class MultiBot:
         except:
             traceback.print_exc()
         # print(80 * '*' + f"START BALANCE MESSAGE SENT")
-        await self.send_message(message, Config.TELEGRAM_CHAT_ID, Config.TELEGRAM_TOKEN)
+        await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
 
     async def close_all_positions(self):
         async with aiohttp.ClientSession() as session:
@@ -748,7 +764,7 @@ class MultiBot:
         message += f"PREVIOUS DT: {self.s_time}\n"
         message += f"CURRENT DT: {self.f_time}"
 
-        await self.send_message(message, Config.ALERT_CHAT_ID, Config.ALERT_BOT_TOKEN)
+        await self.send_message(message, int(config['TELEGRAM']['ALERT_CHAT_ID']), config['TELEGRAM']['ALERT_BOT_TOKEN'])
 
     async def __check_order_status(self):
         while True:
@@ -769,14 +785,18 @@ class MultiBot:
 
     async def __check_start_launch_config(self):
         async with self.db.acquire() as cursor:
-            if not await get_last_launch(cursor, self.client_1.EXCHANGE_NAME, self.client_2.EXCHANGE_NAME, Config.COIN):
-                print(12121212121)
-                if launch := await get_last_launch(cursor, self.client_1.EXCHANGE_NAME, self.client_2.EXCHANGE_NAME,
-                                                   Config.COIN, 1):
+            if not await get_last_launch(cursor,
+                                         self.client_1.EXCHANGE_NAME,
+                                         self.client_2.EXCHANGE_NAME,
+                                         self.setts['COIN']):
+                if launch := await get_last_launch(cursor,
+                                                   self.client_1.EXCHANGE_NAME,
+                                                   self.client_2.EXCHANGE_NAME,
+                                                   self.setts['COIN'], 1):
 
                     launch = launch[0]
                     data = {
-                        "env": Config.ENV,
+                        "env": self.setts['ENV'],
                         "shift_use_flag": launch['shift_use_flag'],
                         "target_profit": launch['target_profit'],
                         "orders_delay": launch['orders_delay'],
@@ -791,8 +811,7 @@ class MultiBot:
                     }
                 else:
                     data = self.base_launch_config
-
-                url = f'http://{Config.CONFIG_API_HOST}:{Config.CONFIG_API_PORT}/api/v1/configs'
+                url = f"http://{self.setts['CONFIG_API_HOST']}:{self.setts['CONFIG_API_PORT']}/api/v1/configs"
 
                 requests.post(url=url, headers=headers, json=data)
 
@@ -828,7 +847,7 @@ class MultiBot:
                         if launches := await get_last_launch(cursor,
                                                              self.client_1.EXCHANGE_NAME,
                                                              self.client_2.EXCHANGE_NAME,
-                                                             Config.COIN):
+                                                             self.setts['COIN']):
                             launch = launches.pop(0)
                             self.bot_launch_id = str(launch['id'])
 
@@ -905,10 +924,10 @@ class MultiBot:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
-    parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
+    # parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+    # args = parser.parse_args()
 
     # import cProfile
     #
@@ -930,5 +949,5 @@ if __name__ == '__main__':
     #
     # # Print the profiling results
     # profiler.print_stats(sort='time')
-
-    MultiBot(args.client_1, args.client_2)
+    clients = config['SETTINGS']['EXCHANGES'].split(', ')
+    MultiBot(clients[0], clients[1])
