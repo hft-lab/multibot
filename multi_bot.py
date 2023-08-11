@@ -39,13 +39,14 @@ dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
             'loggers': {'': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False}}})
 logger = logging.getLogger(__name__)
 
+leverage = float(config['SETTINGS']['LEVERAGE'])
 CLIENTS_WITH_CONFIGS = {
-    'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
-    'DYDX': [DydxClient, config['DYDX'], config['SETTINGS']['LEVERAGE']],
-    'BINANCE': [BinanceClient, config['BINANCE'], config['SETTINGS']['LEVERAGE']],
-    'APOLLOX': [ApolloxClient, config['APOLLOX'], config['SETTINGS']['LEVERAGE']],
-    'OKX': [OkxClient, config['OKX'], config['SETTINGS']['LEVERAGE']],
-    'KRAKEN': [KrakenClient, config['KRAKEN'], config['SETTINGS']['LEVERAGE']]
+    # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
+    'DYDX': [DydxClient, config['DYDX'], leverage],
+    'BINANCE': [BinanceClient, config['BINANCE'], leverage],
+    'APOLLOX': [ApolloxClient, config['APOLLOX'], leverage],
+    'OKX': [OkxClient, config['OKX'], leverage],
+    'KRAKEN': [KrakenClient, config['KRAKEN'], leverage]
 }
 
 
@@ -949,5 +950,6 @@ if __name__ == '__main__':
     #
     # # Print the profiling results
     # profiler.print_stats(sort='time')
-    clients = config['SETTINGS']['EXCHANGES'].split(', ')
+    clients = config['SETTINGS']['EXCHANGES'].split(',')
+    print(clients)
     MultiBot(clients[0], clients[1])
