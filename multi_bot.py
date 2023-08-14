@@ -277,15 +277,15 @@ class MultiBot:
         max_profit = self.profit_taker
         chosen_deal = None
         for deal in self.potential_deals:
-            if deal['profit'] > max_profit:
-                buy_exch = deal['buy_exch'].EXCHANGE_NAME
-                sell_exch = deal['sell_exch'].EXCHANGE_NAME
-                print(f"\n\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
-                print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
-                print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
-                print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
-                print(f"{deal['profit']=}\n\n\n")
-                if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:  # noqa
+            buy_exch = deal['buy_exch'].EXCHANGE_NAME
+            sell_exch = deal['sell_exch'].EXCHANGE_NAME
+            print(f"\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
+            print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
+            print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+            print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
+            print(f"{deal['profit']=}\n\n")
+            if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:
+                if deal['profit'] > max_profit:
                     max_profit = deal['profit']
                     chosen_deal = deal
 
