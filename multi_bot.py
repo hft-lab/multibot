@@ -57,7 +57,7 @@ class MultiBot:
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
-                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts']
+                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name']
 
     def __init__(self, client_1: str, client_2: str):
         self.bot_launch_id = None
@@ -100,6 +100,9 @@ class MultiBot:
 
         self.client_1 = client_1[0](client_1[1], client_1[2])
         self.client_2 = client_2[0](client_2[1], client_2[2])
+        self.rates_file_name = self.setts['COIN'] + '_' + self.client_1.EXCHANGE_NAME + '_' + self.client_2.EXCHANGE_NAME
+        with open(f'{self.rates_file_name}_rates.txt', 'a') as file:
+            file.write('')
         self.clients = [self.client_1, self.client_2]
 
         self.exchanges = [x.EXCHANGE_NAME for x in self.clients]
@@ -175,8 +178,8 @@ class MultiBot:
         time.sleep(10)
         self.__rates_update()
         # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
-        for x, y in Shifts().get_shifts().items():
-            self.shifts.update({x: y})
+        for x, y in Shifts(self.rates_file_name).get_shifts().items():
+            self.shifts.update({x: 0})
 
     def find_position_gap(self):
         position_gap = 0
@@ -249,9 +252,9 @@ class MultiBot:
                         self.available_balance_update(client_buy, client_sell)
                         try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
                     ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-                    # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                    sell_price = ob_sell['bids'][0][0]  # * (1 + shift)
-                    buy_price = ob_buy['asks'][0][0]  # * (1 - shift)
+                    shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                    sell_price = ob_sell['bids'][0][0] * (1 + shift)
+                    buy_price = ob_buy['asks'][0][0] * (1 - shift)
                     # if sell_price > buy_price:
                     self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
                     await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
@@ -495,7 +498,7 @@ class MultiBot:
 
     def __rates_update(self):
         message = ''
-        with open('rates.txt', 'a') as file:
+        with open(f'{self.rates_file_name}_rates.txt', 'a') as file:
             for client in self.clients:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
 
