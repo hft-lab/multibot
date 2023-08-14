@@ -3,8 +3,8 @@ import traceback
 
 class Shifts:
 
-    def __init__(self):
-        with open('rates.txt', 'r') as file:
+    def __init__(self, file_name):
+        with open(f'{file_name}_rates.txt', 'r') as file:
             data = file.read().split('\n\n')
 
         self.data = data[-300000:]
