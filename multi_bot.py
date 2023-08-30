@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import datetime
 import logging
@@ -22,7 +21,6 @@ from clients.bitmex import BitmexClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
-# from config import Config
 from clients.enums import BotState, RabbitMqQueues
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch
 from tools.shifts import Shifts
@@ -40,26 +38,26 @@ dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
 logger = logging.getLogger(__name__)
 
 leverage = float(config['SETTINGS']['LEVERAGE'])
-CLIENTS_WITH_CONFIGS = {
+ALL_CLIENTS = {
     # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
-    'DYDX': [DydxClient, config['DYDX'], leverage],
-    'BINANCE': [BinanceClient, config['BINANCE'], leverage],
-    'APOLLOX': [ApolloxClient, config['APOLLOX'], leverage],
-    'OKX': [OkxClient, config['OKX'], leverage],
-    'KRAKEN': [KrakenClient, config['KRAKEN'], leverage]
+    'DYDX': DydxClient,
+    'BINANCE': BinanceClient,
+    'APOLLOX': ApolloxClient,
+    # 'OKX': [OkxClient, config['OKX']],
+    'KRAKEN': KrakenClient
 }
 
 
 class MultiBot:
     __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
-                 'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'client_1', 'client_2', 'start_time', 'last_message',
+                 'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
-                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name']
+                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock']
 
-    def __init__(self, client_1: str, client_2: str):
+    def __init__(self):
         self.bot_launch_id = None
         self.start = None
         self.finish = None
@@ -73,17 +71,20 @@ class MultiBot:
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
 
+        with open(f'rates.txt', 'a') as file:
+            file.write('')
         self.s_time = ''
         self.f_time = ''
         self.tasks = queue.Queue()
         # self.create_csv('extra_countings.csv')
         self.last_orderbooks = {}
+        self.time_lock = 0
 
         # ORDER CONFIGS
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
         self.max_order_size = int(self.setts['ORDER_SIZE'])
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
-        self.shifts = {'TAKER': float(self.setts['LIMIT_SHIFTS'])}
+        self.shifts = {}
 
         # TELEGRAM
         self.telegram_bot = config['TELEGRAM']['TOKEN']
@@ -92,21 +93,13 @@ class MultiBot:
         self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
 
         self.state = self.setts['STATE']
-        self.exchanges_len = len(self.setts['EXCHANGES'].split(', '))
+        self.exchanges = self.setts['EXCHANGES'].split(',')
+        self.exchanges_len = len(self.setts['EXCHANGES'].split(','))
 
         # CLIENTS
-        client_1 = CLIENTS_WITH_CONFIGS[client_1.upper()]
-        client_2 = CLIENTS_WITH_CONFIGS[client_2.upper()]
-
-        self.client_1 = client_1[0](client_1[1], client_1[2])
-        self.client_2 = client_2[0](client_2[1], client_2[2])
-        self.rates_file_name = self.setts['COIN'] + '_' + self.client_1.EXCHANGE_NAME + '_' + self.client_2.EXCHANGE_NAME
-        with open(f'{self.rates_file_name}_rates.txt', 'a') as file:
-            file.write('')
-        self.clients = [self.client_1, self.client_2]
-
-        self.exchanges = [x.EXCHANGE_NAME for x in self.clients]
-        self.ribs = [self.clients, list(reversed(self.clients))]
+        self.clients = [client(config[exchange], leverage) for exchange, client in ALL_CLIENTS.items()]
+        self.ribs = []
+        self.find_ribs()
 
         self.start_time = datetime.datetime.utcnow()
         self.last_message = None
@@ -129,10 +122,10 @@ class MultiBot:
             "orders_delay": 300,
             "max_order_usd": 50,
             "max_leverage": 2,
-            'fee_exchange_1': self.client_1.taker_fee,
-            'fee_exchange_2': self.client_2.taker_fee,
-            'exchange_1': self.client_1.EXCHANGE_NAME,
-            'exchange_2': self.client_2.EXCHANGE_NAME,
+            'fee_exchange_1': self.clients[0].taker_fee,
+            'fee_exchange_2': self.clients[1].taker_fee,
+            'exchange_1': self.clients[0].EXCHANGE_NAME,
+            'exchange_2': self.clients[1].EXCHANGE_NAME,
             'updated_flag': 1,
             'datetime_update': datetime.datetime.utcnow(),
             'ts_update': int(time.time() * 1000)
@@ -174,12 +167,23 @@ class MultiBot:
             # Append new record
             writer.writerow(record)
 
+    def find_ribs(self):
+        for client_1 in self.clients:
+            for client_2 in self.clients:
+                if client_1 == client_2:
+                    continue
+                if [client_1, client_2] not in self.ribs:
+                    self.ribs.append([client_1, client_2])
+                if [client_2, client_1] not in self.ribs:
+                    self.ribs.append([client_2, client_1])
+
     def __prepare_shifts(self):
         time.sleep(10)
         self.__rates_update()
         # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
-        for x, y in Shifts(self.rates_file_name).get_shifts().items():
+        for x, y in Shifts().get_shifts().items():
             self.shifts.update({x: 0})
+        print(self.shifts)
 
     def find_position_gap(self):
         position_gap = 0
@@ -217,7 +221,9 @@ class MultiBot:
 
     def available_balance_update(self, client_buy, client_sell):
         max_deal_size = self.avail_balance_define(client_buy, client_sell)
+        max_deal_size_re = self.avail_balance_define(client_sell, client_buy)
         self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
+        self.available_balances.update({f"+{client_sell.EXCHANGE_NAME}-{client_buy.EXCHANGE_NAME}": max_deal_size_re})
 
     @staticmethod
     def run_await_in_thread(func, loop):
@@ -243,35 +249,34 @@ class MultiBot:
     async def __cycle_parser(self):
         time.sleep(12)
         while True:
-            # print(f"{self.client_1.count_flag} {self.client_2.count_flag}")
-            if self.client_1.count_flag or self.client_2.count_flag:
-                try_list = []
-                time_start = time.time()  # noqa
-                for client_buy, client_sell in self.ribs:
-                    if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
-                        self.available_balance_update(client_buy, client_sell)
-                        try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
-                    ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-                    shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                    sell_price = ob_sell['bids'][0][0] * (1 + shift)
-                    buy_price = ob_buy['asks'][0][0] * (1 - shift)
-                    # if sell_price > buy_price:
-                    self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
-                    await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
-                self.client_1.count_flag = False
-                self.client_2.count_flag = False
-            await asyncio.sleep(0.02)
+            # time_start = time.time()
+            if True not in [client.count_flag for client in self.clients]:
+                await asyncio.sleep(0.002)
+                continue
+            time_start = time.time()  # noqa
+            for client_buy, client_sell in self.ribs:
+                ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
+                shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+                sell_price = ob_sell['bids'][0][0] * (1 + shift)
+                buy_price = ob_buy['asks'][0][0] * (1 - shift)
+                # if sell_price > buy_price:
+                self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
+                await self.potential_real_deals(client_sell, client_buy, ob_buy, ob_sell)
+                for client in self.clients:
+                    client.count_flag = False
+            # print(f"Full cycle time: {time.time() - time_start}")
+            await asyncio.sleep(0.002)
 
     async def find_price_diffs(self):
         time_start = time.time()
-        chosen_deal = None
+        deal = None
         if len(self.potential_deals):
-            chosen_deal = self.choose_deal()
+            deal = self.choose_deal()
         if self.state == BotState.BOT:
-            if chosen_deal:
+            if deal:
                 time_choose = time.time() - time_start
-                await self.execute_deal(chosen_deal,
-                                        time_choose)
+                if deal['buy_exch'].EXCHANGE_NAME in self.exchanges or deal['sell_exch'].EXCHANGE_NAME in self.exchanges:
+                    await self.execute_deal(deal, time_choose)
 
     def choose_deal(self):
         max_profit = self.profit_taker
@@ -288,12 +293,12 @@ class MultiBot:
                 if deal['profit'] > max_profit:
                     max_profit = deal['profit']
                     chosen_deal = deal
-
         self.potential_deals = []
         return chosen_deal
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
         profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
+        # print(f"S: {client_sell.EXCHANGE_NAME} | B: {client_buy.EXCHANGE_NAME} | PROFIT: {round(profit, 5)}")
         if profit > self.profit_taker:
             self.potential_deals.append({'buy_exch': client_buy,
                                          "sell_exch": client_sell,
@@ -327,7 +332,7 @@ class MultiBot:
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
         expect_buy_px = chosen_deal['expect_buy_px']
         expect_sell_px = chosen_deal['expect_sell_px']
-        if expect_buy_px <= chosen_deal["buy_px"] and expect_sell_px >= chosen_deal["sell_px"]:
+        if expect_buy_px <= ob_buy['asks'][0][0] and expect_sell_px >= ob_sell['bids'][0][0]:
             # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
             shifted_buy_px = ob_buy['asks'][4][0]
             shifted_sell_px = ob_sell['bids'][4][0]
@@ -341,13 +346,15 @@ class MultiBot:
             cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
             cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
             time_sent = int(datetime.datetime.utcnow().timestamp() * 1000)
-            responses = await asyncio.gather(*[
-                self.loop_1.create_task(
-                    client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)),
-                self.loop_1.create_task(
-                    client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell))
-            ], return_exceptions=True)
-            print(responses)
+            orders = []
+            if client_buy.EXCHANGE_NAME in self.exchanges:
+                orders.append(self.loop_1.create_task(
+                    client_buy.create_order(shifted_buy_px, 'buy', self.session, client_id=cl_id_buy)))
+            if client_sell.EXCHANGE_NAME in self.exchanges:
+                orders.append(self.loop_1.create_task(
+                    client_sell.create_order(shifted_sell_px, 'sell', self.session, client_id=cl_id_sell)))
+            responses = await asyncio.gather(*orders, return_exceptions=True)
+            print(f"[{client_buy.EXCHANGE_NAME}, {client_sell.EXCHANGE_NAME}]\n{responses=}")
             # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
             await asyncio.sleep(0.5)
             # !!! ALL TIMERS !!!
@@ -361,8 +368,19 @@ class MultiBot:
                                               max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
                                               time_parser=chosen_deal['time_parser'])
             self.save_balance(arbitrage_possibilities_id)
-
+            self.update_all_av_balances()
             await asyncio.sleep(self.deal_pause)
+        else:
+            print(f"DEAL was changed: {expect_buy_px=} {ob_buy['asks'][0][0]=}")
+            print(f"{expect_sell_px=} {ob_sell['bids'][0][0]=}")
+
+    def update_all_av_balances(self):
+        try_list = []
+        for client_buy, client_sell in self.ribs:
+            if client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME not in try_list:
+                self.available_balance_update(client_buy, client_sell)
+                try_list.append(client_buy.EXCHANGE_NAME + client_sell.EXCHANGE_NAME)
+                try_list.append(client_sell.EXCHANGE_NAME + client_buy.EXCHANGE_NAME)
 
     def save_balance(self, parent_id) -> None:
         message = {
@@ -481,7 +499,8 @@ class MultiBot:
             'queue_name': RabbitMqQueues.ORDERS
         })
 
-    async def publish_message(self, connect, message, routing_key, exchange_name, queue_name):
+    @staticmethod
+    async def publish_message(connect, message, routing_key, exchange_name, queue_name):
         channel = await connect.channel()
         exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
         queue = await channel.declare_queue(queue_name, durable=True)
@@ -498,11 +517,12 @@ class MultiBot:
 
     def __rates_update(self):
         message = ''
-        with open(f'{self.rates_file_name}_rates.txt', 'a') as file:
+        with open(f'rates.txt', 'a') as file:
             for client in self.clients:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
-
             file.write(message + '\n')
+        self.update_all_av_balances()
+
 
     def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
         if self.state == BotState.SLIPPAGE:
@@ -565,13 +585,13 @@ class MultiBot:
                 return ob_sell, ob_buy
 
     async def start_message(self):
-        coin = self.client_1.symbol.split('USD')[0].replace('-', '').replace('/', '')
-        message = f'MULTIBOT STARTED\n{self.client_1.EXCHANGE_NAME} | {self.client_2.EXCHANGE_NAME}\n'
-        message += f"COIN: {coin}\n"
+        coin = self.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
+        message = f'MULTIBOT {coin} STARTED\n'
+        message += f'{" | ".join(self.exchanges)}\n'
         message += f"ENV: {self.env}\n"
         message += f"STATE: {self.setts['STATE']}\n"
         message += f"LEVERAGE: {self.setts['LEVERAGE']}\n"
-        message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
+        # message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
         message += f"DEALS_PAUSE: {self.setts['DEALS_PAUSE']}\n"
         message += f"ORDER_SIZE: {self.setts['ORDER_SIZE']}\n"
         message += f"TARGET_PROFIT: {self.setts['TARGET_PROFIT']}\n"
@@ -583,24 +603,24 @@ class MultiBot:
         # print(80 * '*' + f"START MESSAGE SENT")
         await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
 
-    def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
-        message = f"For last 3 min\n"
-        message += f"ENV: {self.setts['ENV']}\n"
-
-        if self.__check_env():
-            message += f'SYMBOL: {self.client_1.symbol}'
-
-        message += f"\n\nPotential deals:"
-        for side, values in deals_potential.items():
-            message += f"\n   {side}:"
-            for exchange, deals in values.items():
-                message += f"\n{exchange}: {deals}"
-        message += f"\n\nExecuted deals:"
-        for side, values in deals_executed.items():
-            message += f"\n   {side}:"
-            for exchange, deals in values.items():
-                message += f"\n{exchange}: {deals}"
-        return message
+    # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
+    #     message = f"For last 3 min\n"
+    #     message += f"ENV: {self.setts['ENV']}\n"
+    #
+    #     if self.__check_env():
+    #         message += f'SYMBOL: {self.client_1.symbol}'
+    #
+    #     message += f"\n\nPotential deals:"
+    #     for side, values in deals_potential.items():
+    #         message += f"\n   {side}:"
+    #         for exchange, deals in values.items():
+    #             message += f"\n{exchange}: {deals}"
+    #     message += f"\n\nExecuted deals:"
+    #     for side, values in deals_executed.items():
+    #         message += f"\n   {side}:"
+    #         for exchange, deals in values.items():
+    #             message += f"\n{exchange}: {deals}"
+    #     return message
 
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
         if datetime.datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
@@ -642,19 +662,19 @@ class MultiBot:
                                             host=postgres['HOST'],
                                             port=postgres['PORT'])
 
-    def get_sizes(self):
-        tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
-        step_size = max([x.step_size for x in self.clients if x.step_size], default=0.01)
-        quantity_precision = max([x.quantity_precision for x in self.clients if x.quantity_precision])
-
-        self.client_1.quantity_precision = quantity_precision
-        self.client_2.quantity_precision = quantity_precision
-
-        self.client_1.tick_size = tick_size
-        self.client_2.tick_size = tick_size
-
-        self.client_1.step_size = step_size
-        self.client_2.step_size = step_size
+    # def get_sizes(self):
+    #     tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
+    #     step_size = max([x.step_size for x in self.clients if x.step_size], default=0.01)
+    #     quantity_precision = max([x.quantity_precision for x in self.clients if x.quantity_precision])
+    #
+    #     self.client_1.quantity_precision = quantity_precision
+    #     self.client_2.quantity_precision = quantity_precision
+    #
+    #     self.client_1.tick_size = tick_size
+    #     self.client_2.tick_size = tick_size
+    #
+    #     self.client_1.step_size = step_size
+    #     self.client_2.step_size = step_size
 
     async def save_new_balance_jump(self):
         if self.start and self.finish:
@@ -710,7 +730,7 @@ class MultiBot:
                 coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
                 message += f"ENV: {self.setts['ENV']}\n"
-                message += f"TOT BAL: {client.get_real_balance()} USD\n"
+                message += f"TOT BAL: {int(round(client.get_real_balance(), 0))} USD\n"
                 message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
                 message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
@@ -730,22 +750,21 @@ class MultiBot:
         # print(80 * '*' + f"START BALANCE MESSAGE SENT")
         await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
 
-    async def close_all_positions(self):
-        async with aiohttp.ClientSession() as session:
-            print('START')
-            while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
-                    or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
-                print('START WHILE')
-
-                for client in self.clients:
-                    print(f'START CLIENT {client.EXCHANGE_NAME}')
-                    client.cancel_all_orders()
-                    if res := client.get_positions().get(client.symbol, {}).get('amount'):
-                        orderbook = client.get_orderbook()[client.symbol]
-                        side = 'buy' if res < 0 else 'sell'
-                        price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
-                        await client.create_order(abs(res), price, side, session)
-                        time.sleep(7)
+    # async def close_all_positions(self):
+    #     async with aiohttp.ClientSession() as session:
+    #         print('START')
+    #         while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
+    #                 or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
+    #             print('START WHILE')
+    #             for client in self.clients:
+    #                 print(f'START CLIENT {client.EXCHANGE_NAME}')
+    #                 client.cancel_all_orders()
+    #                 if res := client.get_positions().get(client.symbol, {}).get('amount'):
+    #                     orderbook = client.get_orderbook()[client.symbol]
+    #                     side = 'buy' if res < 0 else 'sell'
+    #                     price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
+    #                     await client.create_order(abs(res), price, side, session)
+    #                     time.sleep(7)
 
     def __check_env(self) -> bool:
         return 'DEV_' in self.env.upper()
@@ -755,7 +774,8 @@ class MultiBot:
         usd_change = self.finish - self.start
 
         message = f"ALERT NAME: BALANCE JUMP {'🔴' if usd_change < 0 else '🟢'}\n"
-        message += f"MULTIBOT {self.client_1.EXCHANGE_NAME}-{self.client_2.EXCHANGE_NAME}\n"
+        message += f"MULTIBOT {config['SETTINGS']['COIN']}\n"
+        message += f'{" | ".join(self.exchanges)}\n'
         message += f"ENV: {self.env}\n"
 
         if not self.__check_env():
@@ -790,12 +810,12 @@ class MultiBot:
     async def __check_start_launch_config(self):
         async with self.db.acquire() as cursor:
             if not await get_last_launch(cursor,
-                                         self.client_1.EXCHANGE_NAME,
-                                         self.client_2.EXCHANGE_NAME,
+                                         self.clients[0].EXCHANGE_NAME,
+                                         self.clients[1].EXCHANGE_NAME,
                                          self.setts['COIN']):
                 if launch := await get_last_launch(cursor,
-                                                   self.client_1.EXCHANGE_NAME,
-                                                   self.client_2.EXCHANGE_NAME,
+                                                   self.clients[0].EXCHANGE_NAME,
+                                                   self.clients[1].EXCHANGE_NAME,
                                                    self.setts['COIN'], 1):
 
                     launch = launch[0]
@@ -806,8 +826,8 @@ class MultiBot:
                         "orders_delay": launch['orders_delay'],
                         "max_order_usd": launch['max_order_usd'],
                         "max_leverage": launch['max_leverage'],
-                        'exchange_1': self.client_1.EXCHANGE_NAME,
-                        'exchange_2': self.client_2.EXCHANGE_NAME,
+                        'exchange_1': self.clients[0].EXCHANGE_NAME,
+                        'exchange_2': self.clients[1].EXCHANGE_NAME,
                     }
                     headers = {
                         'token': 'jnfXhfuherfihvijnfjigt',
@@ -824,14 +844,12 @@ class MultiBot:
         print(f"POSTGRES STARTED SUCCESSFULLY")
         start = datetime.datetime.utcnow()
         first_launch = True
-        exchanges = self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME
 
         await self.__check_start_launch_config()
-
-        while not exchanges in self.shifts:
-            print('Wait shifts for', self.client_1.EXCHANGE_NAME + ' ' + self.client_2.EXCHANGE_NAME)
+        all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
+        while not all_ribs == set(self.shifts):
+            print('Wait shifts for', all_ribs - set(self.shifts))
             self.__prepare_shifts()
-
         start_shifts = self.shifts.copy()
 
         async with aiohttp.ClientSession() as session:
@@ -849,8 +867,8 @@ class MultiBot:
 
                     async with self.db.acquire() as cursor:
                         if launches := await get_last_launch(cursor,
-                                                             self.client_1.EXCHANGE_NAME,
-                                                             self.client_2.EXCHANGE_NAME,
+                                                             self.clients[0].EXCHANGE_NAME,
+                                                             self.clients[1].EXCHANGE_NAME,
                                                              self.setts['COIN']):
                             launch = launches.pop(0)
                             self.bot_launch_id = str(launch['id'])
@@ -928,6 +946,7 @@ class MultiBot:
 
 
 if __name__ == '__main__':
+    MultiBot()
     # parser = argparse.ArgumentParser()
     # parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
     # parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
@@ -953,6 +972,4 @@ if __name__ == '__main__':
     #
     # # Print the profiling results
     # profiler.print_stats(sort='time')
-    clients = config['SETTINGS']['EXCHANGES'].split(',')
-    print(clients)
-    MultiBot(clients[0], clients[1])
+
