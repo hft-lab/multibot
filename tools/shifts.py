@@ -3,8 +3,8 @@ import traceback
 
 class Shifts:
 
-    def __init__(self, file_name):
-        with open(f'{file_name}_rates.txt', 'r') as file:
+    def __init__(self):
+        with open(f'rates.txt', 'r') as file:
             data = file.read().split('\n\n')
 
         self.data = data[-300000:]
@@ -32,6 +32,7 @@ class Shifts:
                     deviation_value = (self.prices[name_1] - self.prices[name_2]) / self.prices[name_2]
                     # print(f'{exchange}: {deviation_value}')
                     new_record.update({name_1 + ' ' + name_2: deviation_value})
+                    new_record.update({name_2 + ' ' + name_1: -deviation_value})
             self.price_deviations.append(new_record)
 
     def get_shifts(self):
@@ -52,5 +53,3 @@ class Shifts:
         print(f"SHIFTS: {shifts}")
 
         return shifts
-
-
