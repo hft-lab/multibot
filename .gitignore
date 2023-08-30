@@ -2,8 +2,9 @@
 *.pyc
 venv
 .env
+.env*
 __pycache__
-
+*.txt
 *.csv
 
 arbi.txt
