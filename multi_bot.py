@@ -113,7 +113,10 @@ class MultiBot:
         for client in self.clients:
             client.run_updater()
 
-        time.sleep(10)
+        all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
+        while not all_ribs == set(self.shifts):
+            print('Wait shifts for', all_ribs - set(self.shifts))
+            self.__prepare_shifts()
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
@@ -203,17 +206,17 @@ class MultiBot:
         await self.setup_mq(self.loop_4)
 
         while True:
-            task = self.tasks.get()
+            processing_tasks = self.tasks.get()
             try:
-                task.update({'connect': self.mq})
-                await self.publish_message(**task)
+                processing_tasks.update({'connect': self.mq})
+                await self.publish_message(**processing_tasks)
 
             except:
                 await self.setup_mq(self.loop_4)
                 await asyncio.sleep(1)
-                task.update({'connect': self.mq})
-                print(task)
-                await self.publish_message(**task)
+                processing_tasks.update({'connect': self.mq})
+                print(f"\n\nERROR WITH SENDING TO MQ:\n{processing_tasks}\n\n")
+                await self.publish_message(**processing_tasks)
 
             finally:
                 self.tasks.task_done()
@@ -247,7 +250,6 @@ class MultiBot:
             return True
 
     async def __cycle_parser(self):
-        time.sleep(12)
         while True:
             # time_start = time.time()
             if True not in [client.count_flag for client in self.clients]:
@@ -284,11 +286,11 @@ class MultiBot:
         for deal in self.potential_deals:
             buy_exch = deal['buy_exch'].EXCHANGE_NAME
             sell_exch = deal['sell_exch'].EXCHANGE_NAME
-            print(f"\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
-            print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
-            print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
-            print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
-            print(f"{deal['profit']=}\n\n")
+            # print(f"\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
+            # print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
+            # print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+            # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
+            # print(f"{deal['profit']=}\n\n")
             if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:
                 if deal['profit'] > max_profit:
                     max_profit = deal['profit']
@@ -324,6 +326,8 @@ class MultiBot:
             client.expect_amount_coin = max_amount
 
     async def execute_deal(self, chosen_deal: dict, time_choose) -> None:
+        print(f"B:{chosen_deal['buy_exch'].EXCHANGE_NAME}|S:{chosen_deal['sell_exch'].EXCHANGE_NAME}")
+        print(f"BP:{chosen_deal['expect_buy_px']}|SP:{chosen_deal['expect_sell_px']}")
         client_buy = chosen_deal['buy_exch']
         client_sell = chosen_deal['sell_exch']
         ob_buy = chosen_deal['ob_buy']
@@ -846,10 +850,6 @@ class MultiBot:
         first_launch = True
 
         await self.__check_start_launch_config()
-        all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
-        while not all_ribs == set(self.shifts):
-            print('Wait shifts for', all_ribs - set(self.shifts))
-            self.__prepare_shifts()
         start_shifts = self.shifts.copy()
 
         async with aiohttp.ClientSession() as session:
