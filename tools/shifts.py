@@ -10,26 +10,26 @@ class Shifts:
         self.data = data[-300000:]
         self.list_len = len(data)
         self.price_deviations = []
-        self.prices = {}
 
     def find_deviations(self):
         for record in self.data:
+            prices = {}
             for exchange in record.split('\n'):
                 if exchange == '':
                     continue
                 name = exchange.split(' | ')[0]
                 price = float(exchange.split(' | ')[1])
-                self.prices.update({name: price})
+                prices.update({name: price})
 
-            # avr_price = sum([x for x in self.prices.values()]) / len(self.prices.values())
+            # avr_price = sum([x for x in prices.values()]) / len(prices.values())
             new_record = {}
-            for name_1 in self.prices.keys():
-                for name_2 in self.prices.keys():
+            for name_1 in prices.keys():
+                for name_2 in prices.keys():
                     if name_2 == name_1:
                         continue
                     # if new_record.get(name_2 + ' ' + name_1):
                     #     continue
-                    deviation_value = (self.prices[name_1] - self.prices[name_2]) / self.prices[name_2]
+                    deviation_value = (prices[name_1] - prices[name_2]) / prices[name_2]
                     # print(f'{exchange}: {deviation_value}')
                     new_record.update({name_1 + ' ' + name_2: deviation_value})
                     new_record.update({name_2 + ' ' + name_1: -deviation_value})
@@ -40,11 +40,15 @@ class Shifts:
         gathering_time = self.list_len / 240
         shifts = {}
         print(f"Result for {gathering_time} hours")
-
-        for exchange in self.price_deviations[-1].keys():
+        all_shifts = [set(x) for x in self.price_deviations]
+        last_list = set()
+        for shift in all_shifts:
+            last_list |= shift
+        for exchange in last_list:
             try:
-                avg_deviation = sum([x[exchange] for x in self.price_deviations]) / self.list_len
-            except Exception as e:
+                list_of_deviations = [x.get(exchange) for x in self.price_deviations if x.get(exchange)]
+                avg_deviation = sum(list_of_deviations) / len(list_of_deviations)
+            except Exception:
                 traceback.print_exc()
                 avg_deviation = None
 
