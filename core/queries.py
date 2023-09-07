@@ -11,6 +11,20 @@ async def get_total_balance(cursor, asc_desc):
     return await cursor.fetch(sql)
 
 
+async def get_last_deals(cursor):
+    sql = f"""
+        select 
+            *
+        from 
+            arbitrage_possibilities 
+        order by
+            datetime desc
+        limit 5
+    """
+
+    return await cursor.fetch(sql)
+
+
 async def get_last_launch(cursor, exchange_1: str, exchange_2: str, coin: str, update_flag=0) -> list:
     sql = f"""
     select 

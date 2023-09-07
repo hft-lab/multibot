@@ -22,7 +22,7 @@ from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
 from clients.enums import BotState, RabbitMqQueues
-from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch
+from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from tools.shifts import Shifts
 
 import configparser
@@ -94,10 +94,11 @@ class MultiBot:
 
         self.state = self.setts['STATE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
-        self.exchanges_len = len(self.setts['EXCHANGES'].split(','))
 
         # CLIENTS
         self.clients = [client(config[exchange], leverage) for exchange, client in ALL_CLIENTS.items()]
+        self.exchanges_len = len(self.clients)
+
         self.ribs = []
         self.find_ribs()
 
@@ -317,10 +318,10 @@ class MultiBot:
                                          'time_parser': time.time() - time_start})
 
     def __get_amount_for_all_clients(self, amount):
-        print(f"Started __get_amount_for_all_clients: AMOUNT: {amount}")
+        # print(f"Started __get_amount_for_all_clients: AMOUNT: {amount}")
         for client in self.clients:
             client.fit_amount(amount)
-            print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
+            # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         max_amount = max([client.expect_amount_coin for client in self.clients])
         for client in self.clients:
             client.expect_amount_coin = max_amount
@@ -364,8 +365,14 @@ class MultiBot:
             # !!! ALL TIMERS !!!
             # time_start_parsing = chosen_deal['time_start']
             # self.time_parser = chosen_deal['time_parser']
-            buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
-            sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+            if client_buy.EXCHANGE_NAME in self.exchanges:
+                buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
+            else:
+                buy_order_place_time = 1111111
+            if client_sell.EXCHANGE_NAME in self.exchanges:
+                sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+            else:
+                sell_order_place_time = 1111111
             self.save_orders(client_buy, 'buy', arbitrage_possibilities_id, buy_order_place_time, shifted_buy_px)
             self.save_orders(client_sell, 'sell', arbitrage_possibilities_id, sell_order_place_time, shifted_sell_px)
             self.save_arbitrage_possibilities(arbitrage_possibilities_id, client_buy, client_sell, max_buy_vol,
@@ -373,10 +380,29 @@ class MultiBot:
                                               time_parser=chosen_deal['time_parser'])
             self.save_balance(arbitrage_possibilities_id)
             self.update_all_av_balances()
-            await asyncio.sleep(self.deal_pause)
+            if client_buy.EXCHANGE_NAME not in self.exchanges or client_sell.EXCHANGE_NAME not in self.exchanges:
+                second_deal = await self.check_opposite_deal_side(client_sell.EXCHANGE_NAME,
+                                                                  client_buy.EXCHANGE_NAME,
+                                                                  arbitrage_possibilities_id)
+                if second_deal:
+                    await asyncio.sleep(self.deal_pause)
+                else:
+                    return
+            else:
+                await asyncio.sleep(self.deal_pause)
         else:
             print(f"DEAL was changed: {expect_buy_px=} {ob_buy['asks'][0][0]=}")
             print(f"{expect_sell_px=} {ob_sell['bids'][0][0]=}")
+
+    async def check_opposite_deal_side(self, exch_1, exch_2, ap_id):
+        await asyncio.sleep(2)
+        async with self.db.acquire() as cursor:
+            for ap in await get_last_deals(cursor):
+                if {exch_1, exch_2} == {ap['buy_exchange'], ap['sell_exchange']}:
+                    if ap['id'] != ap_id:
+                        if int(time.time()) - 10 < ap['timestamp'] < int(time.time()) + 10:
+                            return True
+        return False
 
     def update_all_av_balances(self):
         try_list = []
@@ -526,7 +552,6 @@ class MultiBot:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
             file.write(message + '\n')
         self.update_all_av_balances()
-
 
     def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
         if self.state == BotState.SLIPPAGE:
