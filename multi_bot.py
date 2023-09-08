@@ -750,6 +750,7 @@ class MultiBot:
 
     async def start_balance_message(self):
         message = f'START BALANCES AND POSITION\n'
+        message += f"ENV: {self.setts['ENV']}\n"
         total_balance = 0
         total_position = 0
         index_price = []
@@ -758,7 +759,6 @@ class MultiBot:
             try:
                 coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-                message += f"ENV: {self.setts['ENV']}\n"
                 message += f"TOT BAL: {int(round(client.get_real_balance(), 0))} USD\n"
                 message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"

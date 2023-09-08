@@ -27,8 +27,8 @@ class Shifts:
                 for name_2 in prices.keys():
                     if name_2 == name_1:
                         continue
-                    # if new_record.get(name_2 + ' ' + name_1):
-                    #     continue
+                    if len(name_1) > 15 or len(name_2) > 15:
+                        continue
                     deviation_value = (prices[name_1] - prices[name_2]) / prices[name_2]
                     # print(f'{exchange}: {deviation_value}')
                     new_record.update({name_1 + ' ' + name_2: deviation_value})
@@ -43,14 +43,14 @@ class Shifts:
         all_shifts = [set(x) for x in self.price_deviations]
         last_list = set()
         for shift in all_shifts:
-            last_list |= shift
+            last_list = last_list.union(shift)
         for exchange in last_list:
             try:
                 list_of_deviations = [x.get(exchange) for x in self.price_deviations if x.get(exchange)]
                 avg_deviation = sum(list_of_deviations) / len(list_of_deviations)
             except Exception:
                 traceback.print_exc()
-                avg_deviation = None
+                avg_deviation = 0
 
             shifts.update({exchange: round(avg_deviation, 6)})
 
