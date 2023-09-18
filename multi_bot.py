@@ -116,6 +116,7 @@ class MultiBot:
             client.run_updater()
 
         all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
+        print(f"\n\n\nALL RIBS: {all_ribs}\n\n\n")
         while not all_ribs <= set(self.shifts):
             print('Wait shifts for', all_ribs - set(self.shifts))
             self.__prepare_shifts()
@@ -173,7 +174,7 @@ class MultiBot:
             writer.writerow(record)
 
     def find_ribs(self):
-        ribs = config['RIBS'].split(',')
+        ribs = self.setts['RIBS'].split(',')
         for rib in ribs:
             for client_1 in self.clients:
                 for client_2 in self.clients:
@@ -628,6 +629,7 @@ class MultiBot:
         coin = self.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
         message = f'MULTIBOT {coin} STARTED\n'
         message += f'{" | ".join(self.exchanges)}\n'
+        message += f"RIBS: {self.setts['RIBS']}\n"
         message += f"ENV: {self.env}\n"
         message += f"STATE: {self.setts['STATE']}\n"
         message += f"LEVERAGE: {self.setts['LEVERAGE']}\n"
