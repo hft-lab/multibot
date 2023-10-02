@@ -11,8 +11,8 @@ class ArbitrageFinder:
         self.telegram_bot = telebot.TeleBot('6037890725:AAHSKzK9aazvOYU2AiBSDO8ZLE5bJaBNrBw')
         self.coins = coins
         self.clients_list = clients_list
-        self.exchanges = [x.client_name for x in self.clients_list]
-        self.fees = {x.client_name: x.fees for x in self.clients_list}
+        self.exchanges = [x.EXCHANGE_NAME for x in self.clients_list]
+        self.fees = {x.EXCHANGE_NAME: x.taker_fee for x in self.clients_list}
 
     def arbitrage(self, data):
         possibilities = []

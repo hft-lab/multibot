@@ -54,6 +54,16 @@ init_time = time.time()
 ob_zero = {'top_bid': 0, 'top_ask': 0, 'bid_vol': 0, 'ask_vol': 0, 'ts_exchange': 0, 'ts_start': 0, 'ts_end': 0}
 
 
+def timeit(func):
+    async def wrapper(*args, **kwargs):
+        ts_start = int(time.time() * 1000)
+        result = await func(*args, **kwargs)
+        result['ts_start'] = ts_start
+        result['ts_end'] = int(time.time() * 1000)
+        return result
+
+    return wrapper
+
 class MultiBot:
     __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
@@ -130,7 +140,7 @@ class MultiBot:
         self.markets = coins_symbols_client(self.clients)
         self.clients_data = self.get_clients_data()
         self.flag = False
-        self.finder = ArbitrageFinder([x for x in self.markets.keys()], self.clients_list)
+        self.finder = ArbitrageFinder([x for x in self.markets.keys()], self.clients)
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
@@ -197,23 +207,14 @@ class MultiBot:
             for key, result in await asyncio.gather(*(mark(key, coro) for key, coro in tasks.items()))
         }
 
-    @staticmethod
-    def timeit(func):
-        async def wrapper(*args, **kwargs):
-            ts_start = int(time.time() * 1000)
-            result = await func(*args, **kwargs)
-            result['ts_start'] = ts_start
-            result['ts_end'] = int(time.time() * 1000)
-            return result
 
-        return wrapper
 
     @timeit
     async def get_ob_top(self, client, symbol):
         try:
             return await client.get_multi_orderbook(symbol)
         except Exception as error:
-            print(f'Exception from ob_top, exchange:{client.__class__.__name__}, market: {symbol}, error: {error}')
+            print(f'Exception from ob_top, exchange:{client.EXCHANGE_NAME}, market: {symbol}, error: {error}')
             if 'list' not in str(error):
                 self.flag = True
             return ob_zero
@@ -237,7 +238,7 @@ class MultiBot:
             # coin_start = datetime.datetime.utcnow()
             local_delay = 0
             for symbol, client in symbols_client.items():
-                tasks_dict[client.__class__.__name__ + '__' + coin] = asyncio.create_task(self.get_ob_top(client, symbol))
+                tasks_dict[client.EXCHANGE_NAME + '__' + coin] = asyncio.create_task(self.get_ob_top(client, symbol))
 
             delays = [self.clients_data[client]['delay'] for client in symbols_client.values()]
             local_delay += max(delays)
@@ -355,7 +356,7 @@ class MultiBot:
 
         # Количество рынков для парсинга в разрезе клиента
         for client, value in self.clients_data.items():
-            print(f"{client.__class__.__name__} : {value}")
+            print(f"{client.EXCHANGE_NAME} : {value}")
 
         iteration = 0
 
@@ -372,8 +373,12 @@ class MultiBot:
             logger_custom.log_rates(iteration, results)
             # parsing_time = self.calculate_parse_time_and_sort(results)
             self.potential_deals = self.finder.arbitrage(results)
-            print(self.potential_deals)
-            print(f"Iteration  end. Duration.: {(datetime.utcnow() - time_start_cycle).total_seconds()}")
+            example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
+                       'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
+                       'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
+                       'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448,
+                       'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855}
+            print(f"Iteration  end. Duration.: {(datetime.datetime.utcnow() - time_start_cycle).total_seconds()}")
             iteration += 1
 
     async def __websocket_cycle_parser(self):

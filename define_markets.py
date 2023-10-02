@@ -11,8 +11,7 @@ def coins_symbols_client(clients_list):
         try:
             client_coin_symbol_available[client] = client.get_markets()
         except Exception as error:
-            print(
-                f'Ошибка в модуле Define_markets, client: {client.__class__.__name__}, error: {error}')
+            print(f'Ошибка в модуле Define_markets, client: {client.__class__.__name__}, error: {error}')
 
     # Меняем порядок ключей в справочнике
     coins_symbols_client = dict()

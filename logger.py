@@ -37,7 +37,7 @@ class Logging:
         with open(self.launch_params_log_file_path, 'a') as launch_params_log:
             for client in clients_list:
                 launch_params_log.write(
-                    f"{self.launch_id}, {launch_datetime},{client.client_name}, {client.fees}\n")
+                    f"{self.launch_id}, {launch_datetime},{client.EXCHANGE_NAME}, {client.taker_fee}\n")
 
     def get_launch_id(self):
         with open(self.launch_params_log_file_path, 'r') as launch_param_log:
