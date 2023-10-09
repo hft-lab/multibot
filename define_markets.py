@@ -19,9 +19,9 @@ def coins_symbols_client(clients_list):
         try:
             for coin, symbol in coins_symbol.items():
                 if coin in coins_symbols_client.keys():
-                    coins_symbols_client[coin].update({symbol: client})
+                    coins_symbols_client[coin].update({client.EXCHANGE_NAME: symbol})
                 else:
-                    coins_symbols_client[coin] = {symbol: client}
+                    coins_symbols_client[coin] = {client.EXCHANGE_NAME: symbol}
         except Exception as error:
             input(f"Случилась ошибка 0 в модуле Define_markets: {coin},{symbol},{client}. Error: {error}")
     #Удаляем монеты с единственным маркетом

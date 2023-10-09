@@ -14,7 +14,7 @@ class ArbitrageFinder:
         self.exchanges = [x.EXCHANGE_NAME for x in self.clients_list]
         self.fees = {x.EXCHANGE_NAME: x.taker_fee for x in self.clients_list}
 
-    def arbitrage(self, data):
+    def arbitrage(self, data, time_parse):
         possibilities = []
         for coin in self.coins:
 
@@ -48,7 +48,8 @@ class ArbitrageFinder:
                                     'expect_profit_rel': round(profit, 5),
                                     'expect_profit_abs_usd': round(expect_profit_abs, 3),
                                     'datetime': datetime.utcnow(),
-                                    'timestamp': round(datetime.utcnow().timestamp(), 3)}
+                                    'timestamp': round(datetime.utcnow().timestamp(), 3),
+                                    'time_parser': time_parse}
                                 message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
                                 with open('arbi.cvs', 'a', newline='') as file:
                                     writer = csv.writer(file)
