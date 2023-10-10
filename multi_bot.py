@@ -73,7 +73,7 @@ class MultiBot:
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
-                 'markets', 'flag', 'clients_data', 'finder', 'clients_with_names']
+                 'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -109,12 +109,13 @@ class MultiBot:
         self.chat_id = int(config['TELEGRAM']['CHAT_ID'])
         self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
         self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
-
+        self.alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
+        self.alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
 
         # CLIENTS
         self.state = self.setts['STATE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
-        self.clients = [client(config[exchange], leverage) for exchange, client in ALL_CLIENTS.items()]
+        self.clients = [client(config[exchange], leverage, self.alert_id, self.alert_token) for exchange, client in ALL_CLIENTS.items()]
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
         for client in self.clients:
@@ -378,6 +379,7 @@ class MultiBot:
             logger_custom.log_rates(iteration, results)
             # parsing_time = self.calculate_parse_time_and_sort(results)
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
+            # print(self.potential_deals)
             # print(f"Iteration  end. Duration.: {(datetime.datetime.utcnow() - time_start_cycle).total_seconds()}")
             iteration += 1
 
@@ -410,6 +412,7 @@ class MultiBot:
         time_start = time.time()
         deal = None
         if len(self.potential_deals):
+            print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
             deal = self.choose_deal()
         if self.state == BotState.BOT:
             if deal:
@@ -422,9 +425,12 @@ class MultiBot:
         for deal in self.potential_deals:
             buy_exch = deal['buy_exchange']
             sell_exch = deal['sell_exchange']
-            # print(f"\n\nBUY {buy_exch} {deal['ob_buy']['asks'][0][0]} SIZE: {deal['ob_buy']['asks'][0][1]}")
-            # print(f"SELL {sell_exch} {deal['ob_sell']['bids'][0][0]} SIZE: {deal['ob_sell']['bids'][0][1]}")
-            # print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+            print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
+            print(f"SELL {sell_exch} {deal['sell_price']}")
+            print(f"COIN: {deal['coin']}")
+            print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+            print(f"DEAL PROFIT: {deal['expect_profit_rel']}")
+            print(f"PLANK PROFIT: {max_profit}")
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
             if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:
@@ -530,8 +536,8 @@ class MultiBot:
         # self.time_parser = chosen_deal['time_parser']
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-        self.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, coin)
-        self.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, coin)
+        self.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market)
+        self.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market)
         self.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol,
                                           max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
                                           time_parser=chosen_deal['time_parser'], symbol=coin)
@@ -680,10 +686,10 @@ class MultiBot:
         })
         if client.LAST_ORDER_ID == 'default':
             error_message = {
-                "chat_id": config['TELEGRAM']['ALERT_CHAT_ID'],
+                "chat_id": self.alert_id,
                 "msg": f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {self.env}\n"
                        f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
-                'bot_token': config['TELEGRAM']['ALERT_BOT_TOKEN']
+                'bot_token': self.alert_token
             }
             self.tasks.put({
                 'message': error_message,
@@ -733,9 +739,9 @@ class MultiBot:
             msg += f"Current DT: {datetime.datetime.utcnow()}\n"
             msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
         message = {
-            "chat_id": config['TELEGRAM']['ALERT_CHAT_ID'],
+            "chat_id": self.alert_id,
             "msg": msg,
-            'bot_token': config['TELEGRAM']['ALERT_BOT_TOKEN']
+            'bot_token': self.alert_token
         }
         self.tasks.put({
             'message': message,
@@ -984,7 +990,7 @@ class MultiBot:
         message += f"PREVIOUS DT: {self.s_time}\n"
         message += f"CURRENT DT: {self.f_time}"
 
-        await self.send_message(message, int(config['TELEGRAM']['ALERT_CHAT_ID']), config['TELEGRAM']['ALERT_BOT_TOKEN'])
+        await self.send_message(message, int(self.alert_id), self.alert_token)
 
     async def __check_order_status(self):
         while True:
