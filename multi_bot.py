@@ -73,7 +73,8 @@ class MultiBot:
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
-                 'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id']
+                 'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
+                 'max_position_part']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -102,6 +103,7 @@ class MultiBot:
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
         self.max_order_size = int(self.setts['ORDER_SIZE'])
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
+        self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
         # self.shifts = {}
 
         # TELEGRAM
@@ -434,12 +436,37 @@ class MultiBot:
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
             if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:
-                if deal['expect_profit_rel'] > max_profit:
-                    max_profit = deal['expect_profit_rel']
-                    chosen_deal = deal
+                if self.check_active_positions(deal['coin'], buy_exch, sell_exch):
+                    if deal['expect_profit_rel'] > max_profit:
+                        max_profit = deal['expect_profit_rel']
+                        chosen_deal = deal
         self.potential_deals = []
         print(chosen_deal)
         return chosen_deal
+
+    def check_active_positions(self, coin, buy_exchange, sell_exchange):
+        client_buy = self.clients_with_names[buy_exchange]
+        client_sell = self.clients_with_names[sell_exchange]
+        market_buy = self.markets[coin][buy_exchange]
+        market_sell = self.markets[coin][sell_exchange]
+        available_buy = client_buy.get_balance() * leverage * self.max_position_part / 100
+        available_sell = client_sell.get_balance() * leverage * self.max_position_part / 100
+        position_sell = 0
+        position_buy = 0
+        if client_buy.get_positions().get(market_buy):
+            position_buy = abs(client_buy.get_positions()[market_buy]['amount_usd'])
+        if client_sell.get_positions().get(market_sell):
+            position_sell = abs(client_sell.get_positions()[market_sell]['amount_usd'])
+        if position_buy < available_buy and position_sell < available_sell:
+            return True
+        else:
+            print(f"ACTIVE POS {coin} > {self.max_position_part} %")
+            print(f"B: {buy_exchange}| S: {sell_exchange}")
+            print(f"POS: {position_buy} | {position_sell}")
+            print(f"AVAIL: {available_buy} | {available_sell}")
+            return False
+
+
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
         profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
@@ -929,12 +956,15 @@ class MultiBot:
         index_price = []
 
         for client in self.clients:
+            coins, total_pos, abs_pos = self.get_positions_data(client)
             try:
                 orderbook = client.get_orderbook()[client.symbol]
                 coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
                 message += f"TOT BAL: {int(round(client.get_real_balance(), 0))} USD\n"
-                message += f"POS: {round(client.get_positions()[client.symbol]['amount'], 4)} {coin}\n"
+                message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
+                message += f"TOT POS, USD: {total_pos}\n"
+                message += f"ABS POS, USD: {abs_pos}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
                 message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
                 index_price.append((orderbook['bids'][0][0] + orderbook['asks'][0][0]) / 2)
@@ -951,6 +981,17 @@ class MultiBot:
             traceback.print_exc()
         # print(80 * '*' + f"START BALANCE MESSAGE SENT")
         await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
+
+    @staticmethod
+    def get_positions_data(client):
+        coins = []
+        total_pos = 0
+        abs_pos = 0
+        for market, position in client.get_positions().items():
+            coins.append(market)
+            total_pos += position['amount_usd']
+            abs_pos += abs(position['amount_usd'])
+        return coins, int(round(total_pos)), int(round(abs_pos))
 
     # async def close_all_positions(self):
     #     async with aiohttp.ClientSession() as session:
