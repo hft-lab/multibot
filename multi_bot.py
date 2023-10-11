@@ -961,7 +961,7 @@ class MultiBot:
                 orderbook = client.get_orderbook()[client.symbol]
                 coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-                message += f"TOT BAL: {int(round(client.get_real_balance(), 0))} USD\n"
+                message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
                 message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
                 message += f"TOT POS, USD: {total_pos}\n"
                 message += f"ABS POS, USD: {abs_pos}\n"
@@ -969,7 +969,7 @@ class MultiBot:
                 message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
                 index_price.append((orderbook['bids'][0][0] + orderbook['asks'][0][0]) / 2)
                 total_position += client.get_positions()[client.symbol]['amount']
-                total_balance += client.get_real_balance()
+                total_balance += client.get_balance()
             except:
                 traceback.print_exc()
         try:
