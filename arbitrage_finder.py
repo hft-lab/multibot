@@ -51,7 +51,7 @@ class ArbitrageFinder:
                                     'timestamp': round(datetime.utcnow().timestamp(), 3),
                                     'time_parser': time_parse}
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
-                                with open('arbi.cvs', 'a', newline='') as file:
+                                with open('arbi.csv', 'a', newline='') as file:
                                     writer = csv.writer(file)
                                     writer.writerow([str(y) for y in possibility.values()])
                                 # print(message)

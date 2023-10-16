@@ -74,7 +74,7 @@ class MultiBot:
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
                  'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
-                 'max_position_part']
+                 'max_position_part', 'profit_close']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -103,6 +103,7 @@ class MultiBot:
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
         self.max_order_size = int(self.setts['ORDER_SIZE'])
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
+        self.profit_close = float(self.setts['CLOSE_PROFIT'])
         self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
         # self.shifts = {}
 
@@ -117,7 +118,10 @@ class MultiBot:
         # CLIENTS
         self.state = self.setts['STATE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
-        self.clients = [client(config[exchange], leverage, self.alert_id, self.alert_token) for exchange, client in ALL_CLIENTS.items()]
+        self.clients = []
+        for exchange, client in ALL_CLIENTS.items():
+            new = client(config[exchange], leverage, self.max_position_part, self.alert_id, self.alert_token)
+            self.clients.append(new)
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
         for client in self.clients:
@@ -131,7 +135,7 @@ class MultiBot:
         self.potential_deals = []
         self.deals_counter = []
         self.deals_executed = []
-        self.available_balances = {'+DYDX-OKEX': 0}
+        self.available_balances = {}
         self.session = None
 
         for client in self.clients:
@@ -183,10 +187,6 @@ class MultiBot:
         t2.join()
         t3.join()
         t4.join()
-        self.clients_with_names['KRAKEN'].fit_sizes(103.0, 33, 'CRV:USD')
-        print(self.clients_with_names['KRAKEN'].amount)
-        print(self.clients_with_names['KRAKEN'].price)
-        print('DONE!!!\n\n\n')
 
     @staticmethod
     def create_csv(filename):
@@ -329,12 +329,6 @@ class MultiBot:
                 self.tasks.task_done()
                 await asyncio.sleep(0.1)
 
-    def available_balance_update(self, client_buy, client_sell):
-        max_deal_size = self.avail_balance_define(client_buy, client_sell)
-        max_deal_size_re = self.avail_balance_define(client_sell, client_buy)
-        self.available_balances.update({f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}": max_deal_size})
-        self.available_balances.update({f"+{client_sell.EXCHANGE_NAME}-{client_buy.EXCHANGE_NAME}": max_deal_size_re})
-
     @staticmethod
     def run_await_in_thread(func, loop):
         try:
@@ -435,7 +429,11 @@ class MultiBot:
             print(f"PLANK PROFIT: {max_profit}")
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
-            if self.available_balances[f"+{buy_exch}-{sell_exch}"] >= self.max_order_size:
+            coin = deal['coin']
+            buy_market = self.markets[coin][buy_exch]
+            sell_market = self.markets[coin][sell_exch]
+
+            if self.avail_balance_define(buy_exch, sell_exch, buy_market, sell_market) >= self.max_order_size:
                 if self.check_active_positions(deal['coin'], buy_exch, sell_exch):
                     if deal['expect_profit_rel'] > max_profit:
                         max_profit = deal['expect_profit_rel']
@@ -465,8 +463,6 @@ class MultiBot:
             print(f"POS: {position_buy} | {position_sell}")
             print(f"AVAIL: {available_buy} | {available_sell}")
             return False
-
-
 
     def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
         profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
@@ -532,7 +528,7 @@ class MultiBot:
         if not self.if_still_good(ob_buy, ob_sell, buy_exchange, sell_exchange):
             print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\n\n\n')
             return
-        max_deal_size = self.available_balances[f"+{buy_exchange}-{sell_exchange}"]
+        max_deal_size = self.avail_balance_define(buy_exchange, sell_exchange, buy_market, sell_market)
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
         expect_buy_px = chosen_deal['buy_price']
         expect_sell_px = chosen_deal['sell_price']
@@ -584,15 +580,8 @@ class MultiBot:
         return False
 
     def update_all_av_balances(self):
-        try_list = []
-        for client_1 in self.clients_with_names.values():
-            for client_2 in self.clients_with_names.values():
-                if client_2 == client_1:
-                    continue
-                if client_1.EXCHANGE_NAME + client_2.EXCHANGE_NAME not in try_list:
-                    self.available_balance_update(client_1, client_2)
-                    try_list.append(client_1.EXCHANGE_NAME + client_2.EXCHANGE_NAME)
-                    try_list.append(client_2.EXCHANGE_NAME + client_1.EXCHANGE_NAME)
+        for client in self.clients_with_names.values():
+            self.available_balances.update({client.EXCHANGE_NAME: client.new_get_available_balance()})
 
     def save_balance(self, parent_id) -> None:
         message = {
@@ -725,8 +714,6 @@ class MultiBot:
                 'queue_name': RabbitMqQueues.TELEGRAM
             })
 
-
-
     @staticmethod
     async def publish_message(connect, message, routing_key, exchange_name, queue_name):
         channel = await connect.channel()
@@ -739,10 +726,16 @@ class MultiBot:
         await channel.close()
         return True
 
-    def avail_balance_define(self, client_buy, client_sell):
-        return min(client_buy.get_available_balance('buy'),
-                   client_sell.get_available_balance('sell'),
-                   self.max_order_size)
+    def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
+        if self.available_balances[buy_exchange].get(buy_market):
+            buy_size = self.available_balances[buy_exchange][buy_market]['buy']
+        else:
+            buy_size = self.available_balances[buy_exchange]['buy']
+        if self.available_balances[sell_exchange].get(sell_market):
+            sell_size = self.available_balances[sell_exchange][sell_market]['sell']
+        else:
+            sell_size = self.available_balances[sell_exchange]['sell']
+        return min(buy_size, sell_size, self.max_order_size)
 
     def __rates_update(self):
         message = ''
