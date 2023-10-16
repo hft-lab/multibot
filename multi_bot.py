@@ -173,7 +173,7 @@ class MultiBot:
         self.loop_3 = asyncio.new_event_loop()
         self.loop_4 = asyncio.new_event_loop()
 
-        t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__start, self.loop_1])
+        t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
         t2 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_2])
         t3 = threading.Thread(target=self.run_await_in_thread, args=[self.__http_cycle_parser, self.loop_3])
         t4 = threading.Thread(target=self.run_await_in_thread, args=[self.__send_messages, self.loop_4])
@@ -297,11 +297,9 @@ class MultiBot:
 
     def find_position_gap(self):
         position_gap = 0
-
         for client in self.clients:
             if res := client.get_positions().get(client.symbol):
                 position_gap += res['amount']
-
         return position_gap
 
     def find_balancing_elements(self):
@@ -311,20 +309,17 @@ class MultiBot:
 
     async def __send_messages(self):
         await self.setup_mq(self.loop_4)
-
         while True:
             processing_tasks = self.tasks.get()
             try:
                 processing_tasks.update({'connect': self.mq})
                 await self.publish_message(**processing_tasks)
-
             except:
                 await self.setup_mq(self.loop_4)
                 await asyncio.sleep(1)
                 processing_tasks.update({'connect': self.mq})
                 print(f"\n\nERROR WITH SENDING TO MQ:\n{processing_tasks}\n\n")
                 await self.publish_message(**processing_tasks)
-
             finally:
                 self.tasks.task_done()
                 await asyncio.sleep(0.1)
@@ -526,6 +521,7 @@ class MultiBot:
         ob_buy = orderbooks[0]
         ob_sell = orderbooks[1]
         if not self.if_still_good(ob_buy, ob_sell, buy_exchange, sell_exchange):
+
             print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\n\n\n')
             return
         max_deal_size = self.avail_balance_define(buy_exchange, sell_exchange, buy_market, sell_market)
@@ -581,7 +577,7 @@ class MultiBot:
 
     def update_all_av_balances(self):
         for client in self.clients_with_names.values():
-            self.available_balances.update({client.EXCHANGE_NAME: client.new_get_available_balance()})
+            self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
     def save_balance(self, parent_id) -> None:
         message = {
@@ -958,8 +954,8 @@ class MultiBot:
                 message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
                 message += f"TOT POS, USD: {total_pos}\n"
                 message += f"ABS POS, USD: {abs_pos}\n"
-                message += f"AVL BUY:  {round(client.get_available_balance('buy'))}\n"
-                message += f"AVL SELL: {round(client.get_available_balance('sell'))}\n"
+                message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
+                message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n"
                 index_price.append((orderbook['bids'][0][0] + orderbook['asks'][0][0]) / 2)
                 total_position += client.get_positions()[client.symbol]['amount']
                 total_balance += client.get_balance()
@@ -1151,7 +1147,7 @@ class MultiBot:
             'queue_name': RabbitMqQueues.CHECK_BALANCE
         })
 
-    async def __start(self):
+    async def __launch_and_run(self):
         await self.setup_postgres()
         print(f"POSTGRES STARTED SUCCESSFULLY")
         start = datetime.datetime.utcnow()
