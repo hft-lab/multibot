@@ -45,7 +45,7 @@ ALL_CLIENTS = {
     # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
     'DYDX': DydxClient,
     'BINANCE': BinanceClient,
-    # 'APOLLOX': ApolloxClient,
+    'APOLLOX': ApolloxClient,
     # 'OKX': [OkxClient, config['OKX']],
     'KRAKEN': KrakenClient
 }
@@ -416,19 +416,20 @@ class MultiBot:
         for deal in self.potential_deals:
             buy_exch = deal['buy_exchange']
             sell_exch = deal['sell_exchange']
+            coin = deal['coin']
+            buy_market = self.markets[coin][buy_exch]
+            sell_market = self.markets[coin][sell_exch]
+            deal_size = self.avail_balance_define(buy_exch, sell_exch, buy_market, sell_market)
             print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
             print(f"SELL {sell_exch} {deal['sell_price']}")
             print(f"COIN: {deal['coin']}")
-            print(f"MAX DEAL SIZE: {self.available_balances[f'+{buy_exch}-{sell_exch}']}")
+            print(f"DEAL SIZE: {deal_size}")
             print(f"DEAL PROFIT: {deal['expect_profit_rel']}")
             print(f"PLANK PROFIT: {max_profit}")
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
-            coin = deal['coin']
-            buy_market = self.markets[coin][buy_exch]
-            sell_market = self.markets[coin][sell_exch]
 
-            if self.avail_balance_define(buy_exch, sell_exch, buy_market, sell_market) >= self.max_order_size:
+            if deal_size >= self.max_order_size:
                 if self.check_active_positions(deal['coin'], buy_exch, sell_exch):
                     if deal['expect_profit_rel'] > max_profit:
                         max_profit = deal['expect_profit_rel']
