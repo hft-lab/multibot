@@ -120,7 +120,7 @@ class MultiBot:
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
         for exchange, client in ALL_CLIENTS.items():
-            new = client(config[exchange], leverage, self.max_position_part, self.alert_id, self.alert_token)
+            new = client(config[exchange], leverage, self.alert_id, self.alert_token, self.max_position_part)
             self.clients.append(new)
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
