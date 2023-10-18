@@ -522,9 +522,16 @@ class MultiBot:
         ob_buy = orderbooks[0]
         ob_sell = orderbooks[1]
         if not self.if_still_good(ob_buy, ob_sell, buy_exchange, sell_exchange):
-
+            with open('ap_still_active_status.csv', 'a', newline='') as file:
+                writer = csv.writer(file)
+                row_data = [str(y) for y in chosen_deal.values()] + ['Inactive']
+                writer.writerow(row_data)
             print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\n\n\n')
             return
+        with open('ap_still_active_status.csv', 'a', newline='') as file:
+            writer = csv.writer(file)
+            row_data = [str(y) for y in chosen_deal.values()] + ['Active']
+            writer.writerow(row_data)
         max_deal_size = self.avail_balance_define(buy_exchange, sell_exchange, buy_market, sell_market)
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
         expect_buy_px = chosen_deal['buy_price']
