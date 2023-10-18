@@ -150,7 +150,7 @@ class MultiBot:
         self.markets = coins_symbols_client(self.clients)
         self.clients_data = self.get_clients_data()
         self.flag = False
-        self.finder = ArbitrageFinder([x for x in self.markets.keys()], self.clients)
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
@@ -399,28 +399,35 @@ class MultiBot:
                     client.count_flag = False
             # print(f"Full cycle time: {time.time() - time_start}")
 
-
-
     def choose_deal(self):
-        max_profit = self.profit_taker
+        max_profit = self.profit_close
         chosen_deal = None
+        deal_direction = 'open'
         for deal in self.potential_deals:
             buy_exch = deal['buy_exchange']
             sell_exch = deal['sell_exchange']
-            coin = deal['coin']
-            buy_market = self.markets[coin][buy_exch]
-            sell_market = self.markets[coin][sell_exch]
-            deal_size = self.avail_balance_define(buy_exch, sell_exch, buy_market, sell_market)
+            deal_size = self.avail_balance_define(buy_exch, sell_exch, deal['buy_market'], deal['sell_market'])
             print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
             print(f"SELL {sell_exch} {deal['sell_price']}")
             print(f"COIN: {deal['coin']}")
             print(f"DEAL SIZE: {deal_size}")
             print(f"DEAL PROFIT: {deal['expect_profit_rel']}")
             print(f"PLANK PROFIT: {max_profit}")
+            print(f"DEAL DIRECTION: {deal['deal_direction']}")
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
-
             if deal_size >= self.max_order_size:
+                if deal_direction != deal['deal_direction']:
+                    if deal_direction == 'close':
+                        continue
+                    elif deal_direction == 'open':
+                        chosen_deal = deal
+                        continue
+                    elif deal['deal_direction'] == 'close':
+                        chosen_deal = deal
+                        continue
+                    elif deal['deal_direction'] == 'open':
+                        continue
                 if self.check_active_positions(deal['coin'], buy_exch, sell_exch):
                     if deal['expect_profit_rel'] > max_profit:
                         max_profit = deal['expect_profit_rel']
@@ -451,23 +458,23 @@ class MultiBot:
             print(f"AVAIL: {available_buy} | {available_sell}")
             return False
 
-    def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
-        profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
-        # print(f"S: {client_sell.EXCHANGE_NAME} | B: {client_buy.EXCHANGE_NAME} | PROFIT: {round(profit, 5)}")
-        if profit > self.profit_taker:
-            self.potential_deals.append({'buy_exch': client_buy,
-                                         "sell_exch": client_sell,
-                                         "sell_px": sell_price,
-                                         "buy_px": buy_price,
-                                         'expect_buy_px': ob_buy['asks'][0][0],
-                                         'expect_sell_px': ob_sell['bids'][0][0],
-                                         "ob_buy": ob_buy,
-                                         "ob_sell": ob_sell,
-                                         'max_deal_size': self.available_balances[
-                                             f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
-                                         "profit": profit,
-                                         'time_start': time_start,
-                                         'time_parser': time.time() - time_start})
+    # def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
+    #     profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
+    #     # print(f"S: {client_sell.EXCHANGE_NAME} | B: {client_buy.EXCHANGE_NAME} | PROFIT: {round(profit, 5)}")
+    #     if profit > self.profit_taker:
+    #         self.potential_deals.append({'buy_exch': client_buy,
+    #                                      "sell_exch": client_sell,
+    #                                      "sell_px": sell_price,
+    #                                      "buy_px": buy_price,
+    #                                      'expect_buy_px': ob_buy['asks'][0][0],
+    #                                      'expect_sell_px': ob_sell['bids'][0][0],
+    #                                      "ob_buy": ob_buy,
+    #                                      "ob_sell": ob_sell,
+    #                                      'max_deal_size': self.available_balances[
+    #                                          f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
+    #                                      "profit": profit,
+    #                                      'time_start': time_start,
+    #                                      'time_parser': time.time() - time_start})
 
     @staticmethod
     def _fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, buy_price, sell_price):
@@ -482,10 +489,19 @@ class MultiBot:
         client_sell.amount = max_amount
         print(f"\n\n\nSIZES FIT\nBUY MARKET: {buy_market}\nSELL MARKET: {sell_market}\nFIT AMOUNT: {max_amount}\n\n\n")
 
-    def if_still_good(self, ob_buy, ob_sell, exchange_buy, exchange_sell):
+    def get_target_profit(self, deal_direction):
+        if deal_direction == 'open':
+            target_profit = self.profit_taker
+        elif deal_direction == 'close':
+            target_profit = self.profit_close
+        else:
+            target_profit = (self.profit_taker + self.profit_close) / 2
+        return target_profit
+
+    def if_still_good(self, target_profit, ob_buy, ob_sell, exchange_buy, exchange_sell):
         profit = (ob_sell['bids'][0][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
         profit = profit - self.clients_with_names[exchange_buy].taker_fee - self.clients_with_names[exchange_sell].taker_fee
-        if profit > self.profit_taker:
+        if profit > target_profit:
             return True
         else:
             return False
@@ -498,21 +514,24 @@ class MultiBot:
         example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
                    'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
                    'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
-                   'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448,
-                   'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855}
+                   'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
+                   'sell_market': 'pf_agldusd',
+                   'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
+                   'deal_value': 'open|close|half-close'}
         client_buy = self.clients_with_names[chosen_deal['buy_exchange']]
         client_sell = self.clients_with_names[chosen_deal['sell_exchange']]
         coin = chosen_deal['coin']
         buy_exchange = chosen_deal['buy_exchange']
         sell_exchange = chosen_deal['sell_exchange']
-        buy_market = self.markets[coin][buy_exchange]
-        sell_market = self.markets[coin][sell_exchange]
+        buy_market = chosen_deal['buy_market']
+        sell_market = chosen_deal['sell_market']
         tasks = [asyncio.create_task(client_buy.get_orderbook_by_symbol(buy_market)),
                  asyncio.create_task(client_sell.get_orderbook_by_symbol(sell_market))]
         orderbooks = await asyncio.gather(*tasks, return_exceptions=True)
         ob_buy = orderbooks[0]
         ob_sell = orderbooks[1]
-        if not self.if_still_good(ob_buy, ob_sell, buy_exchange, sell_exchange):
+        target_profit = self.get_target_profit(chosen_deal['deal_direction'])
+        if not self.if_still_good(target_profit, ob_buy, ob_sell, buy_exchange, sell_exchange):
             with open('ap_still_active_status.csv', 'a', newline='') as file:
                 writer = csv.writer(file)
                 row_data = [str(y) for y in chosen_deal.values()] + ['Inactive']
@@ -809,9 +828,10 @@ class MultiBot:
         message += f"STATE: {self.setts['STATE']}\n"
         message += f"LEVERAGE: {self.setts['LEVERAGE']}\n"
         # message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
-        message += f"DEALS_PAUSE: {self.setts['DEALS_PAUSE']}\n"
-        message += f"ORDER_SIZE: {self.setts['ORDER_SIZE']}\n"
-        message += f"TARGET_PROFIT: {self.setts['TARGET_PROFIT']}\n"
+        message += f"DEALS PAUSE: {self.setts['DEALS_PAUSE']}\n"
+        message += f"ORDER SIZE: {self.setts['ORDER_SIZE']}\n"
+        message += f"TARGET PROFIT: {self.setts['TARGET_PROFIT']}\n"
+        message += f"CLOSE PROFIT: {self.setts['CLOSE_PROFIT']}\n"
         message += f"START BALANCE: {self.start}\n"
         message += f"CURRENT BALANCE: {self.finish}\n"
 
@@ -1171,7 +1191,6 @@ class MultiBot:
                     await self.start_balance_message()
                     self.update_balances()
                     start_message = True
-
 
                 time_start = time.time()
                 deal = None
