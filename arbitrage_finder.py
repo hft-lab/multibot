@@ -16,49 +16,57 @@ class ArbitrageFinder:
         self.clients_list = clients_list
         self.fees = {x: y.taker_fee for x, y in self.clients_list.items()}
 
+    def check_direction(self, positions, exchange_buy, exchange_sell, buy_market, sell_market):
+        buy_close = False
+        sell_close = False
+        if pos_buy := positions[exchange_buy].get(buy_market):
+            buy_close = True if pos_buy['amount_usd'] < 0 else False
+        if pos_sell := positions[exchange_sell].get(sell_market):
+            sell_close = True if pos_sell['amount_usd'] > 0 else False
+        target_profit = self.profit_taker
+        deal_direction = 'open'
+        if buy_close and sell_close:
+            target_profit = self.profit_close
+            deal_direction = 'close'
+        elif buy_close or sell_close:
+            target_profit = (self.profit_close + self.profit_taker) / 2
+            deal_direction = 'half_close'
+        return target_profit, deal_direction
+
     def arbitrage(self, data, time_parse):
         possibilities = []
-        positions = {x: y.get_position() for x, y in self.clients_list.items()}
+        poses = {x: y.get_positions() for x, y in self.clients_list.items()}
         for coin in self.coins:
-            for exchange_1, client_1 in self.clients_list.items():
-                for exchange_2, client_2 in self.clients_list.items():
-                    if exchange_1 == exchange_2:
+            for ex_1, client_1 in self.clients_list.items():
+                for ex_2, client_2 in self.clients_list.items():
+                    if ex_1 == ex_2:
                         continue
-                    if compare_1 := data.get(exchange_1 + '__' + coin):
-                        if compare_2 := data.get(exchange_2 + '__' + coin):
-                            if not float(compare_2['top_bid']) or not float(compare_1['top_ask']):
+                    if ob_1 := data.get(ex_1 + '__' + coin):
+                        if ob_2 := data.get(ex_2 + '__' + coin):
+                            if not float(ob_2['top_bid']) or not float(ob_1['top_ask']):
                                 continue
-                            buy_market = self.markets[coin][exchange_1]
-                            sell_market = self.markets[coin][exchange_2]
-                            buy_close = True if positions[exchange_1].get(buy_market, 0) < 0 else False
-                            sell_close = True if positions[exchange_2].get(buy_market, 0) > 0 else False
-                            target_profit = self.profit_taker
-                            deal_direction = 'open'
-                            if buy_close and sell_close:
-                                target_profit = self.profit_close
-                                deal_direction = 'close'
-                            elif buy_close or sell_close:
-                                target_profit = (self.profit_close + self.profit_taker) / 2
-                                deal_direction = 'half_close'
-                            profit = (float(compare_2['top_bid']) - float(compare_1['top_ask'])) / float(compare_1['top_ask'])
-                            profit = profit - self.fees[exchange_1] - self.fees[exchange_2]
+                            buy_mrkt = self.markets[coin][ex_1]
+                            sell_mrkt = self.markets[coin][ex_2]
+                            target_profit, deal_direction = self.check_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                            profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
+                            profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             if profit > target_profit:
-                                # print(f"AP! {coin}: S.E: {exchange_2} | B.E: {exchange_1} | Profit: {profit}")
-                                deal_size = min(float(compare_1['bid_vol']), float(compare_2['ask_vol']))
-                                deal_size_usd = deal_size * float(compare_2['top_bid'])
+                                # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                                deal_size = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
+                                deal_size_usd = deal_size * float(ob_2['top_bid'])
                                 expect_profit_abs = profit * deal_size_usd
                                 possibility = {
                                     'coin': coin,
-                                    'buy_exchange': exchange_1,
-                                    'sell_exchange': exchange_2,
-                                    'buy_market': buy_market,
-                                    'sell_market': sell_market,
-                                    'buy_fee': self.fees[exchange_1],
-                                    'sell_fee': self.fees[exchange_2],
-                                    'sell_price': float(compare_2['top_bid']),
-                                    'buy_price': float(compare_1['top_ask']),
-                                    'sell_size': float(compare_1['bid_vol']),
-                                    'buy_size': float(compare_2['ask_vol']),
+                                    'buy_exchange': ex_1,
+                                    'sell_exchange': ex_2,
+                                    'buy_market': buy_mrkt,
+                                    'sell_market': sell_mrkt,
+                                    'buy_fee': self.fees[ex_1],
+                                    'sell_fee': self.fees[ex_2],
+                                    'sell_price': float(ob_2['top_bid']),
+                                    'buy_price': float(ob_1['top_ask']),
+                                    'sell_size': float(ob_1['bid_vol']),
+                                    'buy_size': float(ob_2['ask_vol']),
                                     'deal_size_coin': deal_size,
                                     'deal_size_usd': deal_size_usd,
                                     'expect_profit_rel': round(profit, 5),
@@ -86,11 +94,12 @@ class ArbitrageFinder:
 if __name__ == '__main__':
     from datetime import datetime
     from define_markets import coins_symbols_client
-    from clients.kraken import KrakenClient
-    from clients.binance import BinanceClient
-    from clients.dydx import DydxClient
+    # from clients.kraken import KrakenClient
+    # from clients.binance import BinanceClient
+    # from clients.dydx import DydxClient
+    # from clients.apollox import ApolloxClient
 
-    clients_list = [DydxClient(), KrakenClient(), BinanceClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
+    # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
     markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}
     finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
     data = {}
