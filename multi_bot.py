@@ -399,16 +399,7 @@ class MultiBot:
                     client.count_flag = False
             # print(f"Full cycle time: {time.time() - time_start}")
 
-    async def find_price_diffs(self):
-        time_start = time.time()
-        deal = None
-        if len(self.potential_deals):
-            print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
-            deal = self.choose_deal()
-        if self.state == BotState.BOT:
-            if deal:
-                time_choose = time.time() - time_start
-                await self.execute_deal(deal, time_choose)
+
 
     def choose_deal(self):
         max_profit = self.profit_taker
@@ -1181,8 +1172,16 @@ class MultiBot:
                     self.update_balances()
                     start_message = True
 
-                await self.find_price_diffs()
 
+                time_start = time.time()
+                deal = None
+                if len(self.potential_deals):
+                    print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
+                    deal = self.choose_deal()
+                if self.state == BotState.BOT:
+                    if deal:
+                        time_choose = time.time() - time_start
+                        await self.execute_deal(deal, time_choose)
 
 if __name__ == '__main__':
     MultiBot()
