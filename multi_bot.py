@@ -152,11 +152,11 @@ class MultiBot:
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
             client.run_updater()
-        time.sleep(5)
-        for client in self.clients:
-            print(client.EXCHANGE_NAME)
-            print(client.get_all_tops())
-        quit()
+        # time.sleep(5)
+        # for client in self.clients:
+        #     print(client.EXCHANGE_NAME)
+        #     print(client.get_all_tops())
+        # quit()
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
@@ -351,6 +351,12 @@ class MultiBot:
         else:
             return True
 
+    def get_data_for_parser(self):
+        data = dict()
+        for client in self.clients:
+            data.update(client.get_all_tops())
+        return data
+
     async def __http_cycle_parser(self):
         while not init_time + 90 > time.time():
             await asyncio.sleep(0.1)
@@ -364,15 +370,16 @@ class MultiBot:
         iteration = 0
 
         while True:
+            time.sleep(0.01)
             if self.flag:
                 time.sleep(300)
                 self.flag = False
             self.update_all_av_balances()
             time_start_cycle = time.time()
             print(f"Iteration {iteration} start. ", end=" ")
-
-            results = await self.create_and_await_ob_requests_tasks()
-            results = self.add_status(results)
+            # results = await self.create_and_await_ob_requests_tasks()
+            results = self.get_data_for_parser()
+            # results = self.add_status(results)
             logger_custom.log_rates(iteration, results)
             # parsing_time = self.calculate_parse_time_and_sort(results)
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
