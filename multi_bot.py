@@ -25,7 +25,7 @@ from clients.okx import OkxClient
 from clients.enums import BotState, RabbitMqQueues
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from tools.shifts import Shifts
-from define_markets import coins_symbols_client
+from define_markets import Define_markets
 from arbitrage_finder import ArbitrageFinder
 
 import configparser
@@ -147,7 +147,7 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         #NEW REAL MULTI BOT
-        self.markets = coins_symbols_client(self.clients)
+        self.markets = Define_markets.coins_symbols_client(self.clients)
         self.clients_data = self.get_clients_data()
         self.flag = False
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
@@ -351,9 +351,9 @@ class MultiBot:
         logger_custom = Logging()
         logger_custom.log_launch_params(self.clients)
 
-        # Количество рынков для парсинга в разрезе клиента
-        for exchange, value in self.clients_data.items():
-            print(f"{exchange} : {value}")
+        # Принтим показатели клиентов - справочно
+        print('Print1:')
+        print(self.clients_data)
 
         iteration = 0
 
