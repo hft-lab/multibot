@@ -138,19 +138,23 @@ class MultiBot:
         self.available_balances = {}
         self.session = None
 
-        for client in self.clients:
-            client.run_updater()
-
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
         # while not all_ribs <= set(self.shifts):
         #     print('Wait shifts for', all_ribs - set(self.shifts))
         #     self.__prepare_shifts()
 
         #NEW REAL MULTI BOT
-        self.markets = Define_markets.coins_symbols_client(self.clients)
+        self.markets = Define_markets.coins_symbols_client(self.clients, self.setts['INSTANCE_NUM'])
         self.clients_data = self.get_clients_data()
         self.flag = False
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
+        for client in self.clients:
+            client.markets_list = list(self.markets.keys())
+            client.run_updater()
+        # time.sleep(5)
+        # for client in self.clients:
+        #     print(client.EXCHANGE_NAME)
+        #     print(client.get_all_tops())
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
