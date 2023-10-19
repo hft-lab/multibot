@@ -5,6 +5,9 @@ from clients.kraken import KrakenClient
 
 class Define_markets:
 
+    def __init__(self):
+        pass
+
     def coins_symbols_client(self, clients_list, instance_num):
         client_coin_symbol_available = dict()
 

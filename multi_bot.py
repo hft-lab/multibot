@@ -45,7 +45,7 @@ ALL_CLIENTS = {
     # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
     'DYDX': DydxClient,
     'BINANCE': BinanceClient,
-    'APOLLOX': ApolloxClient,
+    # 'APOLLOX': ApolloxClient,
     # 'OKX': [OkxClient, config['OKX']],
     'KRAKEN': KrakenClient
 }
@@ -74,7 +74,7 @@ class MultiBot:
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
                  'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
-                 'max_position_part', 'profit_close']
+                 'max_position_part', 'profit_close', 'def_markets']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -144,17 +144,19 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         #NEW REAL MULTI BOT
-        self.markets = Define_markets.coins_symbols_client(self.clients, self.setts['INSTANCE_NUM'])
+        def_markets = Define_markets()
+        self.markets = def_markets.coins_symbols_client(self.clients, int(self.setts['INSTANCE_NUM']))
         self.clients_data = self.get_clients_data()
         self.flag = False
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
             client.run_updater()
-        # time.sleep(5)
-        # for client in self.clients:
-        #     print(client.EXCHANGE_NAME)
-        #     print(client.get_all_tops())
+        time.sleep(5)
+        for client in self.clients:
+            print(client.EXCHANGE_NAME)
+            print(client.get_all_tops())
+        quit()
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
