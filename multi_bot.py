@@ -25,7 +25,7 @@ from clients.okx import OkxClient
 from clients.enums import BotState, RabbitMqQueues
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from tools.shifts import Shifts
-from define_markets import Define_markets
+from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
 
 import configparser
@@ -73,8 +73,8 @@ class MultiBot:
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
-                 'markets', 'flag', 'clients_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
-                 'max_position_part', 'profit_close', 'def_markets']
+                 'markets', 'flag', 'clients_markets_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
+                 'max_position_part', 'profit_close']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -144,9 +144,9 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         #NEW REAL MULTI BOT
-        def_markets = Define_markets()
-        self.markets = def_markets.coins_symbols_client(self.clients, int(self.setts['INSTANCE_NUM']))
-        self.clients_data = self.get_clients_data()
+        self.clients_markets_data = Clients_markets_data(self.clients)
+        self.markets = self.clients_markets_data.coins_clients_symbols
+        self.clients_markets_data = self.clients_markets_data.clients_data
         self.flag = False
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         for client in self.clients:
@@ -233,16 +233,7 @@ class MultiBot:
                 self.flag = True
             return ob_zero
 
-    def get_clients_data(self):
-        clients_data = dict()
-        for client in self.clients:
-            clients_data[client.EXCHANGE_NAME] = {'markets_amt': 0,
-                                                  'rate_per_minute': client.requestLimit,
-                                                  'delay': round(60 / client.requestLimit, 3)}
-        for coin, symbols_client in self.markets.items():
-            for exchange, symbol in symbols_client.items():
-                clients_data[exchange]['markets_amt'] += 1
-        return clients_data
+
 
     async def create_and_await_ob_requests_tasks(self):
         tasks_dict = {}
@@ -254,7 +245,7 @@ class MultiBot:
             for exchange, symbol in symbols_client.items():
                 tasks_dict[exchange + '__' + coin] = asyncio.create_task(self.get_ob_top(self.clients_with_names[exchange],
                                                                                          symbol))
-            delays = [self.clients_data[exchange]['delay'] for exchange in symbols_client.keys()]
+            delays = [self.clients_markets_data[exchange]['delay'] for exchange in symbols_client.keys()]
             local_delay += max(delays)
             total_delay += max(delays)
             time.sleep(max(delays))
@@ -365,7 +356,7 @@ class MultiBot:
 
         # Принтим показатели клиентов - справочно
         print('Print1:')
-        print(self.clients_data)
+        print(self.clients_markets_data)
 
         iteration = 0
 

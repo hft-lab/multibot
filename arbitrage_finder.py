@@ -92,16 +92,16 @@ class ArbitrageFinder:
 
 
 if __name__ == '__main__':
-    from datetime import datetime
-    from define_markets import coins_symbols_client
-    # from clients.kraken import KrakenClient
-    # from clients.binance import BinanceClient
-    # from clients.dydx import DydxClient
-    # from clients.apollox import ApolloxClient
-
-    # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
-    markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}
-    finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
-    data = {}
-    finder.arbitrage(data)
+    # from datetime import datetime
+    # from clients_markets_data import coins_symbols_client
+    # # from clients.kraken import KrakenClient
+    # # from clients.binance import BinanceClient
+    # # from clients.dydx import DydxClient
+    # # from clients.apollox import ApolloxClient
+    #
+    # # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
+    # markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}
+    # finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
+    # data = {}
+    # finder.arbitrage(data)
 
