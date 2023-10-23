@@ -44,7 +44,7 @@ leverage = float(config['SETTINGS']['LEVERAGE'])
 ALL_CLIENTS = {
     # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
     'DYDX': DydxClient,
-    'BINANCE': BinanceClient,
+    # 'BINANCE': BinanceClient,
     # 'APOLLOX': ApolloxClient,
     # 'OKX': [OkxClient, config['OKX']],
     'KRAKEN': KrakenClient
