@@ -23,12 +23,8 @@ class Logging:
                 bid_vol, ask_vol = ob['bid_vol'], ob['ask_vol']
                 # ts_start, ts_end = ob['ts_start'], ob['ts_end']
                 # utc_start_time = datetime.utcfromtimestamp(ts_start/1000).strftime("%Y-%m-%d %H:%M:%S")
-                status = ob['Status']
-                string_to_log =\
-                    f"{self.launch_id},{iteration},{coin},ask,{exchange}," \
-                    f"{top_ask},{ask_vol},{status}\n"\
-                    f"{self.launch_id},{iteration},{coin},bid,{exchange}," \
-                    f"{top_bid},{bid_vol},{status}\n"
+                string_to_log = f"{self.launch_id},{iteration},{coin},ask,{exchange},{top_ask},{ask_vol}\n"
+                string_to_log += f"{self.launch_id},{iteration},{coin},bid,{exchange},{top_bid},{bid_vol}\n"
                 file.write(string_to_log)
 
     def log_launch_params(self, clients_list):
