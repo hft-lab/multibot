@@ -73,7 +73,7 @@ class MultiBot:
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
-                 'markets', 'flag', 'clients_markets_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
+                 'markets', 'clients_markets_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
                  'max_position_part', 'profit_close']
 
     def __init__(self):
@@ -147,7 +147,6 @@ class MultiBot:
         self.clients_markets_data = Clients_markets_data(self.clients)
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
-        self.flag = False
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
@@ -181,7 +180,7 @@ class MultiBot:
 
         t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
         t2 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_2])
-        t3 = threading.Thread(target=self.run_await_in_thread, args=[self.__http_cycle_parser, self.loop_3])
+        t3 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_cycle_parser, self.loop_3])
         t4 = threading.Thread(target=self.run_await_in_thread, args=[self.__send_messages, self.loop_4])
 
         t1.start()
@@ -229,11 +228,9 @@ class MultiBot:
             return await client.get_multi_orderbook(symbol)
         except Exception as error:
             print(f'Exception from ob_top, exchange:{client.EXCHANGE_NAME}, market: {symbol}, error: {error}')
-            if 'list' not in str(error):
-                self.flag = True
+            # if 'list' not in str(error):
+            #     self.flag = True
             return ob_zero
-
-
 
     async def create_and_await_ob_requests_tasks(self):
         tasks_dict = {}
@@ -348,7 +345,7 @@ class MultiBot:
             data.update(client.get_all_tops())
         return data
 
-    async def __http_cycle_parser(self):
+    async def websocket_cycle_parser(self):
         while not init_time + 90 > time.time():
             await asyncio.sleep(0.1)
         logger_custom = Logging()
@@ -361,10 +358,9 @@ class MultiBot:
         iteration = 0
 
         while True:
-            time.sleep(0.01)
-            if self.flag:
-                time.sleep(300)
-                self.flag = False
+            if True not in [client.count_flag for client in self.clients]:
+                await asyncio.sleep(0.01)
+                continue
             self.update_all_av_balances()
             time_start_cycle = time.time()
             print(f"Iteration {iteration} start. ", end=" ")
@@ -759,7 +755,7 @@ class MultiBot:
         message = ''
         with open(f'rates.txt', 'a') as file:
             for client in self.clients:
-                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook()[client.symbol]['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
+                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
             file.write(message + '\n')
         self.update_all_av_balances()
 
@@ -791,8 +787,8 @@ class MultiBot:
     def get_orderbooks(self, client_sell, client_buy):
         client_slippage = None
         while True:
-            ob_sell = client_sell.get_orderbook()[client_sell.symbol]
-            ob_buy = client_buy.get_orderbook()[client_buy.symbol]
+            ob_sell = client_sell.get_orderbook(client_sell.symbol)
+            ob_buy = client_buy.get_orderbook(client_buy.symbol)
             if client_sell.EXCHANGE_NAME == 'APOLLOX':
                 ob_sell_time_shift = 5 * self.deal_pause * 1000
             else:
@@ -965,13 +961,11 @@ class MultiBot:
         message += f"ENV: {self.setts['ENV']}\n"
         total_balance = 0
         total_position = 0
-        index_price = []
+        abs_total_position = 0
 
         for client in self.clients:
             coins, total_pos, abs_pos = self.get_positions_data(client)
             try:
-                orderbook = client.get_orderbook()[client.symbol]
-                coin = client.symbol.split('USD')[0].replace('-', '').replace('/', '')
                 message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
                 message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
                 message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
@@ -979,16 +973,16 @@ class MultiBot:
                 message += f"ABS POS, USD: {abs_pos}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
                 message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n"
-                index_price.append((orderbook['bids'][0][0] + orderbook['asks'][0][0]) / 2)
-                total_position += client.get_positions()[client.symbol]['amount']
+                total_position += total_pos
+                abs_total_position += abs_pos
                 total_balance += client.get_balance()
             except:
                 traceback.print_exc()
         try:
             message += f"   TOTAL:\n"
-            message += f"START BALANCE: {round(total_balance, 2)} USD\n"
-            message += f"POSITION: {round(total_position, 4)} {coin}\n"
-            message += f"INDEX PX: {round(sum(index_price) / len(index_price), 2)} USD\n"
+            message += f"START BALANCE: {int(round(total_balance))} USD\n"
+            message += f"TOT POS: {int(round(total_position))} USD\n"
+            message += f"ABS TOT POS: {int(round(abs_total_position))} USD\n"
         except:
             traceback.print_exc()
         # print(80 * '*' + f"START BALANCE MESSAGE SENT")
