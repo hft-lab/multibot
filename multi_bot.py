@@ -358,12 +358,11 @@ class MultiBot:
         iteration = 0
 
         while True:
-            if True not in [client.count_flag for client in self.clients]:
-                await asyncio.sleep(0.01)
-                continue
-            self.update_all_av_balances()
+            await asyncio.sleep(0.01)
+            if not iteration % 10000:
+                self.update_all_av_balances()
             time_start_cycle = time.time()
-            print(f"Iteration {iteration} start. ", end=" ")
+            # print(f"Iteration {iteration} start. ", end=" ")
             # results = await self.create_and_await_ob_requests_tasks()
             results = self.get_data_for_parser()
             # results = self.add_status(results)
@@ -374,29 +373,29 @@ class MultiBot:
             # print(f"Iteration  end. Duration.: {(datetime.datetime.utcnow() - time_start_cycle).total_seconds()}")
             iteration += 1
 
-    async def __websocket_cycle_parser(self):
-        while not init_time + 90 > time.time():
-            await asyncio.sleep(0.1)
-        while True:
-            # timer = str(round(time.time(), 2))[-1]
-            # if timer == '2':
-            if True not in [client.count_flag for client in self.clients]:
-                await asyncio.sleep(0.01)
-                continue
-            time_start = time.time()  # noqa
-            for client_buy, client_sell in self.ribs:
-                ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
-
-                # print(f"S.E ({client_sell.EXCHANGE_NAME}) price: {ob_sell['bids'][0][0]}")
-                # print(f"B.E ({client_buy.EXCHANGE_NAME}) price: {ob_buy['asks'][0][0]}")
-                # print()
-                # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
-                sell_price = ob_sell['bids'][0][0]
-                buy_price = ob_buy['asks'][0][0]
-                # if sell_price > buy_price:
-                self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
-                for client in self.clients:
-                    client.count_flag = False
+    # async def __websocket_cycle_parser(self):
+    #     while not init_time + 90 > time.time():
+    #         await asyncio.sleep(0.1)
+    #     while True:
+    #         # timer = str(round(time.time(), 2))[-1]
+    #         # if timer == '2':
+    #         if True not in [client.count_flag for client in self.clients]:
+    #             await asyncio.sleep(0.01)
+    #             continue
+    #         time_start = time.time()  # noqa
+    #         for client_buy, client_sell in self.ribs:
+    #             ob_sell, ob_buy = self.get_orderbooks(client_sell, client_buy)
+    #
+    #             # print(f"S.E ({client_sell.EXCHANGE_NAME}) price: {ob_sell['bids'][0][0]}")
+    #             # print(f"B.E ({client_buy.EXCHANGE_NAME}) price: {ob_buy['asks'][0][0]}")
+    #             # print()
+    #             # shift = self.shifts[client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME] / 2
+    #             sell_price = ob_sell['bids'][0][0]
+    #             buy_price = ob_buy['asks'][0][0]
+    #             # if sell_price > buy_price:
+    #             self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
+    #             for client in self.clients:
+    #                 client.count_flag = False
             # print(f"Full cycle time: {time.time() - time_start}")
 
     def choose_deal(self):
@@ -501,7 +500,7 @@ class MultiBot:
     def if_still_good(self, target_profit, ob_buy, ob_sell, exchange_buy, exchange_sell):
         profit = (ob_sell['bids'][0][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
         profit = profit - self.clients_with_names[exchange_buy].taker_fee - self.clients_with_names[exchange_sell].taker_fee
-        if profit > target_profit:
+        if profit >= target_profit:
             return True
         else:
             return False
@@ -511,13 +510,13 @@ class MultiBot:
         # print(f"BP:{chosen_deal['expect_buy_px']}|SP:{chosen_deal['expect_sell_px']}")
         # await asyncio.sleep(5)
         # return
-        example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
-                   'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
-                   'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
-                   'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
-                   'sell_market': 'pf_agldusd',
-                   'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
-                   'deal_value': 'open|close|half-close'}
+        # example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
+        #            'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
+        #            'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
+        #            'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
+        #            'sell_market': 'pf_agldusd',
+        #            'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
+        #            'deal_value': 'open|close|half-close'}
         client_buy = self.clients_with_names[chosen_deal['buy_exchange']]
         client_sell = self.clients_with_names[chosen_deal['sell_exchange']]
         coin = chosen_deal['coin']
@@ -525,12 +524,14 @@ class MultiBot:
         sell_exchange = chosen_deal['sell_exchange']
         buy_market = chosen_deal['buy_market']
         sell_market = chosen_deal['sell_market']
-        tasks = [asyncio.create_task(client_buy.get_orderbook_by_symbol(buy_market)),
-                 asyncio.create_task(client_sell.get_orderbook_by_symbol(sell_market))]
-        orderbooks = await asyncio.gather(*tasks, return_exceptions=True)
-        ob_buy = orderbooks[0]
-        ob_sell = orderbooks[1]
+        # tasks = [asyncio.create_task(client_buy.get_orderbook_by_symbol(buy_market)),
+        #          asyncio.create_task(client_sell.get_orderbook_by_symbol(sell_market))]
+        # orderbooks = await asyncio.gather(*tasks, return_exceptions=True)
+        # ob_buy = orderbooks[0]
+        # ob_sell = orderbooks[1]
         target_profit = self.get_target_profit(chosen_deal['deal_direction'])
+        ob_buy = self.clients_with_names[buy_exchange].get_orderbook(buy_market)
+        ob_sell = self.clients_with_names[sell_exchange].get_orderbook(sell_market)
         if not self.if_still_good(target_profit, ob_buy, ob_sell, buy_exchange, sell_exchange):
             with open('ap_still_active_status.csv', 'a', newline='') as file:
                 writer = csv.writer(file)
