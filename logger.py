@@ -21,14 +21,14 @@ class Logging:
                 exchange, coin = exchange__coin.split('__')
                 top_bid, top_ask = ob['top_bid'], ob['top_ask']
                 bid_vol, ask_vol = ob['bid_vol'], ob['ask_vol']
-                ts_start, ts_end = ob['ts_start'], ob['ts_end']
-                utc_start_time = datetime.utcfromtimestamp(ts_start/1000).strftime("%Y-%m-%d %H:%M:%S")
+                # ts_start, ts_end = ob['ts_start'], ob['ts_end']
+                # utc_start_time = datetime.utcfromtimestamp(ts_start/1000).strftime("%Y-%m-%d %H:%M:%S")
                 status = ob['Status']
                 string_to_log =\
                     f"{self.launch_id},{iteration},{coin},ask,{exchange}," \
-                    f"{top_ask},{utc_start_time},{round((ts_end - ts_start) / 1000,2)},{ask_vol},{status}\n"\
+                    f"{top_ask},{ask_vol},{status}\n"\
                     f"{self.launch_id},{iteration},{coin},bid,{exchange}," \
-                    f"{top_bid},{utc_start_time},{round((ts_end - ts_start) / 1000,2)},{bid_vol},{status}\n"
+                    f"{top_bid},{bid_vol},{status}\n"
                 file.write(string_to_log)
 
     def log_launch_params(self, clients_list):
