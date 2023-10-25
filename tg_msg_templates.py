@@ -1,4 +1,20 @@
 import traceback
+import datetime
+
+
+def save_order_error_message(multibot,symbol,client,order_id):
+    message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {multibot.env}\n"
+    message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
+    return message
+
+def ap_executed(multibot,client_buy,client_sell,expect_buy_px,expect_sell_px):
+    message = f"AP EXECUTED | ENV: {multibot.env}\n"
+    message += f"ENV ACTIVE EXCHANGES: {multibot.setts['EXCHANGES']}\n"
+    message += f"DT: {datetime.datetime.utcnow()}\n"
+    message += f"B.E.: {client_buy.EXCHANGE_NAME} | S.E.: {client_sell.EXCHANGE_NAME}\n"
+    message += f"B.P.: {expect_buy_px} | S.P.: {expect_sell_px}\n",
+    return message
+
 def start_message(multibot):
     coin = multibot.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
     message = f'MULTIBOT {coin} STARTED\n'
@@ -68,3 +84,29 @@ async def balance_jump_alert(multibot):
     message += f"CURRENT DT: {multibot.f_time}"
     return message
 
+
+# Сообщение о залипании стакана
+# def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
+    #     if self.state == BotState.SLIPPAGE:
+    #         msg = "🔴ALERT NAME: Exchange Slippage Suspicion\n"
+    #         msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
+    #         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
+    #         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+    #         msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
+    #     else:
+    #         msg = "🟢ALERT NAME: Exchange Slippage Suspicion\n"
+    #         msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
+    #         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
+    #         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+    #         msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
+    #     message = {
+    #         "chat_id": self.alert_id,
+    #         "msg": msg,
+    #         'bot_token': self.alert_token
+    #     }
+    #     self.tasks.put({
+    #         'message': message,
+    #         'routing_key': RabbitMqQueues.TELEGRAM,
+    #         'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+    #         'queue_name': RabbitMqQueues.TELEGRAM
+    #     })

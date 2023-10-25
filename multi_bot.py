@@ -654,22 +654,9 @@ class MultiBot:
             'status': 'Processing',
             'bot_launch_id': self.bot_launch_id
         }
-        print(f"\n\n\nAP output sending: {message}\n\n\n")
-        message_for_tg = {
-            "chat_id": config['TELEGRAM']['CHAT_ID'],
-            "msg": f"AP EXECUTED | ENV: {self.env}\n"
-                   f"ENV ACTIVE EXCHANGES: {self.setts['EXCHANGES']}\n"
-                   f"DT: {datetime.datetime.utcnow()}\n"
-                   f"B.E.: {client_buy.EXCHANGE_NAME} | S.E.: {client_sell.EXCHANGE_NAME}\n"
-                   f"B.P.: {expect_buy_px} | S.P.: {expect_sell_px}\n",
-            'bot_token': config['TELEGRAM']['TOKEN']
-        }
-        self.tasks.put({
-            'message': message_for_tg,
-            'routing_key': RabbitMqQueues.TELEGRAM,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-            'queue_name': RabbitMqQueues.TELEGRAM
-        })
+
+        self.send_tg_message(tg_msg_templates.ap_executed(self,client_buy,client_sell,expect_buy_px,expect_sell_px))
+
         self.tasks.put({
             'message': message,
             'routing_key': RabbitMqQueues.ARBITRAGE_POSSIBILITIES,
@@ -715,18 +702,7 @@ class MultiBot:
             'queue_name': RabbitMqQueues.ORDERS
         })
         if client.LAST_ORDER_ID == 'default':
-            error_message = {
-                "chat_id": self.alert_id,
-                "msg": f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {self.env}\n"
-                       f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
-                'bot_token': self.alert_token
-            }
-            self.tasks.put({
-                'message': error_message,
-                'routing_key': RabbitMqQueues.TELEGRAM,
-                'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-                'queue_name': RabbitMqQueues.TELEGRAM
-            })
+            self.send_tg_message(tg_msg_templates.save_order_error_message(self,symbol,client,order_id),self.alert_id,self.alert_token)
 
     @staticmethod
     async def publish_message(connect, message, routing_key, exchange_name, queue_name):
@@ -759,65 +735,8 @@ class MultiBot:
             file.write(message + '\n')
         self.update_all_av_balances()
 
-    def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
-        if self.state == BotState.SLIPPAGE:
-            msg = "🔴ALERT NAME: Exchange Slippage Suspicion\n"
-            msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
-            msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
-            msg += f"Current DT: {datetime.datetime.utcnow()}\n"
-            msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
-        else:
-            msg = "🟢ALERT NAME: Exchange Slippage Suspicion\n"
-            msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
-            msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
-            msg += f"Current DT: {datetime.datetime.utcnow()}\n"
-            msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
-        message = {
-            "chat_id": self.alert_id,
-            "msg": msg,
-            'bot_token': self.alert_token
-        }
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.TELEGRAM,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-            'queue_name': RabbitMqQueues.TELEGRAM
-        })
 
-    def get_orderbooks(self, client_sell, client_buy):
-        client_slippage = None
-        while True:
-            ob_sell = client_sell.get_orderbook(client_sell.symbol)
-            ob_buy = client_buy.get_orderbook(client_buy.symbol)
-            if client_sell.EXCHANGE_NAME == 'APOLLOX':
-                ob_sell_time_shift = 5 * self.deal_pause * 1000
-            else:
-                ob_sell_time_shift = self.deal_pause * 1000
-            if client_buy.EXCHANGE_NAME == 'APOLLOX':
-                ob_buy_time_shift = 5 * self.deal_pause * 1000
-            else:
-                ob_buy_time_shift = self.deal_pause * 1000
-            current_timestamp = int(time.time() * 1000)
-            if current_timestamp - ob_sell['timestamp'] > ob_sell_time_shift:
-                if self.state == BotState.BOT:
-                    self.state = BotState.SLIPPAGE
-                    self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'])
-                    client_slippage = client_sell
-                time.sleep(5)
-                continue
-            elif current_timestamp - ob_buy['timestamp'] > ob_buy_time_shift:
-                if self.state == BotState.BOT:
-                    self.state = BotState.SLIPPAGE
-                    self.ob_alert_send(client_buy, client_sell, ob_buy['timestamp'])
-                    client_slippage = client_buy
-                time.sleep(5)
-                continue
-            elif ob_sell['asks'] and ob_sell['bids'] and ob_buy['asks'] and ob_buy['bids']:
-                if self.state == BotState.SLIPPAGE:
-                    self.state = BotState.BOT
-                    self.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'], client_slippage)
-                    client_slippage = None
-                return ob_sell, ob_buy
+
 
     # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
     #     message = f"For last 3 min\n"
@@ -856,7 +775,7 @@ class MultiBot:
 
             self.__rates_update()
 
-    async def send_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
+    async def send_tg_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
         chat_id = chat_id if chat_id is not None else self.chat_id
         bot_token = bot_token if bot_token is not None else self.bot_token
         self.tasks.put({
@@ -865,6 +784,8 @@ class MultiBot:
             'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
             'queue_name': RabbitMqQueues.TELEGRAM
         })
+
+
 
     async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
@@ -1113,8 +1034,8 @@ class MultiBot:
                     await self.start_db_update()
 
                 if not start_message:
-                    await self.send_message(tg_msg_templates.start_message(self))
-                    await self.send_message(tg_msg_templates.start_balance_message(self))
+                    await self.send_tg_message(tg_msg_templates.start_message(self))
+                    await self.send_tg_message(tg_msg_templates.start_balance_message(self))
                     self.update_balances()
                     start_message = True
 
