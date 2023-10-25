@@ -174,8 +174,8 @@ class MultiBot:
         }
 
         self.loop_1 = asyncio.new_event_loop()
-        # self.loop_2 = asyncio.new_event_loop()
-        # self.loop_3 = asyncio.new_event_loop()
+        self.loop_2 = asyncio.new_event_loop()
+        self.loop_3 = asyncio.new_event_loop()
         self.loop_4 = asyncio.new_event_loop()
 
         t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
@@ -1034,7 +1034,11 @@ class MultiBot:
                     await self.start_db_update()
 
                 if not start_message:
+                    print('Label2')
+                    print(tg_msg_templates.start_message(self))
                     await self.send_tg_message(tg_msg_templates.start_message(self))
+                    print('Label3')
+                    print(tg_msg_templates.start_balance_message(self))
                     await self.send_tg_message(tg_msg_templates.start_balance_message(self))
                     self.update_balances()
                     start_message = True
