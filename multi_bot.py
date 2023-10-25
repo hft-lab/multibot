@@ -9,7 +9,6 @@ from logging.config import dictConfig
 import queue
 import csv
 from logger import Logging
-
 import aiohttp
 import asyncpg
 import orjson
@@ -27,7 +26,7 @@ from core.queries import get_last_balance_jumps, get_total_balance, get_last_lau
 from tools.shifts import Shifts
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
-
+import tg_msg_templates
 import configparser
 import sys
 config = configparser.ConfigParser()
@@ -66,7 +65,7 @@ def timeit(func):
 
 
 class MultiBot:
-    __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
+    __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id','bot_token',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
@@ -110,6 +109,7 @@ class MultiBot:
         # TELEGRAM
         self.telegram_bot = config['TELEGRAM']['TOKEN']
         self.chat_id = int(config['TELEGRAM']['CHAT_ID'])
+        self.bot_token = config['TELEGRAM']['TOKEN']
         self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
         self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
         self.alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
@@ -174,8 +174,8 @@ class MultiBot:
         }
 
         self.loop_1 = asyncio.new_event_loop()
-        self.loop_2 = asyncio.new_event_loop()
-        self.loop_3 = asyncio.new_event_loop()
+        # self.loop_2 = asyncio.new_event_loop()
+        # self.loop_3 = asyncio.new_event_loop()
         self.loop_4 = asyncio.new_event_loop()
 
         t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
@@ -655,7 +655,6 @@ class MultiBot:
             'bot_launch_id': self.bot_launch_id
         }
         print(f"\n\n\nAP output sending: {message}\n\n\n")
-
         message_for_tg = {
             "chat_id": config['TELEGRAM']['CHAT_ID'],
             "msg": f"AP EXECUTED | ENV: {self.env}\n"
@@ -820,27 +819,6 @@ class MultiBot:
                     client_slippage = None
                 return ob_sell, ob_buy
 
-    async def start_message(self):
-        coin = self.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
-        message = f'MULTIBOT {coin} STARTED\n'
-        message += f'{" | ".join(self.exchanges)}\n'
-        message += f"RIBS: {self.setts['RIBS']}\n"
-        message += f"ENV: {self.env}\n"
-        message += f"STATE: {self.setts['STATE']}\n"
-        message += f"LEVERAGE: {self.setts['LEVERAGE']}\n"
-        # message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
-        message += f"DEALS PAUSE: {self.setts['DEALS_PAUSE']}\n"
-        message += f"ORDER SIZE: {self.setts['ORDER_SIZE']}\n"
-        message += f"TARGET PROFIT: {self.setts['TARGET_PROFIT']}\n"
-        message += f"CLOSE PROFIT: {self.setts['CLOSE_PROFIT']}\n"
-        message += f"START BALANCE: {self.start}\n"
-        message += f"CURRENT BALANCE: {self.finish}\n"
-
-        # for exchange, shift in self.shifts.items():
-        #     message += f"{exchange}: {round(shift, 6)}\n"
-        # print(80 * '*' + f"START MESSAGE SENT")
-        await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
-
     # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
     #     message = f"For last 3 min\n"
     #     message += f"ENV: {self.setts['ENV']}\n"
@@ -878,7 +856,9 @@ class MultiBot:
 
             self.__rates_update()
 
-    async def send_message(self, message: str, chat_id: int, bot_token: str) -> None:
+    async def send_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
+        chat_id = chat_id if chat_id is not None else self.chat_id
+        bot_token = bot_token if bot_token is not None else self.bot_token
         self.tasks.put({
             'message': {"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
             'routing_key': RabbitMqQueues.TELEGRAM,
@@ -957,38 +937,6 @@ class MultiBot:
 
             return 0
 
-    async def start_balance_message(self):
-        message = f'START BALANCES AND POSITION\n'
-        message += f"ENV: {self.setts['ENV']}\n"
-        total_balance = 0
-        total_position = 0
-        abs_total_position = 0
-
-        for client in self.clients:
-            coins, total_pos, abs_pos = self.get_positions_data(client)
-            try:
-                message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-                message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
-                message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
-                message += f"TOT POS, USD: {total_pos}\n"
-                message += f"ABS POS, USD: {abs_pos}\n"
-                message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
-                message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n"
-                total_position += total_pos
-                abs_total_position += abs_pos
-                total_balance += client.get_balance()
-            except:
-                traceback.print_exc()
-        try:
-            message += f"   TOTAL:\n"
-            message += f"START BALANCE: {int(round(total_balance))} USD\n"
-            message += f"TOT POS: {int(round(total_position))} USD\n"
-            message += f"ABS TOT POS: {int(round(abs_total_position))} USD\n"
-        except:
-            traceback.print_exc()
-        # print(80 * '*' + f"START BALANCE MESSAGE SENT")
-        await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
-
     @staticmethod
     def get_positions_data(client):
         coins = []
@@ -1018,27 +966,6 @@ class MultiBot:
 
     def __check_env(self) -> bool:
         return 'DEV_' in self.env.upper()
-
-    async def prepare_alert(self):
-        percent_change = round(100 - self.finish * 100 / self.start, 2)
-        usd_change = self.finish - self.start
-
-        message = f"ALERT NAME: BALANCE JUMP {'🔴' if usd_change < 0 else '🟢'}\n"
-        message += f"MULTIBOT {config['SETTINGS']['COIN']}\n"
-        message += f'{" | ".join(self.exchanges)}\n'
-        message += f"ENV: {self.env}\n"
-
-        if not self.__check_env():
-            message += "CHANGE STATE TO PARSER\n"
-
-        message += f"BALANCE CHANGE %: {percent_change}\n"
-        message += f"BALANCE CHANGE USD: {usd_change}\n"
-        message += f"PREVIOUS BAL, USD: {self.start}\n"
-        message += f"CURRENT BAL, USD: {self.finish}\n"
-        message += f"PREVIOUS DT: {self.s_time}\n"
-        message += f"CURRENT DT: {self.f_time}"
-
-        await self.send_message(message, int(self.alert_id), self.alert_token)
 
     async def __check_order_status(self):
         while True:
@@ -1186,8 +1113,8 @@ class MultiBot:
                     await self.start_db_update()
 
                 if not start_message:
-                    await self.start_message()
-                    await self.start_balance_message()
+                    await self.send_message(tg_msg_templates.start_message(self))
+                    await self.send_message(tg_msg_templates.start_balance_message(self))
                     self.update_balances()
                     start_message = True
 
