@@ -46,7 +46,7 @@ ALL_CLIENTS = {
     'DYDX': DydxClient,
     # 'BINANCE': BinanceClient,
     # 'APOLLOX': ApolloxClient,
-    # 'OKX': [OkxClient, config['OKX']],
+    'OKX': OkxClient,
     'KRAKEN': KrakenClient
 }
 
