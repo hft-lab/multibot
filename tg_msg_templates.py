@@ -2,18 +2,20 @@ import traceback
 import datetime
 
 
-def save_order_error_message(multibot,symbol,client,order_id):
+def save_order_error_message(multibot, symbol, client, order_id):
     message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {multibot.env}\n"
-    message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{order_id}\nError:{client.error_info}",
+    message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(error)}",
     return message
 
-def ap_executed(multibot,client_buy,client_sell,expect_buy_px,expect_sell_px):
+
+def ap_executed(multibot, client_buy, client_sell, expect_buy_px, expect_sell_px):
     message = f"AP EXECUTED | ENV: {multibot.env}\n"
     message += f"ENV ACTIVE EXCHANGES: {multibot.setts['EXCHANGES']}\n"
     message += f"DT: {datetime.datetime.utcnow()}\n"
     message += f"B.E.: {client_buy.EXCHANGE_NAME} | S.E.: {client_sell.EXCHANGE_NAME}\n"
     message += f"B.P.: {expect_buy_px} | S.P.: {expect_sell_px}\n",
     return message
+
 
 def start_message(multibot):
     coin = multibot.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
@@ -64,6 +66,7 @@ def start_balance_message(multibot):
     except:
         traceback.print_exc()
     return message
+
 
 async def balance_jump_alert(multibot):
     percent_change = round(100 - multibot.finish * 100 / multibot.start, 2)

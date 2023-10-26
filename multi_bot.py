@@ -29,6 +29,7 @@ from arbitrage_finder import ArbitrageFinder
 import tg_msg_templates
 import configparser
 import sys
+import json
 
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
@@ -173,7 +174,7 @@ class MultiBot:
             'exchange_1': self.clients[0].EXCHANGE_NAME,
             'exchange_2': self.clients[1].EXCHANGE_NAME,
             'updated_flag': 1,
-            'datetime_update': datetime.datetime.utcnow(),
+            'datetime_update': str(datetime.datetime.utcnow()),
             'ts_update': int(time.time() * 1000)
         }
 
@@ -542,7 +543,8 @@ class MultiBot:
                 writer = csv.writer(file)
                 row_data = [str(y) for y in chosen_deal.values()] + ['Inactive']
                 writer.writerow(row_data)
-            print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\n\n\n')
+            print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\nNEW PRICES: B:{ob_buy["asks"][0][0]}')
+            print(f"S:{ob_sell['bids'][0][0]}")
             return
         with open('ap_still_active_status.csv', 'a', newline='') as file:
             writer = csv.writer(file)
@@ -909,7 +911,7 @@ class MultiBot:
                                                    self.clients[1].EXCHANGE_NAME,
                                                    self.setts['COIN'], 1):
                     launch = launch[0]
-                    data = {
+                    data = json.dumps({
                         "env": self.setts['ENV'],
                         "shift_use_flag": launch['shift_use_flag'],
                         "target_profit": launch['target_profit'],
@@ -918,13 +920,13 @@ class MultiBot:
                         "max_leverage": launch['max_leverage'],
                         'exchange_1': self.clients[0].EXCHANGE_NAME,
                         'exchange_2': self.clients[1].EXCHANGE_NAME,
-                    }
-                    headers = {
-                        'token': 'jnfXhfuherfihvijnfjigt',
-                        'context': 'bot-start'
-                    }
+                    })
                 else:
                     data = self.base_launch_config
+                headers = {
+                    'token': 'jnfXhfuherfihvijnfjigt',
+                    'context': 'bot-start'
+                }
                 url = f"http://{self.setts['CONFIG_API_HOST']}:{self.setts['CONFIG_API_PORT']}/api/v1/configs"
 
                 requests.post(url=url, headers=headers, json=data)
