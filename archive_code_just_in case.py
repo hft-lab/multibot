@@ -1,3 +1,4 @@
+import csv
 import time
 from clients.enums import BotState
 def check_ob_slippage(multibot, client_sell, client_buy):
@@ -34,3 +35,20 @@ def check_ob_slippage(multibot, client_sell, client_buy):
                 multibot.ob_alert_send(client_sell, client_buy, ob_sell['timestamp'], client_slippage)
                 client_slippage = None
             return ob_sell, ob_buy
+
+
+    @staticmethod
+    def create_csv(filename):
+        # Open the CSV file in write mode
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            # Write header row
+            writer.writerow(['TimestampUTC', 'Time Stamp', 'Exchange', 'Coin', 'Flag'])
+
+    @staticmethod
+    def append_to_csv(filename, record):
+        # Open the CSV file in append mode
+        with open(filename, 'a', newline='') as file:
+            writer = csv.writer(file)
+            # Append new record
+            writer.writerow(record)

@@ -29,13 +29,14 @@ from arbitrage_finder import ArbitrageFinder
 import tg_msg_templates
 import configparser
 import sys
+
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
 
 dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
-                'simple': {'format': '[%(asctime)s][%(threadName)s] %(funcName)s: %(message)s'}},
+    'simple': {'format': '[%(asctime)s][%(threadName)s] %(funcName)s: %(message)s'}},
             'handlers': {'console': {'class': 'logging.StreamHandler', 'level': 'DEBUG', 'formatter': 'simple',
-                'stream': 'ext://sys.stdout'}},
+                                     'stream': 'ext://sys.stdout'}},
             'loggers': {'': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False}}})
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,8 @@ def timeit(func):
 
 
 class MultiBot:
-    __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id','bot_token',
+    __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
+                 'bot_token',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
@@ -143,13 +145,16 @@ class MultiBot:
         #     print('Wait shifts for', all_ribs - set(self.shifts))
         #     self.__prepare_shifts()
 
-        #NEW REAL MULTI BOT
+        # NEW REAL MULTI BOT
         self.clients_markets_data = Clients_markets_data(self.clients)
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
+        close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
+
         for client in self.clients:
-            client.markets_list = list(self.markets.keys())
+            #client.markets_list = list(self.markets.keys())
+            client.markets_list = close_markets
             client.run_updater()
         # time.sleep(5)
         # for client in self.clients:
@@ -193,21 +198,20 @@ class MultiBot:
         t3.join()
         t4.join()
 
-    @staticmethod
-    def create_csv(filename):
-        # Open the CSV file in write mode
-        with open(filename, 'w', newline='') as file:
-            writer = csv.writer(file)
-            # Write header row
-            writer.writerow(['TimestampUTC', 'Time Stamp', 'Exchange', 'Coin', 'Flag'])
+    def add_task_to_queue(self, message, queue_name):
+        event_name = getattr(RabbitMqQueues, queue_name)
+        if hasattr(RabbitMqQueues, queue_name):
+            task = {
+                'message': message,
+                'routing_key': event_name,
+                'exchange_name': RabbitMqQueues.get_exchange_name(event_name),
+                'queue_name': event_name
+            }
+            self.tasks.put(task)
+        else:
+            print(f"Method '{queue_name}' not found in RabbitMqQueues class")
 
-    @staticmethod
-    def append_to_csv(filename, record):
-        # Open the CSV file in append mode
-        with open(filename, 'a', newline='') as file:
-            writer = csv.writer(file)
-            # Append new record
-            writer.writerow(record)
+
 
     @staticmethod
     async def gather_dict(tasks: dict):
@@ -240,8 +244,9 @@ class MultiBot:
             # coin_start = datetime.datetime.utcnow()
             local_delay = 0
             for exchange, symbol in symbols_client.items():
-                tasks_dict[exchange + '__' + coin] = asyncio.create_task(self.get_ob_top(self.clients_with_names[exchange],
-                                                                                         symbol))
+                tasks_dict[exchange + '__' + coin] = asyncio.create_task(
+                    self.get_ob_top(self.clients_with_names[exchange],
+                                    symbol))
             delays = [self.clients_markets_data[exchange]['delay'] for exchange in symbols_client.keys()]
             local_delay += max(delays)
             total_delay += max(delays)
@@ -396,7 +401,7 @@ class MultiBot:
     #             self.taker_order_profit(client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start)
     #             for client in self.clients:
     #                 client.count_flag = False
-            # print(f"Full cycle time: {time.time() - time_start}")
+    # print(f"Full cycle time: {time.time() - time_start}")
 
     def choose_deal(self):
         max_profit = self.profit_close
@@ -499,7 +504,8 @@ class MultiBot:
 
     def if_still_good(self, target_profit, ob_buy, ob_sell, exchange_buy, exchange_sell):
         profit = (ob_sell['bids'][0][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
-        profit = profit - self.clients_with_names[exchange_buy].taker_fee - self.clients_with_names[exchange_sell].taker_fee
+        profit = profit - self.clients_with_names[exchange_buy].taker_fee - self.clients_with_names[
+            exchange_sell].taker_fee
         if profit >= target_profit:
             return True
         else:
@@ -556,7 +562,8 @@ class MultiBot:
         max_sell_vol = ob_sell['bids'][0][1]
         # timer = time.time()
         ap_id = uuid.uuid4()
-        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px, shifted_sell_px)
+        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px,
+                        shifted_sell_px)
         cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         time_sent = int(datetime.datetime.utcnow().timestamp() * 1000)
@@ -606,13 +613,7 @@ class MultiBot:
             'chat_id': self.chat_id,
             'telegram_bot': self.telegram_bot,
         }
-
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.CHECK_BALANCE,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
-            'queue_name': RabbitMqQueues.CHECK_BALANCE
-        })
+        self.add_task_to_queue(message,"CHECK_BALANCE")
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
@@ -655,14 +656,9 @@ class MultiBot:
             'bot_launch_id': self.bot_launch_id
         }
 
-        self.send_tg_message(tg_msg_templates.ap_executed(self,client_buy,client_sell,expect_buy_px,expect_sell_px))
+        self.send_tg_message(tg_msg_templates.ap_executed(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
 
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.ARBITRAGE_POSSIBILITIES,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.ARBITRAGE_POSSIBILITIES),
-            'queue_name': RabbitMqQueues.ARBITRAGE_POSSIBILITIES
-        })
+        self.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
         client_buy.error_info = None
         client_buy.LAST_ORDER_ID = 'default'
@@ -695,14 +691,12 @@ class MultiBot:
             'order_place_time': order_place_time,
             'env': self.env,
         }
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.ORDERS,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.ORDERS),
-            'queue_name': RabbitMqQueues.ORDERS
-        })
+
+        self.add_task_to_queue(message, "ORDERS")
+
         if client.LAST_ORDER_ID == 'default':
-            self.send_tg_message(tg_msg_templates.save_order_error_message(self,symbol,client,order_id),self.alert_id,self.alert_token)
+            self.send_tg_message(tg_msg_templates.save_order_error_message(self, symbol, client, order_id),
+                                 int(self.alert_id), self.alert_token)
 
     @staticmethod
     async def publish_message(connect, message, routing_key, exchange_name, queue_name):
@@ -734,9 +728,6 @@ class MultiBot:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.datetime.utcnow()} | {time.time()}\n"
             file.write(message + '\n')
         self.update_all_av_balances()
-
-
-
 
     # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
     #     message = f"For last 3 min\n"
@@ -775,17 +766,29 @@ class MultiBot:
 
             self.__rates_update()
 
-    async def send_tg_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
+
+
+
+    def send_tg_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
         chat_id = chat_id if chat_id is not None else self.chat_id
         bot_token = bot_token if bot_token is not None else self.bot_token
-        self.tasks.put({
-            'message': {"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
-            'routing_key': RabbitMqQueues.TELEGRAM,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-            'queue_name': RabbitMqQueues.TELEGRAM
-        })
 
-
+        message_data = {"chat_id": chat_id, "msg": message, 'bot_token': bot_token}
+        self.add_task_to_queue(message_data,"TELEGRAM")
+    #
+    #
+    #
+    # async def send_tg_message(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
+    #     chat_id = chat_id if chat_id is not None else self.chat_id
+    #     bot_token = bot_token if bot_token is not None else self.bot_token
+    #     message_data = {"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
+    #     await self.add_task_to_queue(message_data, "TELEGRAM")
+    #     # self.tasks.put({
+    #     #     'message': {"chat_id": chat_id, "msg": message, 'bot_token': bot_token},
+    #     #     'routing_key': RabbitMqQueues.TELEGRAM,
+    #     #     'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+    #     #     'queue_name': RabbitMqQueues.TELEGRAM
+    #     # })
 
     async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
@@ -817,16 +820,12 @@ class MultiBot:
 
     async def save_new_balance_jump(self):
         if self.start and self.finish:
-            self.tasks.put({
-                'message': {
-                    'timestamp': int(time.time()),
-                    'total_balance': self.finish,
-                    'env': self.env
-                },
-                'routing_key': RabbitMqQueues.BALANCE_JUMP,
-                'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_JUMP),
-                'queue_name': RabbitMqQueues.BALANCE_JUMP
-            })
+            message = {
+                'timestamp': int(time.time()),
+                'total_balance': self.finish,
+                'env': self.env
+            },
+            self.add_task_to_queue(message, "BALANCE_JUMP")
 
     async def get_total_balance_calc(self, cursor, asc_desc):
         result = 0
@@ -894,12 +893,7 @@ class MultiBot:
                 orders = client.orders.copy()
 
                 for order_id, message in orders.items():
-                    self.tasks.put({
-                        'message': message,
-                        'routing_key': RabbitMqQueues.UPDATE_ORDERS,
-                        'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.UPDATE_ORDERS),
-                        'queue_name': RabbitMqQueues.UPDATE_ORDERS
-                    })
+                    self.add_task_to_queue(message, "UPDATE_ORDERS")
 
                     client.orders.pop(order_id)
 
@@ -958,13 +952,8 @@ class MultiBot:
                 #         self.shifts.update({f'{client_1.EXCHANGE_NAME} {client_2.EXCHANGE_NAME}': 0})
                 # else:
                 #     self.shifts = start_shifts
-
-                self.tasks.put({
-                    'message': launch,
-                    'routing_key': RabbitMqQueues.UPDATE_LAUNCH,
-                    'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.UPDATE_LAUNCH),
-                    'queue_name': RabbitMqQueues.UPDATE_LAUNCH
-                })
+                message = "launch"
+                self.add_task_to_queue(message, "UPDATE_LAUNCH")
 
                 for launch in launches:
                     launch['datetime_update'] = self.base_launch_config['datetime_update']
@@ -972,13 +961,9 @@ class MultiBot:
                     launch['updated_flag'] = -1
                     launch['launch_id'] = str(launch.pop('id'))
                     launch['bot_config_id'] = str(launch['bot_config_id'])
-                    self.tasks.put({
-                        'message': launch,
-                        'routing_key': RabbitMqQueues.UPDATE_LAUNCH,
-                        'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.UPDATE_LAUNCH),
-                        'queue_name': RabbitMqQueues.UPDATE_LAUNCH
-                    })
-                self.update_config()
+                    message = "launch"
+                    self.add_task_to_queue(message, "UPDATE_LAUNCH")
+                    self.update_config()
 
     def update_config(self):
         # UPDATE BALANCES
@@ -989,13 +974,7 @@ class MultiBot:
             'chat_id': self.chat_id,
             'telegram_bot': self.telegram_bot,
         }
-
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.CHECK_BALANCE,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
-            'queue_name': RabbitMqQueues.CHECK_BALANCE
-        })
+        self.add_task_to_queue(message, "CHECK_BALANCE")
 
     def update_balances(self):
         message = {
@@ -1005,13 +984,7 @@ class MultiBot:
             'chat_id': self.chat_id,
             'telegram_bot': self.telegram_bot,
         }
-
-        self.tasks.put({
-            'message': message,
-            'routing_key': RabbitMqQueues.CHECK_BALANCE,
-            'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.CHECK_BALANCE),
-            'queue_name': RabbitMqQueues.CHECK_BALANCE
-        })
+        self.add_task_to_queue(message, "CHECK_BALANCE")
 
     async def __launch_and_run(self):
         await self.setup_postgres()
@@ -1034,12 +1007,8 @@ class MultiBot:
                     await self.start_db_update()
 
                 if not start_message:
-                    print('Label2')
-                    print(tg_msg_templates.start_message(self))
-                    await self.send_tg_message(tg_msg_templates.start_message(self))
-                    print('Label3')
-                    print(tg_msg_templates.start_balance_message(self))
-                    await self.send_tg_message(tg_msg_templates.start_balance_message(self))
+                    self.send_tg_message(tg_msg_templates.start_message(self))
+                    self.send_tg_message(tg_msg_templates.start_balance_message(self))
                     self.update_balances()
                     start_message = True
 
@@ -1052,6 +1021,7 @@ class MultiBot:
                     if deal:
                         time_choose = time.time() - time_start
                         await self.execute_deal(deal, time_choose)
+
 
 if __name__ == '__main__':
     MultiBot()
