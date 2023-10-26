@@ -151,7 +151,6 @@ class MultiBot:
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
-
         for client in self.clients:
             #client.markets_list = list(self.markets.keys())
             client.markets_list = close_markets
