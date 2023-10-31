@@ -357,7 +357,7 @@ class MultiBot:
         logger_custom.log_launch_params(self.clients)
 
         # Принтим показатели клиентов - справочно
-        print('Print1:')
+        print('CLIENTS MARKET DATA:')
         print(self.clients_markets_data)
 
         iteration = 0
@@ -376,8 +376,7 @@ class MultiBot:
             # parsing_time = self.calculate_parse_time_and_sort(results)
             time_start = time.time()
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
-            if len(self.potential_deals):
-                print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
+            # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
             # print(f"Iteration  end. Duration.: {(datetime.utcnow() - time_start_cycle).total_seconds()}")
             iteration += 1
@@ -492,7 +491,10 @@ class MultiBot:
         # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         max_amount = min([client_buy.amount, client_sell.amount])
         if client_buy.EXCHANGE_NAME == 'OKX' or client_sell.EXCHANGE_NAME == 'OKX':
-            max_amount = max([client_buy.amount, client_sell.amount])
+            if 0 not in [client_buy.amount, client_sell.amount]:
+                max_amount = max([client_buy.amount, client_sell.amount])
+            else:
+                max_amount = 0
         print('BUY EXCH', client_buy.amount)
         print('SELL EXCH', client_sell.amount)
         client_buy.amount = max_amount
