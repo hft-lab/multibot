@@ -72,7 +72,7 @@ class ArbitrageFinder:
                                     'expect_profit_rel': round(profit, 5),
                                     'expect_profit_abs_usd': round(expect_profit_abs, 3),
                                     'datetime': datetime.utcnow(),
-                                    'timestamp': round(datetime.utcnow().timestamp(), 3),
+                                    'timestamp': int(round(datetime.utcnow().timestamp() * 1000)),
                                     'time_parser': time_parse,
                                     'deal_direction': deal_direction}
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
@@ -85,7 +85,6 @@ class ArbitrageFinder:
                                 #                                    '<pre>' + message + '</pre>',
                                 #                                    parse_mode='HTML')
                                 # except:
-                                    time.sleep(3)
                                 possibilities.append(possibility)
         return possibilities
         # print(possibilities)

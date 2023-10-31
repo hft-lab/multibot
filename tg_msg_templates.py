@@ -4,7 +4,7 @@ import datetime
 
 def save_order_error_message(multibot, symbol, client, order_id):
     message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {multibot.env}\n"
-    message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(error)}",
+    message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
     return message
 
 
@@ -13,7 +13,7 @@ def ap_executed(multibot, client_buy, client_sell, expect_buy_px, expect_sell_px
     message += f"ENV ACTIVE EXCHANGES: {multibot.setts['EXCHANGES']}\n"
     message += f"DT: {datetime.datetime.utcnow()}\n"
     message += f"B.E.: {client_buy.EXCHANGE_NAME} | S.E.: {client_sell.EXCHANGE_NAME}\n"
-    message += f"B.P.: {expect_buy_px} | S.P.: {expect_sell_px}\n",
+    message += f"B.P.: {str(expect_buy_px)} | S.P.: {str(expect_sell_px)}\n"
     return message
 
 
