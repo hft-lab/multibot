@@ -1002,8 +1002,7 @@ class MultiBot:
     async def __launch_and_run(self):
         await self.setup_postgres()
         print(f"POSTGRES STARTED SUCCESSFULLY")
-        start = datetime.utcnow()
-        first_launch = True
+        start = datetime.datetime.utcnow()
 
         await self.__check_start_launch_config()
         # start_shifts = self.shifts.copy()
@@ -1011,19 +1010,18 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
-            start_message = False
+
+            await self.start_db_update()
+            self.send_tg_message(tg_msg_templates.start_message(self))
+            self.send_tg_message(tg_msg_templates.start_balance_message(self))
+
+            self.update_balances()
 
             while True:
-                if (start - datetime.utcnow()).seconds >= 30 or first_launch:
-                    first_launch = False
-                    start = datetime.utcnow()
+                if (datetime.datetime.utcnow()-start).total_seconds() >= 30:
                     await self.start_db_update()
+                    start = datetime.datetime.utcnow()
 
-                if not start_message:
-                    self.send_tg_message(tg_msg_templates.start_message(self))
-                    self.send_tg_message(tg_msg_templates.start_balance_message(self))
-                    self.update_balances()
-                    start_message = True
 
                 time_start = time.time()
                 deal = None
@@ -1041,28 +1039,3 @@ class MultiBot:
 
 if __name__ == '__main__':
     MultiBot()
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
-    # parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
-    # args = parser.parse_args()
-
-    # import cProfile
-    #
-    #
-    # def your_function():
-    #
-    #
-    # # Your code here
-    #
-    # # Start the profiler
-    # profiler = cProfile.Profile()
-    # profiler.enable()
-    #
-    # # Run your code
-    # your_function()
-    #
-    # # Stop the profiler
-    # profiler.disable()
-    #
-    # # Print the profiling results
-    # profiler.print_stats(sort='time')

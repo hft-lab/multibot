@@ -52,3 +52,29 @@ def check_ob_slippage(multibot, client_sell, client_buy):
             writer = csv.writer(file)
             # Append new record
             writer.writerow(record)
+
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('-c1', nargs='?', const=True, default='apollox', dest='client_1')
+        # parser.add_argument('-c2', nargs='?', const=True, default='binance', dest='client_2')
+        # args = parser.parse_args()
+
+        # import cProfile
+        #
+        #
+        # def your_function():
+        #
+        #
+        # # Your code here
+        #
+        # # Start the profiler
+        # profiler = cProfile.Profile()
+        # profiler.enable()
+        #
+        # # Run your code
+        # your_function()
+        #
+        # # Stop the profiler
+        # profiler.disable()
+        #
+        # # Print the profiling results
+        # profiler.print_stats(sort='time')

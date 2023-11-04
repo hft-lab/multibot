@@ -9,8 +9,8 @@ __pycache__
 *.ini
 config.ini
 test.py
-multi_bot_cut.py
 messaging.py
+db_msg_templates.py
 
 arbi.txt
 rates.txt
