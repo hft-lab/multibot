@@ -76,9 +76,9 @@ class ArbitrageFinder:
                                     'time_parser': time_parse,
                                     'deal_direction': deal_direction}
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
-                                with open('arbi.csv', 'a', newline='') as file:
-                                    writer = csv.writer(file)
-                                    writer.writerow([str(y) for y in possibility.values()])
+                                # with open('arbi.csv', 'a', newline='') as file:
+                                #     writer = csv.writer(file)
+                                #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(message)
                                 # try:
                                 #     self.telegram_bot.send_message(self.chat_id,

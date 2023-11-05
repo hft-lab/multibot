@@ -132,13 +132,14 @@ class MultiBot:
         self.ribs = []
         self.find_ribs()
 
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.utcnow().timestamp()
         self.last_message = None
         self.last_max_deal_size = 0
         self.potential_deals = []
         self.deals_counter = []
         self.deals_executed = []
         self.available_balances = {}
+        self.update_all_av_balances()
         self.session = None
 
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
@@ -364,15 +365,16 @@ class MultiBot:
 
         while True:
             await asyncio.sleep(0.01)
-            if not iteration % 10000:
-                print(f"PARSER IS WORKING")
+            if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
+                self.start_time -= 1
+                self.send_tg_message(f"PARSER IS WORKING")
                 self.update_all_av_balances()
             time_start_cycle = time.time()
             # print(f"Iteration {iteration} start. ", end=" ")
             # results = await self.create_and_await_ob_requests_tasks()
             results = self.get_data_for_parser()
             # results = self.add_status(results)
-            logger_custom.log_rates(iteration, results)
+            # logger_custom.log_rates(iteration, results)
             # parsing_time = self.calculate_parse_time_and_sort(results)
             time_start = time.time()
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
@@ -413,14 +415,19 @@ class MultiBot:
         for deal in self.potential_deals:
             buy_exch = deal['buy_exchange']
             sell_exch = deal['sell_exchange']
-            deal_size = self.avail_balance_define(buy_exch, sell_exch, deal['buy_market'], deal['sell_market'])
-            print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
-            print(f"SELL {sell_exch} {deal['sell_price']}")
-            print(f"COIN: {deal['coin']}")
-            print(f"DEAL SIZE: {deal_size}")
-            print(f"DEAL PROFIT: {deal['expect_profit_rel']}")
-            print(f"PLANK PROFIT: {max_profit}")
-            print(f"DEAL DIRECTION: {deal['deal_direction']}")
+            try:
+                deal_size = self.avail_balance_define(buy_exch, sell_exch, deal['buy_market'], deal['sell_market'])
+            except Exception:
+                traceback.print_exc()
+                print(self.available_balances)
+                continue
+            # print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
+            # print(f"SELL {sell_exch} {deal['sell_price']}")
+            # print(f"COIN: {deal['coin']}")
+            # print(f"DEAL SIZE: {deal_size}")
+            # print(f"DEAL PROFIT: {deal['expect_profit_rel']}")
+            # print(f"PLANK PROFIT: {max_profit}")
+            # print(f"DEAL DIRECTION: {deal['deal_direction']}")
             # print(f"MAX DEAL SIZE(vice versa): {self.available_balances[f'+{sell_exch}-{buy_exch}']}")
             # print(f"{deal['profit']=}\n\n")
             if deal_size >= self.max_order_size:
@@ -440,7 +447,8 @@ class MultiBot:
                         max_profit = deal['expect_profit_rel']
                         chosen_deal = deal
         self.potential_deals = []
-        print(chosen_deal)
+        if chosen_deal:
+            print(f"{chosen_deal=}")
         return chosen_deal
 
     def check_active_positions(self, coin, buy_exchange, sell_exchange):
@@ -548,18 +556,18 @@ class MultiBot:
         ob_buy = self.clients_with_names[buy_exchange].get_orderbook(buy_market)
         ob_sell = self.clients_with_names[sell_exchange].get_orderbook(sell_market)
         if not self.if_still_good(target_profit, ob_buy, ob_sell, buy_exchange, sell_exchange):
-            with open('ap_still_active_status.csv', 'a', newline='') as file:
-                writer = csv.writer(file)
-                row_data = [str(y) for y in chosen_deal.values()] + ['Inactive']
-                writer.writerow(row_data)
+            # with open('ap_still_active_status.csv', 'a', newline='') as file:
+            #     writer = csv.writer(file)
+            #     row_data = [str(y) for y in chosen_deal.values()] + ['Inactive']
+            #     writer.writerow(row_data)
             print(f'\n\n\nDEAL {chosen_deal} ALREADY EXPIRED\nNEW PRICES:\nBUY: {ob_buy["asks"][0][0]}')
             print(f"SELL: {ob_sell['bids'][0][0]}")
             print(f"TIMESTAMP: {int(round(datetime.utcnow().timestamp() * 1000))}\n")
             return
-        with open('ap_still_active_status.csv', 'a', newline='') as file:
-            writer = csv.writer(file)
-            row_data = [str(y) for y in chosen_deal.values()] + ['Active']
-            writer.writerow(row_data)
+        # with open('ap_still_active_status.csv', 'a', newline='') as file:
+        #     writer = csv.writer(file)
+        #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
+        #     writer.writerow(row_data)
         max_deal_size = self.avail_balance_define(buy_exchange, sell_exchange, buy_market, sell_market)
         max_deal_size = max_deal_size / ob_buy['asks'][0][0]
         expect_buy_px = chosen_deal['buy_price']
@@ -980,15 +988,25 @@ class MultiBot:
 
             while True:
                 if (datetime.utcnow()-start).total_seconds() >= 30:
-                    await self.start_db_update()
+                    try:
+                        await self.start_db_update()
+                    except Exception:
+                        traceback.print_exc()
                     start = datetime.utcnow()
+
+                if not start_message:
+                    self.send_tg_message(tg_msg_templates.start_message(self))
+                    self.send_tg_message(tg_msg_templates.start_balance_message(self))
+                    self.update_balances()
+                    start_message = True
 
                 time_start = time.time()
                 deal = None
-                if not i % 10000:
-                    print(f"CHECK DEALS IS WORKING")
+                if not round(datetime.utcnow().timestamp() - self.start_time) % 92:
+                    self.start_time -= 1
+                    self.send_tg_message(f"CHECK DEALS IS WORKING")
                 if len(self.potential_deals):
-                    print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
+                    # print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
                     deal = self.choose_deal()
                 if self.state == BotState.BOT:
                     if deal:
