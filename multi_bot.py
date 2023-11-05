@@ -975,7 +975,6 @@ class MultiBot:
 
         await self.__check_start_launch_config()
         # start_shifts = self.shifts.copy()
-        i = 0
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
@@ -994,25 +993,18 @@ class MultiBot:
                         traceback.print_exc()
                     start = datetime.utcnow()
 
-                if not start_message:
-                    self.send_tg_message(tg_msg_templates.start_message(self))
-                    self.send_tg_message(tg_msg_templates.start_balance_message(self))
-                    self.update_balances()
-                    start_message = True
-
-                time_start = time.time()
-                deal = None
                 if not round(datetime.utcnow().timestamp() - self.start_time) % 92:
                     self.start_time -= 1
                     self.send_tg_message(f"CHECK DEALS IS WORKING")
+
+                time_start = time.time()
+                deal = None
                 if len(self.potential_deals):
-                    # print(f"\nPOTENTIAL DEALS: {len(self.potential_deals)}")
                     deal = self.choose_deal()
                 if self.state == BotState.BOT:
                     if deal:
                         time_choose = time.time() - time_start
                         await self.execute_deal(deal, time_choose)
-                i += 1
 
 
 if __name__ == '__main__':
