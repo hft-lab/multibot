@@ -1,6 +1,11 @@
 import csv
 import time
+import asyncio
+from datetime import datetime
 from clients.enums import BotState
+from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
+
+
 def check_ob_slippage(multibot, client_sell, client_buy):
     client_slippage = None
     while True:
@@ -78,3 +83,48 @@ def check_ob_slippage(multibot, client_sell, client_buy):
         #
         # # Print the profiling results
         # profiler.print_stats(sort='time')
+
+
+
+    async def check_opposite_deal_side(self, exch_1, exch_2, ap_id):
+        await asyncio.sleep(2)
+        async with self.db.acquire() as cursor:
+            for ap in await get_last_deals(cursor):
+                if {exch_1, exch_2} == {ap['buy_exchange'], ap['sell_exchange']}:
+                    if ap['id'] != ap_id:
+                        low = int(round(datetime.utcnow().timestamp())) - 10
+                        high = int(round(datetime.utcnow().timestamp())) + 10
+                        if low < ap['ts'] < high:
+                            # print(f"\n\n\nFOUND SECOND DEAL!\nDEAL: {ap}")
+                            return True
+        return False
+
+    async def get_balance_percent(self) -> float:
+        async with self.db.acquire() as cursor:
+            self.finish, self.f_time = await self.get_total_balance_calc(cursor, 'desc')  # todo
+
+            if res := await get_last_balance_jumps(cursor):
+                self.start, self.s_time = res[0], res[1]
+            else:
+                self.start, self.s_time = await self.get_total_balance_calc(cursor, 'asc')
+                await self.save_new_balance_jump()
+
+            if self.start and self.finish:
+                return abs(100 - self.finish * 100 / self.start)
+
+            return 0
+
+    async def get_total_balance_calc(self, cursor, asc_desc):
+        result = 0
+        exchanges = []
+        time_ = 0
+        for row in await get_total_balance(cursor, asc_desc):
+            if not row['exchange_name'] in exchanges:
+                result += row['total_balance']
+                exchanges.append(row['exchange_name'])
+                time_ = max(time_, row['ts'])
+
+            if len(exchanges) >= self.exchanges_len:
+                break
+
+        return result, str(datetime.fromtimestamp(time_ / 1000).strftime('%Y-%m-%d %H:%M:%S'))

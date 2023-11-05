@@ -530,7 +530,7 @@ class MultiBot:
         #            'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
         #            'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
         #            'sell_market': 'pf_agldusd',
-        #            'datetime': datetime.datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
+        #            'datetime': datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
         #            'deal_value': 'open|close|half-close'}
         client_buy = self.clients_with_names[chosen_deal['buy_exchange']]
         client_sell = self.clients_with_names[chosen_deal['sell_exchange']]
@@ -604,18 +604,6 @@ class MultiBot:
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
 
-    async def check_opposite_deal_side(self, exch_1, exch_2, ap_id):
-        await asyncio.sleep(2)
-        async with self.db.acquire() as cursor:
-            for ap in await get_last_deals(cursor):
-                if {exch_1, exch_2} == {ap['buy_exchange'], ap['sell_exchange']}:
-                    if ap['id'] != ap_id:
-                        low = int(round(datetime.utcnow().timestamp())) - 10
-                        high = int(round(datetime.utcnow().timestamp())) + 10
-                        if low < ap['ts'] < high:
-                            # print(f"\n\n\nFOUND SECOND DEAL!\nDEAL: {ap}")
-                            return True
-        return False
 
     def update_all_av_balances(self):
         for client in self.clients_with_names.values():
@@ -840,35 +828,8 @@ class MultiBot:
             },
             self.add_task_to_queue(message, "BALANCE_JUMP")
 
-    async def get_total_balance_calc(self, cursor, asc_desc):
-        result = 0
-        exchanges = []
-        time_ = 0
-        for row in await get_total_balance(cursor, asc_desc):
-            if not row['exchange_name'] in exchanges:
-                result += row['total_balance']
-                exchanges.append(row['exchange_name'])
-                time_ = max(time_, row['ts'])
 
-            if len(exchanges) >= self.exchanges_len:
-                break
 
-        return result, str(datetime.fromtimestamp(time_ / 1000).strftime('%Y-%m-%d %H:%M:%S'))
-
-    async def get_balance_percent(self) -> float:
-        async with self.db.acquire() as cursor:
-            self.finish, self.f_time = await self.get_total_balance_calc(cursor, 'desc')  # todo
-
-            if res := await get_last_balance_jumps(cursor):
-                self.start, self.s_time = res[0], res[1]
-            else:
-                self.start, self.s_time = await self.get_total_balance_calc(cursor, 'asc')
-                await self.save_new_balance_jump()
-
-            if self.start and self.finish:
-                return abs(100 - self.finish * 100 / self.start)
-
-            return 0
 
     @staticmethod
     def get_positions_data(client):
@@ -1002,7 +963,7 @@ class MultiBot:
     async def __launch_and_run(self):
         await self.setup_postgres()
         print(f"POSTGRES STARTED SUCCESSFULLY")
-        start = datetime.datetime.utcnow()
+        start = datetime.utcnow()
 
         await self.__check_start_launch_config()
         # start_shifts = self.shifts.copy()
@@ -1018,10 +979,9 @@ class MultiBot:
             self.update_balances()
 
             while True:
-                if (datetime.datetime.utcnow()-start).total_seconds() >= 30:
+                if (datetime.utcnow()-start).total_seconds() >= 30:
                     await self.start_db_update()
-                    start = datetime.datetime.utcnow()
-
+                    start = datetime.utcnow()
 
                 time_start = time.time()
                 deal = None
