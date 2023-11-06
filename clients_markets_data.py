@@ -8,8 +8,10 @@ import sys
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
 
+
 class Clients_markets_data:
-    def __init__(self, clients_list):
+    def __init__(self, clients_list, instance_num):
+        self.instance_num = instance_num
         self.clients_list = clients_list
         self.coins_clients_symbols = self.get_coins_clients_symbol()
         self.clients_data = self.get_clients_data()
@@ -53,7 +55,18 @@ class Clients_markets_data:
         for coin, symbols_client in coins_symbols_client.copy().items():
             if len(symbols_client) == 1:
                 del coins_symbols_client[coin]
+        coins_symbols_client = self.get_instance_markets(coins_symbols_client)
         return coins_symbols_client
+
+    def get_instance_markets(self, coins_symbols_client):
+        total_len = len(list(coins_symbols_client.keys()))
+        list_end = self.instance_num * 10 if self.instance_num * 10 < total_len else total_len
+        list_start = (self.instance_num - 1) * 10
+        new_dict = dict()
+        for key in list(coins_symbols_client.keys())[list_start:list_end]:
+            new_dict.update({key: coins_symbols_client[key]})
+        return new_dict
+
 
 def main():
 

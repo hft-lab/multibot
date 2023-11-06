@@ -130,8 +130,6 @@ class MultiBot:
         self.clients_with_names = {}
         for client in self.clients:
             self.clients_with_names.update({client.EXCHANGE_NAME: client})
-        self.ribs = []
-        self.find_ribs()
 
         self.start_time = datetime.utcnow().timestamp()
         self.last_message = None
@@ -149,7 +147,7 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         # NEW REAL MULTI BOT
-        self.clients_markets_data = Clients_markets_data(self.clients)
+        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'])
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
