@@ -211,8 +211,6 @@ class MultiBot:
         else:
             print(f"Method '{queue_name}' not found in RabbitMqQueues class")
 
-
-
     @staticmethod
     async def gather_dict(tasks: dict):
         async def mark(key, coro):
@@ -971,14 +969,17 @@ class MultiBot:
         await self.setup_postgres()
         print(f"POSTGRES STARTED SUCCESSFULLY")
         start = datetime.utcnow()
-
         await self.__check_start_launch_config()
         # start_shifts = self.shifts.copy()
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
 
-            await self.start_db_update()
+            try:
+                await self.start_db_update()
+            except Exception:
+                print(f"LINE 984:")
+                traceback.print_exc()
             self.send_tg_message(tg_msg_templates.start_message(self))
             self.send_tg_message(tg_msg_templates.start_balance_message(self))
 

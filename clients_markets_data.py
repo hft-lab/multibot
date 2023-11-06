@@ -11,7 +11,7 @@ config.read(sys.argv[1], "utf-8")
 
 class Clients_markets_data:
     def __init__(self, clients_list, instance_num):
-        self.instance_num = instance_num
+        self.instance_num = int(instance_num)
         self.clients_list = clients_list
         self.coins_clients_symbols = self.get_coins_clients_symbol()
         self.clients_data = self.get_clients_data()
