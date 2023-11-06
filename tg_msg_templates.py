@@ -20,12 +20,10 @@ def ap_executed(multibot, client_buy, client_sell, expect_buy_px, expect_sell_px
 def start_message(multibot):
     message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} STARTED\n'
     message += f'{" | ".join(multibot.exchanges)}\n'
-    message += f"RIBS: {multibot.setts['RIBS']}\n"
     message += f"ENV: {multibot.env}\n"
     message += f"MARKETS: {'|'.join(list(multibot.markets.keys()))}\n"
     message += f"STATE: {multibot.setts['STATE']}\n"
     message += f"LEVERAGE: {multibot.setts['LEVERAGE']}\n"
-    # message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"
     message += f"DEALS PAUSE: {multibot.setts['DEALS_PAUSE']}\n"
     message += f"ORDER SIZE: {multibot.setts['ORDER_SIZE']}\n"
     message += f"TARGET PROFIT: {multibot.setts['TARGET_PROFIT']}\n"
