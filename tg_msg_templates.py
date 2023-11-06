@@ -18,11 +18,11 @@ def ap_executed(multibot, client_buy, client_sell, expect_buy_px, expect_sell_px
 
 
 def start_message(multibot):
-    coin = multibot.clients[0].symbol.split('USD')[0].replace('-', '').replace('/', '')
-    message = f'MULTIBOT {coin} STARTED\n'
+    message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} STARTED\n'
     message += f'{" | ".join(multibot.exchanges)}\n'
     message += f"RIBS: {multibot.setts['RIBS']}\n"
     message += f"ENV: {multibot.env}\n"
+    message += f"MARKETS: {'|'.join(list(multibot.markets.keys()))}\n"
     message += f"STATE: {multibot.setts['STATE']}\n"
     message += f"LEVERAGE: {multibot.setts['LEVERAGE']}\n"
     # message += f"EXCHANGES: {self.client_1.EXCHANGE_NAME} {self.client_2.EXCHANGE_NAME}\n"

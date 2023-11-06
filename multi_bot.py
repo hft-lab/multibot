@@ -43,10 +43,10 @@ logger = logging.getLogger(__name__)
 
 leverage = float(config['SETTINGS']['LEVERAGE'])
 ALL_CLIENTS = {
-    # 'BITMEX': [BitmexClient, config['BITMEX'], config['SETTINGS']['LEVERAGE']],
+    'BITMEX': BitmexClient,
     'DYDX': DydxClient,
-    # 'BINANCE': BinanceClient,
-    # 'APOLLOX': ApolloxClient,
+    'BINANCE': BinanceClient,
+    'APOLLOX': ApolloxClient,
     'OKX': OkxClient,
     'KRAKEN': KrakenClient
 }
@@ -123,8 +123,9 @@ class MultiBot:
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
         for exchange, client in ALL_CLIENTS.items():
-            new = client(config[exchange], leverage, self.alert_id, self.alert_token, self.max_position_part)
-            self.clients.append(new)
+            if exchange in self.exchanges:
+                new = client(config[exchange], leverage, self.alert_id, self.alert_token, self.max_position_part)
+                self.clients.append(new)
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
         for client in self.clients:
@@ -152,10 +153,10 @@ class MultiBot:
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
-        close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
+        # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
         for client in self.clients:
-            #client.markets_list = list(self.markets.keys())
-            client.markets_list = close_markets
+            client.markets_list = list(self.markets.keys())
+            # client.markets_list = close_markets
             client.run_updater()
         # time.sleep(5)
         # for client in self.clients:
@@ -361,7 +362,7 @@ class MultiBot:
         print('CLIENTS MARKET DATA:')
         print(self.clients_markets_data)
 
-        iteration = 0
+        # iteration = 0
 
         while True:
             await asyncio.sleep(0.01)
@@ -376,12 +377,12 @@ class MultiBot:
             # results = self.add_status(results)
             # logger_custom.log_rates(iteration, results)
             # parsing_time = self.calculate_parse_time_and_sort(results)
-            time_start = time.time()
+            # time_start = time.time()
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
             # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
             # print(f"Iteration  end. Duration.: {(datetime.utcnow() - time_start_cycle).total_seconds()}")
-            iteration += 1
+            # iteration += 1
 
     # async def __websocket_cycle_parser(self):
     #     while not init_time + 90 > time.time():
@@ -419,7 +420,7 @@ class MultiBot:
                 deal_size = self.avail_balance_define(buy_exch, sell_exch, deal['buy_market'], deal['sell_market'])
             except Exception:
                 traceback.print_exc()
-                print(self.available_balances)
+                print(f"LINE 422 {self.available_balances=}")
                 continue
             # print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
             # print(f"SELL {sell_exch} {deal['sell_price']}")
