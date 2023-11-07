@@ -680,7 +680,7 @@ class MultiBot:
         message = {
             'id': order_id,
             'datetime': datetime.utcnow(),
-            'ts': int(round(datetime.utcnow().timestamp())),
+            'ts': int(round((datetime.utcnow().timestamp())*1000)),
             'context': 'bot',
             'parent_id': parent_id,
             'exchange_order_id': client.LAST_ORDER_ID,
