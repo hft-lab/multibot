@@ -70,7 +70,7 @@ class MultiBot:
                  'bot_token','messaging',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
-                 'session', 'clients', 'exchanges', 'mq', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
+                 'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
@@ -82,9 +82,7 @@ class MultiBot:
         self.start = None
         self.finish = None
         self.db = None
-        self.mq = None
         self.setts = config['SETTINGS']
-
         self.env = self.setts['ENV']
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
@@ -174,7 +172,7 @@ class MultiBot:
             'datetime_update': str(datetime.utcnow()),
             'ts_update': int(time.time() * 1000)
         }
-        print('MBlabel1')
+
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
         self.loop_3 = asyncio.new_event_loop()
@@ -741,7 +739,6 @@ class MultiBot:
         bot_token = bot_token if bot_token is not None else self.bot_token
 
         message = {"chat_id": chat_id, "msg": text, 'bot_token': bot_token}
-        print('Label5: send_tg_message')
         self.messaging.add_task_to_queue(message, "TELEGRAM")
 
 
@@ -767,15 +764,6 @@ class MultiBot:
     #
     #     self.client_1.step_size = step_size
     #     self.client_2.step_size = step_size
-
-    async def save_new_balance_jump(self):
-        if self.start and self.finish:
-            message = {
-                'timestamp': int(round(datetime.utcnow().timestamp())),
-                'total_balance': self.finish,
-                'env': self.env
-            },
-            self.messaging.add_task_to_queue(message, "BALANCE_JUMP")
 
 
 
@@ -884,7 +872,7 @@ class MultiBot:
                     launch['updated_flag'] = -1
                     launch['launch_id'] = str(launch.pop('id'))
                     launch['bot_config_id'] = str(launch['bot_config_id'])
-                    message = "launch"
+                    message = "launch" #тут точно нужны кавычки???
                     self.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
                     self.update_config()
 

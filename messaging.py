@@ -13,6 +13,7 @@ import configparser
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
 
+
 class Telegram:
     def __init__(self):
         # TELEGRAM
@@ -35,24 +36,41 @@ class Telegram:
         r = requests.post(url, json=message_data)
         return r.json()
 
-class Rabbit():
-    def __init__(self,loop):
+
+class DB:
+    def __init__(self):
+        pass
+
+    # async def save_new_balance_jump(self):
+    #     if self.start and self.finish:
+    #         message = {
+    #             'timestamp': int(round(datetime.utcnow().timestamp())),
+    #             'total_balance': self.finish,
+    #             'env': self.env
+    #         },
+    #         self.messaging.add_task_to_queue(message, "BALANCE_JUMP")
+    #
+    # def save_balance(self, parent_id) -> None:
+    #     message = {
+    #         'parent_id': parent_id,
+    #         'context': 'post-deal',
+    #         'env': self.env,
+    #         'chat_id': self.chat_id,
+    #         'telegram_bot': self.telegram_bot,
+    #     }
+    #     self.messaging.add_task_to_queue(message, "CHECK_BALANCE")
+
+
+class Rabbit:
+    def __init__(self, loop):
         self.telegram = Telegram()
         rabbit = config['RABBIT']
         self.rabbit_url = f"amqp://{rabbit['USERNAME']}:{rabbit['PASSWORD']}@{rabbit['HOST']}:{rabbit['PORT']}/"
         self.mq = None
         self.tasks = queue.Queue()
         self.loop = loop
-        print('label2')
-        self.telegram.send_tg_message_directly('Test')
-        # t = threading.Thread(target=self.run_await_in_thread, args=[self.__send_messages, self.loop])
-        # t.start()
-        # t.join()
-        #
 
     def add_task_to_queue(self, message, queue_name):
-        print('label3a' + str(message) + str(queue_name))
-        self.telegram.send_tg_message_directly(str(message) + str(queue_name))
         event_name = getattr(RabbitMqQueues, queue_name)
         if hasattr(RabbitMqQueues, queue_name):
             task = {
@@ -76,7 +94,6 @@ class Rabbit():
 
     async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
-        print('Label6'+self.rabbit_url)
         print(str(loop))
         self.mq = await connect_robust(self.rabbit_url, loop=loop)
         print(f"SETUP MQ ENDED")
