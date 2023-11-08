@@ -12,6 +12,7 @@ test.py
 db_msg_templates.py
 tg_msg_templates_new.py
 multi_bot_new.py
+db_test.py
 
 arbi.txt
 rates.txt
