@@ -9,9 +9,9 @@ __pycache__
 *.ini
 config.ini
 test.py
-messaging.py
 db_msg_templates.py
-
+tg_msg_templates_new.py
+multi_bot_new.py
 
 arbi.txt
 rates.txt
