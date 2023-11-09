@@ -34,6 +34,25 @@ def start_message(multibot):
     # await self.send_message(message, int(config['TELEGRAM']['CHAT_ID']), config['TELEGRAM']['TOKEN'])
 
 
+# def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
+#     message = f"For last 3 min\n"
+#     message += f"ENV: {self.setts['ENV']}\n"
+#
+#     if self.__check_env():
+#         message += f'SYMBOL: {self.client_1.symbol}'
+#
+#     message += f"\n\nPotential deals:"
+#     for side, values in deals_potential.items():
+#         message += f"\n   {side}:"
+#         for exchange, deals in values.items():
+#             message += f"\n{exchange}: {deals}"
+#     message += f"\n\nExecuted deals:"
+#     for side, values in deals_executed.items():
+#         message += f"\n   {side}:"
+#         for exchange, deals in values.items():
+#             message += f"\n{exchange}: {deals}"
+#     return message
+
 def start_balance_message(multibot):
     message = f'START BALANCES AND POSITION\n'
     message += f"ENV: {multibot.setts['ENV']}\n"

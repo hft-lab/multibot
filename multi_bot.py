@@ -6,12 +6,8 @@ import time
 import traceback
 import uuid
 from logging.config import dictConfig
-import queue
 from logger import Logging
 import aiohttp
-import asyncpg
-import orjson
-import requests
 
 from clients.apollox import ApolloxClient
 from clients.binance import BinanceClient
@@ -25,8 +21,8 @@ from tools.shifts import Shifts
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
 import tg_msg_templates
-from messaging import Rabbit
-import json
+from messaging import Rabbit, Telegram, DB, TG_Groups
+
 
 import sys
 import configparser
@@ -67,7 +63,7 @@ def timeit(func):
 
 class MultiBot:
     __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
-                 'bot_token','messaging',
+                 'bot_token', 'rabbit','telegram',
                  'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
@@ -91,7 +87,6 @@ class MultiBot:
             file.write('')
         self.s_time = ''
         self.f_time = ''
-        self.tasks = queue.Queue()
         # self.create_csv('extra_countings.csv')
         self.last_orderbooks = {}
         self.time_lock = 0
@@ -172,18 +167,17 @@ class MultiBot:
             'datetime_update': str(datetime.utcnow()),
             'ts_update': int(time.time() * 1000)
         }
-
+        self.telegram = Telegram()
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
         self.loop_3 = asyncio.new_event_loop()
         self.loop_4 = asyncio.new_event_loop()
-        self.messaging = Rabbit(self.loop_4)
-
+        self.rabbit = Rabbit(self.loop_4)
 
         t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
         t2 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_2])
         t3 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_cycle_parser, self.loop_3])
-        t4 = threading.Thread(target=self.run_await_in_thread, args=[self.messaging.send_messages, self.loop_4])
+        t4 = threading.Thread(target=self.run_await_in_thread, args=[self.rabbit.send_messages, self.loop_4])
 
         t1.start()
         t2.start()
@@ -196,7 +190,14 @@ class MultiBot:
         t3.join()
         t4.join()
 
-
+    @staticmethod
+    def run_await_in_thread(func, loop):
+        try:
+            loop.run_until_complete(func())
+        except:
+            traceback.print_exc()
+        finally:
+            loop.close()
 
     @staticmethod
     async def gather_dict(tasks: dict):
@@ -271,13 +272,6 @@ class MultiBot:
                         if [client_2, client_1] not in self.ribs:
                             self.ribs.append([client_2, client_1])
 
-    def __prepare_shifts(self):
-        time.sleep(10)
-        self.__rates_update()
-        # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
-        for x, y in Shifts().get_shifts().items():
-            self.shifts.update({x: 0})
-        print(self.shifts)
 
     def find_position_gap(self):
         position_gap = 0
@@ -291,14 +285,7 @@ class MultiBot:
         amount_to_balancing = abs(position_gap) / len(self.clients)
         return position_gap, amount_to_balancing
 
-    @staticmethod
-    def run_await_in_thread(func, loop):
-        try:
-            loop.run_until_complete(func())
-        except:
-            traceback.print_exc()
-        finally:
-            loop.close()
+
 
     def check_last_ob(self, client_buy, client_sell, ob_sell, ob_buy):
         exchanges = client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME
@@ -334,7 +321,7 @@ class MultiBot:
             await asyncio.sleep(0.01)
             if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
                 self.start_time -= 1
-                self.send_tg_message(f"PARSER IS WORKING")
+                self.telegram.send_message(f"PARSER IS WORKING")
                 self.update_all_av_balances()
             time_start_cycle = time.time()
             # print(f"Iteration {iteration} start. ", end=" ")
@@ -575,7 +562,7 @@ class MultiBot:
         self.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol,
                                           max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
                                           time_parser=chosen_deal['time_parser'], symbol=coin)
-        self.save_balance(ap_id)
+        self.db.save_balance(self,ap_id)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
 
@@ -584,15 +571,7 @@ class MultiBot:
         for client in self.clients_with_names.values():
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
-    def save_balance(self, parent_id) -> None:
-        message = {
-            'parent_id': parent_id,
-            'context': 'post-deal',
-            'env': self.env,
-            'chat_id': self.chat_id,
-            'telegram_bot': self.telegram_bot,
-        }
-        self.messaging.add_task_to_queue(message, "CHECK_BALANCE")
+
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
@@ -602,7 +581,6 @@ class MultiBot:
                     return (response['timestamp'] - time_sent) / 1000
                 else:
                     return 0
-
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
@@ -635,16 +613,15 @@ class MultiBot:
             'bot_launch_id': self.bot_launch_id
         }
 
-        self.send_tg_message(tg_msg_templates.ap_executed(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
+        self.telegram.send_message(tg_msg_templates.ap_executed(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
 
-        self.messaging.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
+        self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
         client_buy.error_info = None
         client_buy.LAST_ORDER_ID = 'default'
 
         client_sell.error_info = None
         client_sell.LAST_ORDER_ID = 'default'
-
     def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol) -> None:
         order_id = uuid.uuid4()
         message = {
@@ -671,11 +648,10 @@ class MultiBot:
             'env': self.env,
         }
 
-        self.messaging.add_task_to_queue(message, "ORDERS")
+        self.rabbit.add_task_to_queue(message, "ORDERS")
 
         if client.LAST_ORDER_ID == 'default':
-            self.send_tg_message(tg_msg_templates.save_order_error_message(self, symbol, client, order_id),
-                                 int(self.alert_id), self.alert_token)
+            self.telegram.send_message(tg_msg_templates.save_order_error_message(self, symbol, client, order_id),TG_Groups.Alerts)
 
 
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
@@ -697,24 +673,7 @@ class MultiBot:
             file.write(message + '\n')
         self.update_all_av_balances()
 
-    # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
-    #     message = f"For last 3 min\n"
-    #     message += f"ENV: {self.setts['ENV']}\n"
-    #
-    #     if self.__check_env():
-    #         message += f'SYMBOL: {self.client_1.symbol}'
-    #
-    #     message += f"\n\nPotential deals:"
-    #     for side, values in deals_potential.items():
-    #         message += f"\n   {side}:"
-    #         for exchange, deals in values.items():
-    #             message += f"\n{exchange}: {deals}"
-    #     message += f"\n\nExecuted deals:"
-    #     for side, values in deals_executed.items():
-    #         message += f"\n   {side}:"
-    #         for exchange, deals in values.items():
-    #             message += f"\n{exchange}: {deals}"
-    #     return message
+
 
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
         if datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
@@ -733,23 +692,6 @@ class MultiBot:
             # self.deals_executed = []
 
             self.__rates_update()
-
-    def send_tg_message(self, text: str, chat_id: int = None, bot_token: str = None) -> None:
-        chat_id = chat_id if chat_id is not None else self.chat_id
-        bot_token = bot_token if bot_token is not None else self.bot_token
-
-        message = {"chat_id": chat_id, "msg": text, 'bot_token': bot_token}
-        self.messaging.add_task_to_queue(message, "TELEGRAM")
-
-
-    async def setup_postgres(self) -> None:
-        # print(config.POSTGRES)
-        postgres = config['POSTGRES']
-        self.db = await asyncpg.create_pool(database=postgres['NAME'],
-                                            user=postgres['USER'],
-                                            password=postgres['PASSWORD'],
-                                            host=postgres['HOST'],
-                                            port=postgres['PORT'])
 
     # def get_sizes(self):
     #     tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
@@ -804,129 +746,49 @@ class MultiBot:
                 orders = client.orders.copy()
 
                 for order_id, message in orders.items():
-                    self.messaging.add_task_to_queue(message, "UPDATE_ORDERS")
+                    self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
 
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)
-
-    async def __check_start_launch_config(self):
-        async with self.db.acquire() as cursor:
-            if not await get_last_launch(cursor,
-                                         self.clients[0].EXCHANGE_NAME,
-                                         self.clients[1].EXCHANGE_NAME,
-                                         self.setts['COIN']):
-                if launch := await get_last_launch(cursor,
-                                                   self.clients[0].EXCHANGE_NAME,
-                                                   self.clients[1].EXCHANGE_NAME,
-                                                   self.setts['COIN'], 1):
-                    launch = launch[0]
-                    data = json.dumps({
-                        "env": self.setts['ENV'],
-                        "shift_use_flag": launch['shift_use_flag'],
-                        "target_profit": launch['target_profit'],
-                        "orders_delay": launch['orders_delay'],
-                        "max_order_usd": launch['max_order_usd'],
-                        "max_leverage": launch['max_leverage'],
-                        'exchange_1': self.clients[0].EXCHANGE_NAME,
-                        'exchange_2': self.clients[1].EXCHANGE_NAME,
-                    })
-                else:
-                    data = self.base_launch_config
-                headers = {
-                    'token': 'jnfXhfuherfihvijnfjigt',
-                    'context': 'bot-start'
-                }
-                url = f"http://{self.setts['CONFIG_API_HOST']}:{self.setts['CONFIG_API_PORT']}/api/v1/configs"
-
-                requests.post(url=url, headers=headers, json=data)
-
-    async def start_db_update(self):
-        async with self.db.acquire() as cursor:
-            if launches := await get_last_launch(cursor,
-                                                 self.clients[0].EXCHANGE_NAME,
-                                                 self.clients[1].EXCHANGE_NAME,
-                                                 self.setts['COIN']):
-                launch = launches.pop(0)
-                self.bot_launch_id = str(launch['id'])
-
-                for field in launch:
-                    if not launch.get('field') and field not in ['id', 'datetime', 'ts', 'bot_config_id',
-                                                                 'coin', 'shift']:
-                        launch[field] = self.base_launch_config[field]
-
-                launch['launch_id'] = str(launch.pop('id'))
-                launch['bot_config_id'] = str(launch['bot_config_id'])
-
-                # if not launch.get('shift_use_flag'):
-                #     for client_1, client_2 in self.ribs:
-                #         self.shifts.update({f'{client_1.EXCHANGE_NAME} {client_2.EXCHANGE_NAME}': 0})
-                # else:
-                #     self.shifts = start_shifts
-                message = "launch"
-                self.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
-
-                for launch in launches:
-                    launch['datetime_update'] = self.base_launch_config['datetime_update']
-                    launch['ts_update'] = self.base_launch_config['ts_update']
-                    launch['updated_flag'] = -1
-                    launch['launch_id'] = str(launch.pop('id'))
-                    launch['bot_config_id'] = str(launch['bot_config_id'])
-                    message = "launch" #тут точно нужны кавычки???
-                    self.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
-                    self.update_config()
-
-    def update_config(self):
-        # UPDATE BALANCES
-        message = {
-            'parent_id': self.bot_launch_id,
-            'context': 'bot-config-update',
-            'env': self.env,
-            'chat_id': self.chat_id,
-            'telegram_bot': self.telegram_bot,
-        }
-        self.messaging.add_task_to_queue(message, "CHECK_BALANCE")
-
-    def update_balances(self):
-        message = {
-            'parent_id': self.bot_launch_id,
-            'context': 'bot-launch',
-            'env': self.env,
-            'chat_id': self.chat_id,
-            'telegram_bot': self.telegram_bot,
-        }
-        self.messaging.add_task_to_queue(message, "CHECK_BALANCE")
     async def __launch_and_run(self):
-        await self.setup_postgres()
-        print(f"POSTGRES STARTED SUCCESSFULLY")
+        self.db = DB(self.rabbit)
+        await self.db.setup_postgres()
+        # await self.setup_postgres()
+        # print(f"POSTGRES STARTED SUCCESSFULLY")
         start = datetime.utcnow()
-        await self.__check_start_launch_config()
+        # #await self.__check_start_launch_config()
+        # await self.db.log_launch_config()
         # start_shifts = self.shifts.copy()
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
 
-            try:
-                await self.start_db_update()
-            except Exception:
-                print(f"LINE 984:")
-                traceback.print_exc()
-            self.send_tg_message(tg_msg_templates.start_message(self))
-            self.send_tg_message(tg_msg_templates.start_balance_message(self))
+            # try:
+            #     await self.db.update_launch_config()
+            #     # await self.start_db_update()
+            # except Exception:
+            #     print(f"LINE 984:")
+            #     traceback.print_exc()
+            # self.send_tg_message(tg_msg_templates.start_message(self))
+            self.telegram.send_message(tg_msg_templates.start_message(self))
+            self.telegram.send_message(tg_msg_templates.start_balance_message(self))
 
-            self.update_balances()
+            # self.db.update_config(self)
+            # self.update_balances()
 
             while True:
-                if (datetime.utcnow()-start).total_seconds() >= 30:
-                    try:
-                        await self.start_db_update()
-                    except Exception:
-                        traceback.print_exc()
-                    start = datetime.utcnow()
+                # if (datetime.utcnow()-start).total_seconds() >= 30:
+                #     try:
+                #         await self.db.update_launch_config()
+                #         # await self.start_db_update()
+                #     except Exception:
+                #         traceback.print_exc()
+                #     start = datetime.utcnow()
 
                 if not round(datetime.utcnow().timestamp() - self.start_time) % 92:
                     self.start_time -= 1
-                    self.send_tg_message(f"CHECK DEALS IS WORKING")
+                    self.telegram.send_message(f"CHECK DEALS IS WORKING")
 
                 time_start = time.time()
                 deal = None

@@ -6,6 +6,15 @@ from clients.enums import BotState
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 
 
+def __prepare_shifts(self):
+    time.sleep(10)
+    self.__rates_update()
+    # !!!!SHIFTS ARE HARDCODED TO A ZERO!!!!
+    for x, y in Shifts().get_shifts().items():
+        self.shifts.update({x: 0})
+    print(self.shifts)
+
+
 def check_ob_slippage(multibot, client_sell, client_buy):
     client_slippage = None
     while True:
