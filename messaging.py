@@ -1,72 +1,27 @@
 import asyncio
 import queue
-import threading
 import traceback
 import json
+from datetime import datetime
+
 import asyncpg
 from aio_pika import connect_robust, ExchangeType, Message
 from orjson import orjson
 import requests
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from clients.enums import RabbitMqQueues
-from enum import Enum
 
-import sys
 from configparser import ConfigParser
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")
 
-
-# config.read(sys.argv[1], "utf-8")
-
-
-class TG_Groups(Enum):
-    _main_id = int(config['TELEGRAM']['CHAT_ID'])
-    _main_token = config['TELEGRAM']['TOKEN']
-    # self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
-    # self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
-    _alert_id = int(config['TELEGRAM']['ALERT_CHAT_ID'])
-    _alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
-    _debug_id = int(config['TELEGRAM']['DIMA_DEBUG_CHAT_ID'])
-    _debug_token = config['TELEGRAM']['DIMA_DEBUG_BOT_TOKEN']
-
-    MainGroup = {'chat_id': _main_id, 'bot_token': _main_token}
-    Alerts = {'chat_id': _alert_id, 'bot_token': _alert_token}
-    DebugDima = {'chat_id': _debug_id, 'bot_token': _debug_token}
-
-
-class Telegram:
-    def __init__(self):
-        self.tg_url = "https://api.telegram.org/bot"
-
-    def send_message(self, message: str, group_obj: TG_Groups = None):
-        group = group_obj.value if group_obj else TG_Groups.MainGroup.value
-        url = self.tg_url + group['bot_token'] + "/sendMessage"
-        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML","text": "<pre>"+message+"</pre>"}
-        r = requests.post(url, json=message_data)
-        return r.json()
-
-    def send_tg_message_to_rabbit(self, text: str, chat_id: int = None, bot_token: str = None) -> None:
-        chat_id = chat_id if chat_id is not None else self.chat_id
-        bot_token = bot_token if bot_token is not None else self.bot_token
-
-        message = {"chat_id": chat_id, "msg": text, 'bot_token': bot_token}
-        self.messaging.add_task_to_queue(message, "TELEGRAM")
-
-    def send_tg_message_directly(self, message: str, chat_id: int = None, bot_token: str = None) -> None:
-        chat_id = chat_id if chat_id is not None else self.debug_chat_id
-        bot_token = bot_token if bot_token is not None else self.debug_token_id
-
-        url = self.tg_url + bot_token + "/sendMessage"
-        message_data = {"chat_id": chat_id, "text": message}
-        r = requests.post(url, json=message_data)
-        return r.json()
+from telegram import Telegram, TG_Groups
 
 
 class DB:
     def __init__(self, rabbit):
-
+        self.telegram = Telegram()
         self.setts = config['SETTINGS']
         self.db = None
 
@@ -83,6 +38,38 @@ class DB:
                                             port=postgres['PORT'])
         print(f"SETUP POSTGRES ENDED")
 
+    def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
+                                     expect_sell_px, time_choose, shift, time_parser, symbol):
+        expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
+                client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
+        expect_amount_usd = client_buy.amount * (expect_sell_px + expect_buy_px) / 2
+        message = {
+            'id': _id,
+            'datetime': datetime.utcnow(),
+            'ts': int(round(datetime.utcnow().timestamp())),
+            'buy_exchange': client_buy.EXCHANGE_NAME,
+            'sell_exchange': client_sell.EXCHANGE_NAME,
+            'symbol': symbol,
+            'buy_order_id': client_buy.LAST_ORDER_ID,
+            'sell_order_id': client_sell.LAST_ORDER_ID,
+            'max_buy_vol_usd': round(max_buy_vol * expect_buy_px),
+            'max_sell_vol_usd': round(max_sell_vol * expect_sell_px),
+            'expect_buy_price': expect_buy_px,
+            'expect_sell_price': expect_sell_px,
+            'expect_amount_usd': expect_amount_usd,
+            'expect_amount_coin': client_buy.amount,
+            'expect_profit_usd': expect_profit_usd,
+            'expect_profit_relative': expect_profit_usd / expect_amount_usd,
+            'expect_fee_buy': client_buy.taker_fee,
+            'expect_fee_sell': client_sell.taker_fee,
+            'time_parser': time_parser,
+            'time_choose': time_choose,
+            'chat_id': 12345678,
+            'bot_token': 'placeholder',
+            'status': 'Processing'#,
+            # 'bot_launch_id': self.bot_launch_id
+        }
+        return message
     # ex __check_start_launch_config. В конце вызов config_api, т.е. как бы эмуляция внесения настроек. Не работает
     async def log_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
@@ -166,7 +153,9 @@ class DB:
         }
         self.rabbit.add_task_to_queue(message, "CHECK_BALANCE")
 
-    def save_balance(self, multibot, parent_id) -> None:
+    def update_balance_trigger(self,env : str, context: str):
+        pass
+    def update_balance_trigger_temp(self, multibot, parent_id) -> None:
         message = {
             'parent_id': parent_id,
             'context': 'post-deal',
@@ -175,6 +164,7 @@ class DB:
             'telegram_bot': multibot.telegram_bot,
         }
         self.rabbit.add_task_to_queue(message, "CHECK_BALANCE")
+        self.telegram.send_message('Post update balance trigger message: '+str(message),TG_Groups.DebugDima)
 
     # async def save_new_balance_jump(self):
     #     if self.start and self.finish:
@@ -254,6 +244,8 @@ class Rabbit:
 
 
 if __name__ == '__main__':
-    telegram = Telegram()
-    telegram.send_message('Test',TG_Groups.DebugDima)
+    pass
+    # await db.setup_postgres()
+    # telegram = Telegram()
+    # telegram.send_message('Test',TG_Groups.DebugDima)
 

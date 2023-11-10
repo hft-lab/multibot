@@ -20,8 +20,8 @@ from core.queries import get_last_balance_jumps, get_total_balance, get_last_lau
 from tools.shifts import Shifts
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
-import tg_msg_templates
-from messaging import Rabbit, Telegram, DB, TG_Groups
+from telegram import Telegram, TG_Groups
+from messaging import Rabbit, DB
 
 
 import sys
@@ -562,7 +562,9 @@ class MultiBot:
         self.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol,
                                           max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
                                           time_parser=chosen_deal['time_parser'], symbol=coin)
-        self.db.save_balance(self,ap_id)
+        self.telegram.send_message(
+            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
+        self.db.update_balance_trigger_temp(self, ap_id)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
 
@@ -607,13 +609,13 @@ class MultiBot:
             'expect_fee_sell': client_sell.taker_fee,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'chat_id': self.chat_id,
-            'bot_token': self.telegram_bot,
+            # 'chat_id': self.chat_id,
+            # 'bot_token': self.telegram_bot,
             'status': 'Processing',
-            'bot_launch_id': self.bot_launch_id
+            # 'bot_launch_id': self.bot_launch_id
         }
 
-        self.telegram.send_message(tg_msg_templates.ap_executed(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
+
 
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
@@ -651,7 +653,7 @@ class MultiBot:
         self.rabbit.add_task_to_queue(message, "ORDERS")
 
         if client.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(tg_msg_templates.save_order_error_message(self, symbol, client, order_id),TG_Groups.Alerts)
+            self.telegram.send_message(self.telegram.save_order_error_message(self, symbol, client, order_id),TG_Groups.Alerts)
 
 
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
@@ -737,9 +739,6 @@ class MultiBot:
     #                     await client.create_order(abs(res), price, side, session)
     #                     time.sleep(7)
 
-    def __check_env(self) -> bool:
-        return 'DEV_' in self.env.upper()
-
     async def __check_order_status(self):
         while True:
             for client in self.clients:
@@ -771,8 +770,8 @@ class MultiBot:
             #     print(f"LINE 984:")
             #     traceback.print_exc()
             # self.send_tg_message(tg_msg_templates.start_message(self))
-            self.telegram.send_message(tg_msg_templates.start_message(self))
-            self.telegram.send_message(tg_msg_templates.start_balance_message(self))
+            self.telegram.send_message(self.telegram.start_message(self))
+            self.telegram.send_message(self.telegram.start_balance_message(self))
 
             # self.db.update_config(self)
             # self.update_balances()

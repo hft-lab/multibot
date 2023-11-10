@@ -137,3 +137,11 @@ def check_ob_slippage(multibot, client_sell, client_buy):
                 break
 
         return result, str(datetime.fromtimestamp(time_ / 1000).strftime('%Y-%m-%d %H:%M:%S'))
+
+
+    def send_tg_message_to_rabbit(self, text: str, chat_id: int = None, bot_token: str = None) -> None:
+        chat_id = chat_id if chat_id is not None else self.chat_id
+        bot_token = bot_token if bot_token is not None else self.bot_token
+
+        message = {"chat_id": chat_id, "msg": text, 'bot_token': bot_token}
+        self.messaging.add_task_to_queue(message, "TELEGRAM")
