@@ -3,7 +3,7 @@ import time
 import asyncio
 from datetime import datetime
 from clients.enums import BotState
-from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
+from core.queries import get_last_balance_jumps, get_total_balance, get_last_deals
 
 
 def __prepare_shifts(self):

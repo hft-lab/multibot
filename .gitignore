@@ -9,7 +9,7 @@ __pycache__
 *.ini
 config.ini
 test.py
-db_msg_templates.py
+core/database.py
 db_test.py
 
 arbi.txt

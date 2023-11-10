@@ -16,13 +16,11 @@ from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
 from clients.enums import BotState
-from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
-from tools.shifts import Shifts
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
-from telegram import Telegram, TG_Groups
-from messaging import Rabbit, DB
-
+from core.telegram import Telegram, TG_Groups
+from core.rabbit import Rabbit
+from core.database import DB
 
 import sys
 import configparser
@@ -564,7 +562,7 @@ class MultiBot:
                                           time_parser=chosen_deal['time_parser'], symbol=coin)
         self.telegram.send_message(
             self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
-        self.db.update_balance_trigger_temp(self, ap_id)
+        self.db.update_balance_trigger_temo(self, ap_id)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
 
