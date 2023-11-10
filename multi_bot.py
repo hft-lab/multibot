@@ -15,12 +15,13 @@ from clients.bitmex import BitmexClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
-from clients.enums import BotState
+from core.enums import BotState
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
+from core.database import DB
 from core.telegram import Telegram, TG_Groups
 from core.rabbit import Rabbit
-from core.database import DB
+
 
 import sys
 import configparser

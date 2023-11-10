@@ -9,7 +9,6 @@ __pycache__
 *.ini
 config.ini
 test.py
-core/database.py
 db_test.py
 
 arbi.txt

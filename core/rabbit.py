@@ -3,7 +3,7 @@ import queue
 import traceback
 from aio_pika import connect_robust, ExchangeType, Message
 from orjson import orjson
-from enums import RabbitMqQueues
+from core.enums import RabbitMqQueues
 
 from configparser import ConfigParser
 config = ConfigParser()
