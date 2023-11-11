@@ -7,6 +7,9 @@ class PositionSideEnum:
     def all_position_sides(cls):
         return [cls.LONG, cls.SHORT, cls.BOTH]
 
+class Context:
+    POST_DEAL = 'post - deal'
+    CONFIG_UPDATE = 'bot-config-update'
 
 class ConnectMethodEnum:
     PUBLIC = 'public'

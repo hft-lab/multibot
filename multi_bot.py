@@ -22,9 +22,9 @@ from core.database import DB
 from core.telegram import Telegram, TG_Groups
 from core.rabbit import Rabbit
 
-
 import sys
 import configparser
+
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
 
@@ -61,9 +61,8 @@ def timeit(func):
 
 
 class MultiBot:
-    __slots__ = ['rabbit_url', 'deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'telegram_bot', 'chat_id',
-                 'bot_token', 'rabbit','telegram',
-                 'daily_chat_id', 'inv_chat_id', 'state', 'loop', 'start_time', 'last_message',
+    __slots__ = ['deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
+                 'state', 'loop', 'start_time', 'last_message',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
@@ -90,6 +89,10 @@ class MultiBot:
         self.last_orderbooks = {}
         self.time_lock = 0
 
+        # TELEGRAM
+        self.alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
+        self.alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
+
         # ORDER CONFIGS
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
         self.max_order_size = int(self.setts['ORDER_SIZE'])
@@ -98,14 +101,6 @@ class MultiBot:
         self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
         # self.shifts = {}
 
-        # TELEGRAM
-        self.telegram_bot = config['TELEGRAM']['TOKEN']
-        self.chat_id = int(config['TELEGRAM']['CHAT_ID'])
-        self.bot_token = config['TELEGRAM']['TOKEN']
-        self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
-        self.inv_chat_id = int(config['TELEGRAM']['INV_CHAT_ID'])
-        self.alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
-        self.alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
 
         # CLIENTS
         self.state = self.setts['STATE']
@@ -182,7 +177,6 @@ class MultiBot:
         t2.start()
         t3.start()
         t4.start()
-
 
         t1.join()
         t2.join()
@@ -271,7 +265,6 @@ class MultiBot:
                         if [client_2, client_1] not in self.ribs:
                             self.ribs.append([client_2, client_1])
 
-
     def find_position_gap(self):
         position_gap = 0
         for client in self.clients:
@@ -283,8 +276,6 @@ class MultiBot:
         position_gap = self.find_position_gap()
         amount_to_balancing = abs(position_gap) / len(self.clients)
         return position_gap, amount_to_balancing
-
-
 
     def check_last_ob(self, client_buy, client_sell, ob_sell, ob_buy):
         exchanges = client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME
@@ -314,8 +305,6 @@ class MultiBot:
         print('CLIENTS MARKET DATA:')
         print(self.clients_markets_data)
 
-        # iteration = 0
-
         while True:
             await asyncio.sleep(0.01)
             if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
@@ -323,18 +312,14 @@ class MultiBot:
                 self.telegram.send_message(f"PARSER IS WORKING")
                 self.update_all_av_balances()
             time_start_cycle = time.time()
-            # print(f"Iteration {iteration} start. ", end=" ")
-            # results = await self.create_and_await_ob_requests_tasks()
             results = self.get_data_for_parser()
             # results = self.add_status(results)
             # logger_custom.log_rates(iteration, results)
-            # parsing_time = self.calculate_parse_time_and_sort(results)
-            # time_start = time.time()
+
             self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
             # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
-            # print(f"Iteration  end. Duration.: {(datetime.utcnow() - time_start_cycle).total_seconds()}")
-            # iteration += 1
+
 
     # async def __websocket_cycle_parser(self):
     #     while not init_time + 90 > time.time():
@@ -556,23 +541,28 @@ class MultiBot:
         # self.time_parser = chosen_deal['time_parser']
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
-        self.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market)
-        self.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market)
-        self.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol,
-                                          max_sell_vol, expect_buy_px, expect_sell_px, time_choose, shift=None,
-                                          time_parser=chosen_deal['time_parser'], symbol=coin)
+
+        self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market,self.env)
+        self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market,self.env)
+
+
+        self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
+                                             expect_buy_px, expect_sell_px, time_choose, shift=None,
+                                             time_parser=chosen_deal['time_parser'], symbol=coin)
+
+        for client in [client_buy, client_sell]:
+            client.error_info = None
+            client.LAST_ORDER_ID = 'default'
+
         self.telegram.send_message(
             self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
-        self.db.update_balance_trigger_temo(self, ap_id)
+        self.db.update_balance_trigger('post-deal', ap_id, self.env)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
-
 
     def update_all_av_balances(self):
         for client in self.clients_with_names.values():
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
-
-
 
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
@@ -582,78 +572,78 @@ class MultiBot:
                     return (response['timestamp'] - time_sent) / 1000
                 else:
                     return 0
-    def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                     expect_sell_px, time_choose, shift, time_parser, symbol):
-        expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
-                client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
-        expect_amount_usd = client_buy.amount * (expect_sell_px + expect_buy_px) / 2
-        message = {
-            'id': _id,
-            'datetime': datetime.utcnow(),
-            'ts': int(round(datetime.utcnow().timestamp())),
-            'buy_exchange': client_buy.EXCHANGE_NAME,
-            'sell_exchange': client_sell.EXCHANGE_NAME,
-            'symbol': symbol,
-            'buy_order_id': client_buy.LAST_ORDER_ID,
-            'sell_order_id': client_sell.LAST_ORDER_ID,
-            'max_buy_vol_usd': round(max_buy_vol * expect_buy_px),
-            'max_sell_vol_usd': round(max_sell_vol * expect_sell_px),
-            'expect_buy_price': expect_buy_px,
-            'expect_sell_price': expect_sell_px,
-            'expect_amount_usd': expect_amount_usd,
-            'expect_amount_coin': client_buy.amount,
-            'expect_profit_usd': expect_profit_usd,
-            'expect_profit_relative': expect_profit_usd / expect_amount_usd,
-            'expect_fee_buy': client_buy.taker_fee,
-            'expect_fee_sell': client_sell.taker_fee,
-            'time_parser': time_parser,
-            'time_choose': time_choose,
-            # 'chat_id': self.chat_id,
-            # 'bot_token': self.telegram_bot,
-            'status': 'Processing',
-            # 'bot_launch_id': self.bot_launch_id
-        }
+
+    # def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
+    #                                  expect_sell_px, time_choose, shift, time_parser, symbol):
+    #     expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
+    #             client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
+    #     expect_amount_usd = client_buy.amount * (expect_sell_px + expect_buy_px) / 2
+    #     message = {
+    #         'id': _id,
+    #         'datetime': datetime.utcnow(),
+    #         'ts': int(round(datetime.utcnow().timestamp())),
+    #         'buy_exchange': client_buy.EXCHANGE_NAME,
+    #         'sell_exchange': client_sell.EXCHANGE_NAME,
+    #         'symbol': symbol,
+    #         'buy_order_id': client_buy.LAST_ORDER_ID,
+    #         'sell_order_id': client_sell.LAST_ORDER_ID,
+    #         'max_buy_vol_usd': round(max_buy_vol * expect_buy_px),
+    #         'max_sell_vol_usd': round(max_sell_vol * expect_sell_px),
+    #         'expect_buy_price': expect_buy_px,
+    #         'expect_sell_price': expect_sell_px,
+    #         'expect_amount_usd': expect_amount_usd,
+    #         'expect_amount_coin': client_buy.amount,
+    #         'expect_profit_usd': expect_profit_usd,
+    #         'expect_profit_relative': expect_profit_usd / expect_amount_usd,
+    #         'expect_fee_buy': client_buy.taker_fee,
+    #         'expect_fee_sell': client_sell.taker_fee,
+    #         'time_parser': time_parser,
+    #         'time_choose': time_choose,
+    #         'chat_id': self.chat_id,
+    #         'bot_token': self.telegram_bot,
+    #         'status': 'Processing',
+    #         'bot_launch_id': self.bot_launch_id
+    #     }
+    #
+    #     self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
+    #     client_buy.error_info = None
+    #     client_buy.LAST_ORDER_ID = 'default'
+    #
+    #     client_sell.error_info = None
+    #     client_sell.LAST_ORDER_ID = 'default'
 
 
-
-        self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
-
-        client_buy.error_info = None
-        client_buy.LAST_ORDER_ID = 'default'
-
-        client_sell.error_info = None
-        client_sell.LAST_ORDER_ID = 'default'
-    def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol) -> None:
-        order_id = uuid.uuid4()
-        message = {
-            'id': order_id,
-            'datetime': datetime.utcnow(),
-            'ts': int(round((datetime.utcnow().timestamp())*1000)),
-            'context': 'bot',
-            'parent_id': parent_id,
-            'exchange_order_id': client.LAST_ORDER_ID,
-            'type': 'GTT' if client.EXCHANGE_NAME == 'DYDX' else 'GTC',
-            'status': 'Processing',
-            'exchange': client.EXCHANGE_NAME,
-            'side': side,
-            'symbol': symbol.upper(),
-            'expect_price': expect_price,
-            'expect_amount_coin': client.amount,
-            'expect_amount_usd': client.amount * client.price,
-            'expect_fee': client.taker_fee,
-            'factual_price': 0,
-            'factual_amount_coin': 0,
-            'factual_amount_usd': 0,
-            'factual_fee': client.taker_fee,
-            'order_place_time': order_place_time,
-            'env': self.env,
-        }
-
-        self.rabbit.add_task_to_queue(message, "ORDERS")
-
-        if client.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(self.telegram.save_order_error_message(self, symbol, client, order_id),TG_Groups.Alerts)
-
+    # def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol) -> None:
+    #     order_id = uuid.uuid4()
+    #     message = {
+    #         'id': order_id,
+    #         'datetime': datetime.utcnow(),
+    #         'ts': int(round((datetime.utcnow().timestamp()) * 1000)),
+    #         'context': 'bot',
+    #         'parent_id': parent_id,
+    #         'exchange_order_id': client.LAST_ORDER_ID,
+    #         'type': 'GTT' if client.EXCHANGE_NAME == 'DYDX' else 'GTC',
+    #         'status': 'Processing',
+    #         'exchange': client.EXCHANGE_NAME,
+    #         'side': side,
+    #         'symbol': symbol.upper(),
+    #         'expect_price': expect_price,
+    #         'expect_amount_coin': client.amount,
+    #         'expect_amount_usd': client.amount * client.price,
+    #         'expect_fee': client.taker_fee,
+    #         'factual_price': 0,
+    #         'factual_amount_coin': 0,
+    #         'factual_amount_usd': 0,
+    #         'factual_fee': client.taker_fee,
+    #         'order_place_time': order_place_time,
+    #         'env': self.env,
+    #     }
+    #
+    #     self.rabbit.add_task_to_queue(message, "ORDERS")
+    #
+    #     if client.LAST_ORDER_ID == 'default':
+    #         self.telegram.send_message(self.telegram.save_order_error_message(self, symbol, client, order_id),
+    #                                    TG_Groups.Alerts)
 
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
         if self.available_balances[buy_exchange].get(buy_market):
@@ -673,8 +663,6 @@ class MultiBot:
                 message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.utcnow()} | {time.time()}\n"
             file.write(message + '\n')
         self.update_all_av_balances()
-
-
 
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
         if datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
@@ -707,9 +695,6 @@ class MultiBot:
     #
     #     self.client_1.step_size = step_size
     #     self.client_2.step_size = step_size
-
-
-
 
     @staticmethod
     def get_positions_data(client):
@@ -749,13 +734,12 @@ class MultiBot:
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)
+
     async def __launch_and_run(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
-        # await self.setup_postgres()
-        # print(f"POSTGRES STARTED SUCCESSFULLY")
+
         start = datetime.utcnow()
-        # #await self.__check_start_launch_config()
         # await self.db.log_launch_config()
         # start_shifts = self.shifts.copy()
         async with aiohttp.ClientSession() as session:
@@ -768,7 +752,6 @@ class MultiBot:
             # except Exception:
             #     print(f"LINE 984:")
             #     traceback.print_exc()
-            # self.send_tg_message(tg_msg_templates.start_message(self))
             self.telegram.send_message(self.telegram.start_message(self))
             self.telegram.send_message(self.telegram.start_balance_message(self))
 

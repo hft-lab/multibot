@@ -1,15 +1,19 @@
 import asyncio
 import json
+import uuid
 from datetime import datetime
 from configparser import ConfigParser
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from core.telegram import Telegram, TG_Groups
+from core.enums import Context
+# from queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
+# from telegram import Telegram, TG_Groups
+# from enums import Context
 import requests
 import asyncpg
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")
-
 
 
 class DB:
@@ -30,8 +34,7 @@ class DB:
                                             host=postgres['HOST'],
                                             port=postgres['PORT'])
         print(f"SETUP POSTGRES ENDED")
-
-    def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
+    def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
                 client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
@@ -59,11 +62,46 @@ class DB:
             'time_choose': time_choose,
             'chat_id': 12345678,
             'bot_token': 'placeholder',
-            'status': 'Processing'#,
+            'status': 'Processing'  # ,
             # 'bot_launch_id': self.bot_launch_id
         }
-        return message
-    # ex __check_start_launch_config. В конце вызов config_api, т.е. как бы эмуляция внесения настроек. Не работает
+        self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
+
+    def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env) -> None:
+        order_id = uuid.uuid4()
+        message = {
+            'id': order_id,
+            'datetime': datetime.utcnow(),
+            'ts': int(round((datetime.utcnow().timestamp()) * 1000)),
+            'context': 'bot',
+            'parent_id': parent_id,
+            'exchange_order_id': client.LAST_ORDER_ID,
+            'type': 'GTT' if client.EXCHANGE_NAME == 'DYDX' else 'GTC',
+            'status': 'Processing',
+            'exchange': client.EXCHANGE_NAME,
+            'side': side,
+            'symbol': symbol.upper(),
+            'expect_price': expect_price,
+            'expect_amount_coin': client.amount,
+            'expect_amount_usd': client.amount * client.price,
+            'expect_fee': client.taker_fee,
+            'factual_price': 0,
+            'factual_amount_coin': 0,
+            'factual_amount_usd': 0,
+            'factual_fee': client.taker_fee,
+            'order_place_time': order_place_time,
+            'env': env,
+        }
+
+        self.rabbit.add_task_to_queue(message, "ORDERS")
+
+        if client.LAST_ORDER_ID == 'default':
+            self.telegram.send_message(self.telegram.order_error_message(env, symbol, client, order_id),
+                                       TG_Groups.Alerts)
+
+    # ex __check_start_launch_config
+    # Смотрится есть ли в базе неиспользованные настройки, если есть используются они, если нет,
+    # то берутся уже использованные и заносятся через вызов метода config_api.
     async def log_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
             # Поиск, что есть подходящие еще не использованные настройки
@@ -98,7 +136,8 @@ class DB:
 
                 requests.post(url=url, headers=headers, json=data)
 
-    # раньше называлось start_db_update. В конце добавление в очередь
+    # раньше называлось start_db_update. В конце добавление в очередь.
+    #
     async def update_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
             if launches := await get_last_launch(cursor,
@@ -132,32 +171,17 @@ class DB:
                     launch['bot_config_id'] = str(launch['bot_config_id'])
                     message = "launch"
                     multibot.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
-                    self.update_config()
+                    self.update_balance_trigger('bot-config-update', multibot.bot_launch_id, multibot.env)
 
-    # Сигнал для обновления баланса
-    def update_config(self, multibot):
-        # UPDATE BALANCES
-        message = {
-            'parent_id': multibot.bot_launch_id,
-            'context': 'bot-config-update',
-            'env': multibot.env,
-            'chat_id': multibot.chat_id,
-            'telegram_bot': multibot.telegram_bot,
-        }
-        self.rabbit.add_task_to_queue(message, "CHECK_BALANCE")
-
-    def update_balance_trigger(self,env : str, context: str):
-        pass
-    def update_balance_trigger_temo(self, multibot, parent_id) -> None:
+    def update_balance_trigger(self, context: str, parent_id, env: str):
         message = {
             'parent_id': parent_id,
-            'context': 'post-deal',
-            'env': multibot.env,
-            'chat_id': multibot.chat_id,
-            'telegram_bot': multibot.telegram_bot,
+            'context': context,
+            'env': env,
+            'chat_id': 12345678,
+            'telegram_bot': 'placeholder',
         }
         self.rabbit.add_task_to_queue(message, "CHECK_BALANCE")
-        self.telegram.send_message('Post update balance trigger message: '+str(message),TG_Groups.DebugDima)
 
     # async def save_new_balance_jump(self):
     #     if self.start and self.finish:
@@ -168,4 +192,3 @@ class DB:
     #         },
     #         self.messaging.add_task_to_queue(message, "BALANCE_JUMP")
     #
-

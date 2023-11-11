@@ -91,8 +91,9 @@ class Telegram:
         message += f"B.P.: {str(expect_buy_px)} | S.P.: {str(expect_sell_px)}\n"
         return message
 
-    def save_order_error_message(multibot, symbol, client, order_id):
-        message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {multibot.env}\n"
+    @staticmethod
+    def order_error_message(env, symbol, client, order_id):
+        message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {env}\n"
         message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
         return message
 

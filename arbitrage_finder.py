@@ -1,14 +1,9 @@
-import time
-from datetime import datetime
-import telebot
-import csv
+
 
 
 class ArbitrageFinder:
 
     def __init__(self, markets, clients_list, profit_taker, profit_close):
-        self.chat_id = -807300930
-        self.telegram_bot = telebot.TeleBot('6037890725:AAHSKzK9aazvOYU2AiBSDO8ZLE5bJaBNrBw')
         self.profit_taker = profit_taker
         self.profit_close = profit_close
         self.markets = markets
@@ -23,14 +18,16 @@ class ArbitrageFinder:
             buy_close = True if pos_buy['amount_usd'] < 0 else False
         if pos_sell := positions[exchange_sell].get(sell_market):
             sell_close = True if pos_sell['amount_usd'] > 0 else False
-        target_profit = self.profit_taker
-        deal_direction = 'open'
+
         if buy_close and sell_close:
             target_profit = self.profit_close
             deal_direction = 'close'
         elif buy_close or sell_close:
             target_profit = (self.profit_close + self.profit_taker) / 2
             deal_direction = 'half_close'
+        else:
+            target_profit = self.profit_taker
+            deal_direction = 'open'
         return target_profit, deal_direction
 
     def arbitrage(self, data, time_parse):
@@ -79,18 +76,13 @@ class ArbitrageFinder:
                                 # with open('arbi.csv', 'a', newline='') as file:
                                 #     writer = csv.writer(file)
                                 #     writer.writerow([str(y) for y in possibility.values()])
-                                # print(message)
-                                # try:
-                                #     self.telegram_bot.send_message(self.chat_id,
-                                #                                    '<pre>' + message + '</pre>',
-                                #                                    parse_mode='HTML')
-                                # except:
+
                                 possibilities.append(possibility)
         return possibilities
-        # print(possibilities)
 
 
 if __name__ == '__main__':
+    pass
     from datetime import datetime
     from clients_markets_data import coins_symbols_client
     # # from clients.kraken import KrakenClient
@@ -98,7 +90,7 @@ if __name__ == '__main__':
     # # from clients.dydx import DydxClient
     # # from clients.apollox import ApolloxClient
     #
-    clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
+    # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
     # markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}
     # finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
     # data = {}
