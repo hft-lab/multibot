@@ -1,4 +1,4 @@
-
+from datetime import datetime
 
 
 class ArbitrageFinder:
@@ -83,7 +83,6 @@ class ArbitrageFinder:
 
 if __name__ == '__main__':
     pass
-    from datetime import datetime
     from clients_markets_data import coins_symbols_client
     # # from clients.kraken import KrakenClient
     # # from clients.binance import BinanceClient
@@ -95,3 +94,4 @@ if __name__ == '__main__':
     # finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
     # data = {}
     # finder.arbitrage(data)
+

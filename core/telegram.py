@@ -30,7 +30,7 @@ class Telegram:
     def send_message(self, message: str, group_obj: TG_Groups = None):
         group = group_obj.value if group_obj else TG_Groups.MainGroup.value
         url = self.tg_url + group['bot_token'] + "/sendMessage"
-        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML","text": "<pre>"+message+"</pre>"}
+        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML","text": "<pre>"+str(message)+"</pre>"}
         r = requests.post(url, json=message_data)
         return r.json()
 

@@ -28,11 +28,15 @@ class DB:
     async def setup_postgres(self) -> None:
         print(f"SETUP POSTGRES START")
         postgres = config['POSTGRES']
-        self.db = await asyncpg.create_pool(database=postgres['NAME'],
+        try:
+            with await asyncpg.create_pool(database=postgres['NAME'],
                                             user=postgres['USER'],
                                             password=postgres['PASSWORD'],
                                             host=postgres['HOST'],
-                                            port=postgres['PORT'])
+                                            port=postgres['PORT']) as conn:
+                self.db = conn
+        except Exception as e:
+            print(e)
         print(f"SETUP POSTGRES ENDED")
     def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol):
@@ -62,9 +66,10 @@ class DB:
             'time_choose': time_choose,
             'chat_id': 12345678,
             'bot_token': 'placeholder',
-            'status': 'Processing'  # ,
-            # 'bot_launch_id': self.bot_launch_id
+            'status': 'Processing',
+            'bot_launch_id': 12345678
         }
+        self.telegram.send_message(message,TG_Groups.DebugDima)
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
     def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env) -> None:

@@ -9,7 +9,7 @@ from configparser import ConfigParser
 config = ConfigParser()
 config.read('config.ini', "utf-8")
 
-from telegram import Telegram
+from core.telegram import Telegram
 
 
 class Rabbit:
