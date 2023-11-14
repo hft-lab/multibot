@@ -69,7 +69,6 @@ class DB:
             'status': 'Processing',
             'bot_launch_id': 12345678
         }
-        self.telegram.send_message(message,TG_Groups.DebugDima)
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
     def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env) -> None:
@@ -98,6 +97,7 @@ class DB:
             'env': env,
         }
 
+        self.rabbit.add_task_to_queue(message, "ORDERS")
         self.rabbit.add_task_to_queue(message, "ORDERS")
 
         if client.LAST_ORDER_ID == 'default':

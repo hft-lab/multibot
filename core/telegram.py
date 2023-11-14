@@ -31,8 +31,12 @@ class Telegram:
         group = group_obj.value if group_obj else TG_Groups.MainGroup.value
         url = self.tg_url + group['bot_token'] + "/sendMessage"
         message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML","text": "<pre>"+str(message)+"</pre>"}
-        r = requests.post(url, json=message_data)
-        return r.json()
+        try:
+            r = requests.post(url, json=message_data)
+            return r.json()
+        except Exception as e:
+            return e
+
 
     @staticmethod
     def start_message(multibot):

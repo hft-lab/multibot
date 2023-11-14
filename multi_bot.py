@@ -656,10 +656,11 @@ class MultiBot:
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
+                self.telegram.send_message('check_order_status_start' + str(client) + str(orders), TG_Groups.DebugDima)
 
                 for order_id, message in orders.items():
                     self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
-
+                    self.telegram.send_message('check_order_status_end, order_id: ' + order_id + '\n message ' + str(message), TG_Groups.DebugDima)
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)

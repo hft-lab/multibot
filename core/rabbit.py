@@ -9,7 +9,7 @@ from configparser import ConfigParser
 config = ConfigParser()
 config.read('config.ini', "utf-8")
 
-from core.telegram import Telegram
+from core.telegram import Telegram, TG_Groups
 
 
 class Rabbit:
@@ -42,6 +42,7 @@ class Rabbit:
             self.tasks.put(task)
         else:
             print(f"Method '{queue_name}' not found in RabbitMqQueues class")
+            self.telegram.send_message('Test', TG_Groups.DebugDima)
 
     @staticmethod
     def run_await_in_thread(func, loop):
