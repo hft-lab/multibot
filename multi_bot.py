@@ -62,7 +62,7 @@ def timeit(func):
 
 class MultiBot:
     __slots__ = ['deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
-                 'state', 'loop', 'start_time', 'last_message',
+                 'state', 'loop', 'start_time', 'last_message', 'trade_exceptions',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
@@ -78,6 +78,7 @@ class MultiBot:
         self.db = None
         self.setts = config['SETTINGS']
         self.env = self.setts['ENV']
+        self.trade_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
 
@@ -100,7 +101,6 @@ class MultiBot:
         self.profit_close = float(self.setts['CLOSE_PROFIT'])
         self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
         # self.shifts = {}
-
 
         # CLIENTS
         self.state = self.setts['STATE']
@@ -320,7 +320,6 @@ class MultiBot:
             # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
 
-
     # async def __websocket_cycle_parser(self):
     #     while not init_time + 90 > time.time():
     #         await asyncio.sleep(0.1)
@@ -389,27 +388,73 @@ class MultiBot:
             print(f"{chosen_deal=}")
         return chosen_deal
 
+    def add_trade_exception(self, coin, exchange, direction, reason) -> None:
+        self.trade_exceptions.append(
+            {'coin': coin, 'exchange': exchange, 'direction': direction,
+             'reason': reason, 'ts_added': str(datetime.utcnow())})
+
+    def in_trade_exceptions(self, coin, exchange, direction):
+        filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
+                  item['exchange'] == exchange and item['direction'] == direction]
+        return len(filtered) > 0
+
     def check_active_positions(self, coin, buy_exchange, sell_exchange):
-        client_buy = self.clients_with_names[buy_exchange]
-        client_sell = self.clients_with_names[sell_exchange]
-        market_buy = self.markets[coin][buy_exchange]
-        market_sell = self.markets[coin][sell_exchange]
-        available_buy = client_buy.get_balance() * leverage * self.max_position_part / 100
-        available_sell = client_sell.get_balance() * leverage * self.max_position_part / 100
-        position_sell = 0
-        position_buy = 0
-        if client_buy.get_positions().get(market_buy):
-            position_buy = abs(client_buy.get_positions()[market_buy]['amount_usd'])
-        if client_sell.get_positions().get(market_sell):
-            position_sell = abs(client_sell.get_positions()[market_sell]['amount_usd'])
-        if position_buy < available_buy and position_sell < available_sell:
-            return True
-        else:
-            print(f"ACTIVE POS {coin} > {self.max_position_part} %")
-            print(f"B: {buy_exchange}| S: {sell_exchange}")
-            print(f"POS: {position_buy} | {position_sell}")
-            print(f"AVAIL: {available_buy} | {available_sell}")
-            return False
+        result = {}
+        for direction, exchange in {'buy':buy_exchange, 'sell':sell_exchange}.items():
+            client = self.clients_with_names[exchange]
+            market = self.markets[coin][exchange]
+            available = client.get_balance() * leverage * self.max_position_part / 100
+            position = 0
+            if client.get_positions().get(market):
+                position = abs(client.get_positions()[market]['amount_usd'])
+            if position < available:
+                result[direction] = True
+            else:
+                if self.in_trade_exceptions(coin, exchange, direction):
+                    pass
+                else:
+                    self.add_trade_exception(coin, exchange, direction,'Превышен порог % на монету')
+                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, available, self.max_position_part)
+                    self.telegram.send_message(message, TG_Groups.Alerts)
+                result[direction] = False
+        return (result['buy'] and result['sell'])
+
+
+    # def check_active_positions(self, coin, buy_exchange, sell_exchange):
+    #     client_buy = self.clients_with_names[buy_exchange]
+    #     client_sell = self.clients_with_names[sell_exchange]
+    #     market_buy = self.markets[coin][buy_exchange]
+    #     market_sell = self.markets[coin][sell_exchange]
+    #     available_buy = client_buy.get_balance() * leverage * self.max_position_part / 100
+    #     available_sell = client_sell.get_balance() * leverage * self.max_position_part / 100
+    #     position_sell = 0
+    #     position_buy = 0
+    #     if client_buy.get_positions().get(market_buy):
+    #         position_buy = abs(client_buy.get_positions()[market_buy]['amount_usd'])
+    #     if client_sell.get_positions().get(market_sell):
+    #         position_sell = abs(client_sell.get_positions()[market_sell]['amount_usd'])
+    #     if position_buy < available_buy and position_sell < available_sell:
+    #         return True
+    #     elif position_buy >= available_buy:
+    #         if self.in_trade_exceptions(coin,buy_exchange,'buy'):
+    #             pass
+    #         else:
+    #             self.add_trade_exception(coin, buy_exchange, 'buy', 'Превышен порог допустимого лимита на 1 монету')
+    #             message = self.telegram.coin_threshold_message(coin,self.max_position_part,buy_exchange,
+    #                                                            sell_exchange,position_buy,position_sell,
+    #                                                            available_buy,available_sell)
+    #             self.telegram.send_message(message,TG_Groups.Alerts)
+    #         return False
+    #     else:
+    #         if self.in_trade_exceptions(coin, sell_exchange, 'sell'):
+    #             pass
+    #         else:
+    #             self.add_trade_exception(coin, sell_exchange, 'sell', 'Превышен порог допустимого лимита на 1 монету')
+    #             message = self.telegram.coin_threshold_message(coin, self.max_position_part, buy_exchange,
+    #                                                            sell_exchange, position_buy, position_sell,
+    #                                                            available_buy, available_sell)
+    #             self.telegram.send_message(message, TG_Groups.Alerts)
+    #         return False
 
     # def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
     #     profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
@@ -535,7 +580,7 @@ class MultiBot:
         responses = await asyncio.gather(*orders, return_exceptions=True)
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
         self.telegram.send_message(f"[Str 537]", TG_Groups.DebugDima)
-        self.telegram.send_message(f"[Str 538 {buy_exchange}, {sell_exchange}]\n{responses=}",TG_Groups.DebugDima)
+        self.telegram.send_message(f"[Str 538 {buy_exchange}, {sell_exchange}]\n{responses=}", TG_Groups.DebugDima)
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         # await asyncio.sleep(0.5)
         # !!! ALL TIMERS !!!
@@ -544,9 +589,8 @@ class MultiBot:
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
 
-        self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market,self.env)
-        self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market,self.env)
-
+        self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market, self.env)
+        self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market, self.env)
 
         self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
                                              expect_buy_px, expect_sell_px, time_choose, shift=None,
@@ -574,7 +618,6 @@ class MultiBot:
                     return (response['timestamp'] - time_sent) / 1000
                 else:
                     return 0
-
 
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
         if self.available_balances[buy_exchange].get(buy_market):
@@ -661,7 +704,9 @@ class MultiBot:
 
                 for order_id, message in orders.items():
                     self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
-                    self.telegram.send_message('check_order_status_end, order_id: ' + order_id + '\n message ' + str(message), TG_Groups.DebugDima)
+                    self.telegram.send_message(
+                        'check_order_status_end, order_id: ' + order_id + '\n message ' + str(message),
+                        TG_Groups.DebugDima)
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)

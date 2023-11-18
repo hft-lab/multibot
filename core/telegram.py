@@ -3,10 +3,11 @@ import datetime
 import requests
 from enum import Enum
 
-
 from configparser import ConfigParser
+
 config = ConfigParser()
 config.read('config.ini', "utf-8")
+
 
 class TG_Groups(Enum):
     _main_id = int(config['TELEGRAM']['CHAT_ID'])
@@ -30,13 +31,12 @@ class Telegram:
     def send_message(self, message: str, group_obj: TG_Groups = None):
         group = group_obj.value if group_obj else TG_Groups.MainGroup.value
         url = self.tg_url + group['bot_token'] + "/sendMessage"
-        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML","text": "<pre>"+str(message)+"</pre>"}
+        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML", "text": "<pre>" + str(message) + "</pre>"}
         try:
             r = requests.post(url, json=message_data)
             return r.json()
         except Exception as e:
             return e
-
 
     @staticmethod
     def start_message(multibot):
@@ -101,10 +101,11 @@ class Telegram:
         message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
         return message
 
-
-
-
-
+    @staticmethod
+    def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):
+        message = f"ACTIVE POS {coin} > {max_position_part} %"
+        message += f"Exchange: {exchange} \n Direction: {direction} \n POS: {position} \n AVAIL: {available}"
+        return message
 
 # Скрытые шаблоны
 # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:
@@ -146,26 +147,26 @@ class Telegram:
 
 # Сообщение о залипании стакана
 # def ob_alert_send(self, client_slippage, client_2, ts, client_for_unstuck=None):
-    #     if self.state == BotState.SLIPPAGE:
-    #         msg = "🔴ALERT NAME: Exchange Slippage Suspicion\n"
-    #         msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
-    #         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
-    #         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
-    #         msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
-    #     else:
-    #         msg = "🟢ALERT NAME: Exchange Slippage Suspicion\n"
-    #         msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
-    #         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
-    #         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
-    #         msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
-    #     message = {
-    #         "chat_id": self.alert_id,
-    #         "msg": msg,
-    #         'bot_token': self.alert_token
-    #     }
-    #     self.tasks.put({
-    #         'message': message,
-    #         'routing_key': RabbitMqQueues.TELEGRAM,
-    #         'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
-    #         'queue_name': RabbitMqQueues.TELEGRAM
-    #     })
+#     if self.state == BotState.SLIPPAGE:
+#         msg = "🔴ALERT NAME: Exchange Slippage Suspicion\n"
+#         msg += f"ENV: {self.env}\nEXCHANGE: {client_slippage.EXCHANGE_NAME}\n"
+#         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
+#         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+#         msg += f"Last Order Book Update DT: {datetime.datetime.utcfromtimestamp(ts / 1000)}"
+#     else:
+#         msg = "🟢ALERT NAME: Exchange Slippage Suspicion\n"
+#         msg += f"ENV: {self.env}\nEXCHANGE: {client_for_unstuck.EXCHANGE_NAME}\n"
+#         msg += f"EXCHANGES: {client_slippage.EXCHANGE_NAME}|{client_2.EXCHANGE_NAME}\n"
+#         msg += f"Current DT: {datetime.datetime.utcnow()}\n"
+#         msg += f"EXCHANGES PAIR CAME BACK TO WORK, SLIPPAGE SUSPICION SUSPENDED"
+#     message = {
+#         "chat_id": self.alert_id,
+#         "msg": msg,
+#         'bot_token': self.alert_token
+#     }
+#     self.tasks.put({
+#         'message': message,
+#         'routing_key': RabbitMqQueues.TELEGRAM,
+#         'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
+#         'queue_name': RabbitMqQueues.TELEGRAM
+#     })

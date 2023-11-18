@@ -1,6 +1,5 @@
 import asyncio
 import queue
-import traceback
 from aio_pika import connect_robust, ExchangeType, Message
 from orjson import orjson
 from core.enums import RabbitMqQueues
@@ -18,7 +17,7 @@ class Rabbit:
         rabbit = config['RABBIT']
         self.rabbit_url = f"amqp://{rabbit['USERNAME']}:{rabbit['PASSWORD']}@{rabbit['HOST']}:{rabbit['PORT']}/"
         self.mq = None
-        self.tasks = queue.Queue()
+        self.tasks = queue.Queue() # точно ли здесь нужны очереди? Чтение из нее происходит в один поток, можно List + Append.
         self.loop = loop
 
     @staticmethod
@@ -42,16 +41,9 @@ class Rabbit:
             self.tasks.put(task)
         else:
             print(f"Method '{queue_name}' not found in RabbitMqQueues class")
-            self.telegram.send_message('Test', TG_Groups.DebugDima)
+            self.telegram.send_message(f"Method '{queue_name}' not found in RabbitMqQueues class", TG_Groups.Alerts)
 
-    @staticmethod
-    def run_await_in_thread(func, loop):
-        try:
-            loop.run_until_complete(func())
-        except:
-            traceback.print_exc()
-        finally:
-            loop.close()
+
 
     async def setup_mq(self, loop) -> None:
         print(f"SETUP MQ START")
@@ -82,7 +74,7 @@ class Rabbit:
         # Кажется первый параметр статичен и его можно забрать внутрь функции и не передавать при вызове
         channel = await connect.channel()
         exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
-        # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так
+        # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
         queue = await channel.declare_queue(queue_name, durable=True)
         await queue.bind(exchange, routing_key=routing_key)
         message_body = orjson.dumps(message)

@@ -142,7 +142,6 @@ class DB:
                 requests.post(url=url, headers=headers, json=data)
 
     # раньше называлось start_db_update. В конце добавление в очередь.
-    #
     async def update_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
             if launches := await get_last_launch(cursor,
@@ -166,7 +165,7 @@ class DB:
                 # else:
                 #     self.shifts = start_shifts
                 message = "launch"
-                multibot.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
+                self.rabbit.add_task_to_queue(message, "UPDATE_LAUNCH")
 
                 for launch in launches:
                     launch['datetime_update'] = multibot.base_launch_config['datetime_update']
@@ -175,7 +174,7 @@ class DB:
                     launch['launch_id'] = str(launch.pop('id'))
                     launch['bot_config_id'] = str(launch['bot_config_id'])
                     message = "launch"
-                    multibot.messaging.add_task_to_queue(message, "UPDATE_LAUNCH")
+                    self.rabbit.add_task_to_queue(message, "UPDATE_LAUNCH")
                     self.update_balance_trigger('bot-config-update', multibot.bot_launch_id, multibot.env)
 
     def update_balance_trigger(self, context: str, parent_id, env: str):
