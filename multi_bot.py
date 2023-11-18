@@ -534,6 +534,8 @@ class MultiBot:
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
+        self.telegram.send_message(f"[Str 537]", TG_Groups.DebugDima)
+        self.telegram.send_message(f"[Str 538 {buy_exchange}, {sell_exchange}]\n{responses=}",TG_Groups.DebugDima)
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         # await asyncio.sleep(0.5)
         # !!! ALL TIMERS !!!
@@ -656,7 +658,6 @@ class MultiBot:
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
-                self.telegram.send_message('check_order_status_start' + str(client) + str(orders), TG_Groups.DebugDima)
 
                 for order_id, message in orders.items():
                     self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")

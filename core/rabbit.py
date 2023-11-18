@@ -61,24 +61,28 @@ class Rabbit:
     async def send_messages(self):
         await self.setup_mq(self.loop)
         while True:
-            processing_tasks = self.tasks.get()
+            task = self.tasks.get()
             try:
-                processing_tasks.update({'connect': self.mq})
-                await self.publish_message(**processing_tasks)
+                task.update({'connect': self.mq})
+                await self.publish_message(**task)
             except:
-                await self.setup_mq(self.loop)
-                await asyncio.sleep(1)
-                processing_tasks.update({'connect': self.mq})
-                print(f"\n\nERROR WITH SENDING TO MQ:\n{processing_tasks}\n\n")
-                await self.publish_message(**processing_tasks)
+                # какой-то костыль в виде повторной попытки отправки сообщения. Зачем? Удалить позже, если ничего не сломается
+                # await self.setup_mq(self.loop)
+                # await asyncio.sleep(1)
+                # task.update({'connect': self.mq})
+                print(f"\n\nERROR WITH SENDING TO MQ:\n{task}\n\n")
+                self.telegram.send_message(f"\n\nERROR WITH SENDING TO MQ:\n{task}\n\n", TG_Groups.Alerts)
+                # await self.publish_message(**task)
             finally:
                 self.tasks.task_done()
                 await asyncio.sleep(0.1)
 
     @staticmethod
     async def publish_message(connect, message, routing_key, exchange_name, queue_name):
+        # Кажется первый параметр статичен и его можно забрать внутрь функции и не передавать при вызове
         channel = await connect.channel()
         exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
+        # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так
         queue = await channel.declare_queue(queue_name, durable=True)
         await queue.bind(exchange, routing_key=routing_key)
         message_body = orjson.dumps(message)
