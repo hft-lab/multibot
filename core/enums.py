@@ -37,17 +37,18 @@ class RabbitMqQueues:
 
 
     # NEW -----------------------------------------------------------------
+    UPDATE_LAUNCH = 'logger.event.update_bot_launches'
     ARBITRAGE_POSSIBILITIES = 'logger.event.insert_arbitrage_possibilities'
     ORDERS = 'logger.event.insert_orders'
-    BALANCES = 'logger.event.insert_balances'
-    BALANCE_DETALIZATION = 'logger.event.insert_balance_detalization'
-    DISBALANCE = 'logger.event.insert_disbalances'
-    FUNDINGS = 'logger.event.insert_funding'
     UPDATE_ORDERS = 'logger.event.update_orders'
-    SAVE_MISSED_ORDERS = 'logger.event.save_missed_orders'
     CHECK_BALANCE = 'logger.event.check_balance'
-    BOT_CONFIG = 'logger.event.insert_bot_config'
-    UPDATE_LAUNCH = 'logger.event.update_bot_launches'
+    #BALANCES = 'logger.event.insert_balances'
+    #BALANCE_DETALIZATION = 'logger.event.insert_balance_detalization'
+    #DISBALANCE = 'logger.event.insert_disbalances'
+    #FUNDINGS = 'logger.event.insert_funding'
+    #SAVE_MISSED_ORDERS = 'logger.event.save_missed_orders'
+    #BOT_CONFIG = 'logger.event.insert_bot_config'
+
 
     @staticmethod
     def get_exchange_name(routing_key: str):

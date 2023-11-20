@@ -578,6 +578,7 @@ class MultiBot:
         orders.append(self.loop_1.create_task(
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
+        # добавить сюда анализ response после того как добавить в return create_order
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
         self.telegram.send_message(f"[Str 537]", TG_Groups.DebugDima)
         self.telegram.send_message(f"[Str 538 {buy_exchange}, {sell_exchange}]\n{responses=}", TG_Groups.DebugDima)
@@ -698,6 +699,7 @@ class MultiBot:
     #                     time.sleep(7)
 
     async def __check_order_status(self):
+    # Эта функция инициирует обновление данных по ордеру, когда они приходят от биржи вклиента после создания
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
@@ -722,12 +724,12 @@ class MultiBot:
             self.session = session
             time.sleep(3)
 
-            # try:
-            #     await self.db.update_launch_config()
-            #     # await self.start_db_update()
-            # except Exception:
-            #     print(f"LINE 984:")
-            #     traceback.print_exc()
+            try:
+                await self.db.update_launch_config()
+                # await self.start_db_update()
+            except Exception:
+                print(f"LINE 984:")
+                traceback.print_exc()
             self.telegram.send_message(self.telegram.start_message(self))
             self.telegram.send_message(self.telegram.start_balance_message(self))
 
