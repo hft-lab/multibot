@@ -29,14 +29,14 @@ class DB:
         print(f"SETUP POSTGRES START")
         postgres = config['POSTGRES']
         try:
-            with await asyncpg.create_pool(database=postgres['NAME'],
+            conn = await asyncpg.create_pool(database=postgres['NAME'],
                                             user=postgres['USER'],
                                             password=postgres['PASSWORD'],
                                             host=postgres['HOST'],
-                                            port=postgres['PORT']) as conn:
-                self.db = conn
+                                            port=postgres['PORT'])
+            self.db = conn
         except Exception as e:
-            print(e)
+            print('ERROR DURING POSTGRES CONFIGURATION' + str(e))
         print(f"SETUP POSTGRES ENDED")
     def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol):
@@ -98,10 +98,8 @@ class DB:
         }
 
         self.rabbit.add_task_to_queue(message, "ORDERS")
+        return  order_id
 
-        if client.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(self.telegram.order_error_message(env, symbol, client, order_id),
-                                       TG_Groups.Alerts)
 
     # ex __check_start_launch_config
     # Смотрится есть ли в базе неиспользованные настройки, если есть используются они, если нет,
@@ -165,10 +163,6 @@ class DB:
                 #     self.shifts = start_shifts
                 message = "launch"
                 self.rabbit.add_task_to_queue(message, "UPDATE_LAUNCH")
-                try:
-                    self.telegram.send_message('Launch Message',TG_Groups.DebugDima)
-                except:
-                    print('Label0, проблема с отправкой сообщения в телегу')
                 for launch in launches:
                     launch['datetime_update'] = multibot.base_launch_config['datetime_update']
                     launch['ts_update'] = multibot.base_launch_config['ts_update']
@@ -177,10 +171,6 @@ class DB:
                     launch['bot_config_id'] = str(launch['bot_config_id'])
                     message = "launch"
                     self.rabbit.add_task_to_queue(message, "UPDATE_LAUNCH")
-                    try:
-                        self.telegram.send_message('Launch Message' + str(launch), TG_Groups.DebugDima)
-                    except:
-                        print('Label1, проблема с отправкой сообщения в телегу')
                     self.update_balance_trigger('bot-config-update', multibot.bot_launch_id, multibot.env)
 
     def update_balance_trigger(self, context: str, parent_id, env: str):

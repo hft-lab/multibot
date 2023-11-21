@@ -523,11 +523,12 @@ class MultiBot:
         #            'sell_market': 'pf_agldusd',
         #            'datetime': datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
         #            'deal_value': 'open|close|half-close'}
-        client_buy = self.clients_with_names[chosen_deal['buy_exchange']]
-        client_sell = self.clients_with_names[chosen_deal['sell_exchange']]
-        coin = chosen_deal['coin']
         buy_exchange = chosen_deal['buy_exchange']
         sell_exchange = chosen_deal['sell_exchange']
+        client_buy = self.clients_with_names[buy_exchange]
+        client_sell = self.clients_with_names[sell_exchange]
+        coin = chosen_deal['coin']
+
         buy_market = chosen_deal['buy_market']
         sell_market = chosen_deal['sell_market']
         # tasks = [asyncio.create_task(client_buy.get_orderbook_by_symbol(buy_market)),
@@ -580,8 +581,10 @@ class MultiBot:
         responses = await asyncio.gather(*orders, return_exceptions=True)
         # добавить сюда анализ response после того как добавить в return create_order
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
-        self.telegram.send_message(f"[Str 537]", TG_Groups.DebugDima)
-        self.telegram.send_message(f"[Str 538 {buy_exchange}, {sell_exchange}]\n{responses=}", TG_Groups.DebugDima)
+        try:
+            self.telegram.send_message(f"Order were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",TG_Groups.DebugDima)
+        except:
+            print('Label1: error in sending TG message')
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         # await asyncio.sleep(0.5)
         # !!! ALL TIMERS !!!
@@ -590,19 +593,27 @@ class MultiBot:
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
 
-        self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market, self.env)
-        self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market, self.env)
+        #Как разберусь с response нужно будет извлечь из него exchange_order_id и bдобавить в save_orders, уйти от Last_ORDER_ID
+        order_id_buy = self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market, self.env)
+        order_id_sell = self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market, self.env)
+
+        if client_buy.LAST_ORDER_ID == 'default':
+            self.telegram.send_message(self.telegram.order_error_message(self.env, buy_market, client_buy, order_id_buy),
+                                       TG_Groups.Alerts)
+        if client_sell.LAST_ORDER_ID == 'default':
+            self.telegram.send_message(self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
+                                       TG_Groups.Alerts)
 
         self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
                                              expect_buy_px, expect_sell_px, time_choose, shift=None,
                                              time_parser=chosen_deal['time_parser'], symbol=coin)
-
+        self.telegram.send_message(
+            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
         for client in [client_buy, client_sell]:
             client.error_info = None
             client.LAST_ORDER_ID = 'default'
 
-        self.telegram.send_message(
-            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
+
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
@@ -706,9 +717,6 @@ class MultiBot:
 
                 for order_id, message in orders.items():
                     self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
-                    self.telegram.send_message(
-                        'check_order_status_end, order_id: ' + order_id + '\n message ' + str(message),
-                        TG_Groups.DebugDima)
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)
@@ -720,27 +728,26 @@ class MultiBot:
         start = datetime.utcnow()
         # await self.db.log_launch_config()
         # start_shifts = self.shifts.copy()
+
+        # try:
+        #
+        #     await self.db.update_launch_config(self)
+        # except Exception:
+        #     print(f"LINE 723:")
+        #     traceback.print_exc()
+        self.telegram.send_message(self.telegram.start_message(self))
+        self.telegram.send_message(self.telegram.start_balance_message(self))
+
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
 
-            try:
-                await self.db.update_launch_config()
-                # await self.start_db_update()
-            except Exception:
-                print(f"LINE 984:")
-                traceback.print_exc()
-            self.telegram.send_message(self.telegram.start_message(self))
-            self.telegram.send_message(self.telegram.start_balance_message(self))
-
             # self.db.update_config(self)
-            # self.update_balances()
-
+            # self.update_balances_trigger()
             while True:
                 # if (datetime.utcnow()-start).total_seconds() >= 30:
                 #     try:
                 #         await self.db.update_launch_config()
-                #         # await self.start_db_update()
                 #     except Exception:
                 #         traceback.print_exc()
                 #     start = datetime.utcnow()
