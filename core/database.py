@@ -71,7 +71,7 @@ class DB:
         }
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
-    def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env) -> None:
+    def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env):
         order_id = uuid.uuid4()
         message = {
             'id': order_id,
@@ -179,7 +179,7 @@ class DB:
             'context': context,
             'env': env,
             'chat_id': 12345678,
-            'telegram_bot': 'placeholder',
+            'telegram_bot': 'placeholder'
         }
         self.rabbit.add_task_to_queue(message, "CHECK_BALANCE")
 

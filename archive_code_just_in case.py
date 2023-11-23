@@ -146,31 +146,16 @@ def check_ob_slippage(multibot, client_sell, client_buy):
         message = {"chat_id": chat_id, "msg": text, 'bot_token': bot_token}
         self.messaging.add_task_to_queue(message, "TELEGRAM")
 
-
-    tg_message_to_mq=        {
-            'exchange': 'logger.event',
-            'queue': 'logger.event.send_to_telegram',
-            'routing_key': 'logger.event.send_to_telegram',
-            'interval': 1 * 5,
-            'delay': 1 * 5,
-            'payload': {
-            "chat_id": -4073293077,
-            "msg": "Hi from Dima",
-            'bot_token': '6684267405:AAFf2z4yVXtW-afd3kM7vAfNkNipCJBAZbw'
-            }
-        }
-# FROM config.ini из Logger
-#     insert_to_ping_logger = logger.event.insert_ping_logger
-#     telegram = logger.event.send_to_telegram
-#     insert_balance_jumps = logger.event.insert_balance_jumps
-#     insert_arbitrage_possibilities = logger.event.insert_arbitrage_possibilities
-#     insert_orders = logger.event.insert_orders
-#     insert_balances = logger.event.insert_balances
-#     insert_balance_detalization = logger.event.insert_balance_detalization
-#     insert_disbalances = logger.event.insert_disbalances
-#     update_orders = logger.event.update_orders
-#     check_orders = logger.periodic.check_orders
-#     check_and_update_arbitrage_possibilities = logger.periodic.check_and_update_arbitrage_possibilities
-#     check_and_update_disbalances = logger.periodic.check_and_update_disbalances
-#     insert_funding = logger.event.insert_funding
-#     update_bot_launches = logger.event.update_bot_launches
+    #
+    # tg_message_to_mq=        {
+    #         'exchange': 'logger.event',
+    #         'queue': 'logger.event.send_to_telegram',
+    #         'routing_key': 'logger.event.send_to_telegram',
+    #         'interval': 1 * 5,
+    #         'delay': 1 * 5,
+    #         'payload': {
+    #         "chat_id": -4073293077,
+    #         "msg": "Hi from Dima",
+    #         'bot_token': '6684267405:AAFf2z4yVXtW-afd3kM7vAfNkNipCJBAZbw'
+    #         }
+    #     }

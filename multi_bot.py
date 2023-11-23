@@ -15,7 +15,7 @@ from clients.bitmex import BitmexClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from clients.okx import OkxClient
-from core.enums import BotState
+from clients.enums import BotState
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
 from core.database import DB
@@ -710,7 +710,7 @@ class MultiBot:
     #                     time.sleep(7)
 
     async def __check_order_status(self):
-    # Эта функция инициирует обновление данных по ордеру, когда они приходят от биржи вклиента после создания
+    # Эта функция инициирует обновление данных по ордеру в базе, когда обновление приходит от биржи в клиента после создания
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
@@ -738,6 +738,8 @@ class MultiBot:
         self.telegram.send_message(self.telegram.start_message(self))
         self.telegram.send_message(self.telegram.start_balance_message(self))
 
+        # Проверить, что сработает
+        # self.db.update_balance_trigger('bot-launch', int(datetime.utcnow()), self.env)
         async with aiohttp.ClientSession() as session:
             self.session = session
             time.sleep(3)
