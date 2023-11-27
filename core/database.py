@@ -5,7 +5,7 @@ from datetime import datetime
 from configparser import ConfigParser
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from core.telegram import Telegram, TG_Groups
-from core.enums import Context
+# from core.enums import Context
 # from queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 # from telegram import Telegram, TG_Groups
 # from enums import Context
@@ -39,7 +39,7 @@ class DB:
             print('ERROR DURING POSTGRES CONFIGURATION' + str(e))
         print(f"SETUP POSTGRES ENDED")
     def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                     expect_sell_px, time_choose, shift, time_parser, symbol):
+                                     expect_sell_px, time_choose, shift, time_parser, symbol, chat_id, token):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
                 client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
         expect_amount_usd = client_buy.amount * (expect_sell_px + expect_buy_px) / 2
@@ -64,8 +64,8 @@ class DB:
             'expect_fee_sell': client_sell.taker_fee,
             'time_parser': time_parser,
             'time_choose': time_choose,
-            'chat_id': 12345678,
-            'bot_token': 'placeholder',
+            'chat_id': chat_id,
+            'bot_token': token,
             'status': 'Processing',
             'bot_launch_id': 12345678
         }
@@ -98,7 +98,7 @@ class DB:
         }
 
         self.rabbit.add_task_to_queue(message, "ORDERS")
-        return  order_id
+        return order_id
 
 
     # ex __check_start_launch_config
@@ -110,12 +110,12 @@ class DB:
             if not await get_last_launch(cursor,
                                          multibot.clients[0].EXCHANGE_NAME,
                                          multibot.clients[1].EXCHANGE_NAME,
-                                         multibot.setts['COIN']):
+                                         'MULTICOIN'):
                 # Если таких нет, то поиск последней подходящей использованной настройки
                 if launch := await get_last_launch(cursor,
                                                    multibot.clients[0].EXCHANGE_NAME,
                                                    multibot.clients[1].EXCHANGE_NAME,
-                                                   multibot.setts['COIN'], 1):
+                                                   'MULTICOIN', 1):
 
                     launch = launch[0]
                     data = json.dumps({
@@ -144,7 +144,7 @@ class DB:
             if launches := await get_last_launch(cursor,
                                                  multibot.clients[0].EXCHANGE_NAME,
                                                  multibot.clients[1].EXCHANGE_NAME,
-                                                 multibot.setts['COIN']):
+                                                 'MULTICOIN'):
                 launch = launches.pop(0)
                 multibot.bot_launch_id = str(launch['id'])
 

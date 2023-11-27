@@ -606,14 +606,13 @@ class MultiBot:
 
         self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
                                              expect_buy_px, expect_sell_px, time_choose, shift=None,
-                                             time_parser=chosen_deal['time_parser'], symbol=coin)
+                                             time_parser=chosen_deal['time_parser'], symbol=coin,
+                                             chat_id=config['TELEGRAM']['CHAT_ID'], token=config['TELEGRAM']['TOKEN'])
         self.telegram.send_message(
             self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
         for client in [client_buy, client_sell]:
             client.error_info = None
             client.LAST_ORDER_ID = 'default'
-
-
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
