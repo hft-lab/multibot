@@ -624,11 +624,14 @@ class MultiBot:
     @staticmethod
     def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
-            if response['exchange_name'] == client.EXCHANGE_NAME:
-                if response['timestamp']:
-                    return (response['timestamp'] - time_sent) / 1000
-                else:
-                    return 0
+            try:
+                if response['exchange_name'] == client.EXCHANGE_NAME:
+                    if response['timestamp']:
+                        return (response['timestamp'] - time_sent) / 1000
+                    else:
+                        return 0
+            except:
+                return 0
 
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
         if self.available_balances[buy_exchange].get(buy_market):
