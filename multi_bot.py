@@ -511,6 +511,19 @@ class MultiBot:
         else:
             return False
 
+    def get_limit_prices_for_order(self, ob_buy, ob_sell):
+        buy_point_price = (ob_buy['asks'][1][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
+        sell_point_price = (ob_sell['bids'][0][0] - ob_sell['bids'][1][0]) / ob_sell['bids'][0][0]
+        if buy_point_price > 0.2 * self.profit_taker:
+            shifted_buy_px = ob_buy['asks'][0][0]
+        else:
+            shifted_buy_px = ob_buy['asks'][4][0]
+        if sell_point_price > 0.2 * self.profit_taker:
+            shifted_sell_px = ob_sell['bids'][0][0]
+        else:
+            shifted_sell_px = ob_sell['bids'][4][0]
+        return shifted_buy_px, shifted_sell_px
+
     async def execute_deal(self, chosen_deal: dict, time_choose) -> None:
         # print(f"B:{chosen_deal['buy_exch'].EXCHANGE_NAME}|S:{chosen_deal['sell_exch'].EXCHANGE_NAME}")
         # print(f"BP:{chosen_deal['expect_buy_px']}|SP:{chosen_deal['expect_sell_px']}")
@@ -557,16 +570,14 @@ class MultiBot:
         expect_buy_px = chosen_deal['buy_price']
         expect_sell_px = chosen_deal['sell_price']
         # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        shifted_buy_px = ob_buy['asks'][4][0]
-        shifted_sell_px = ob_sell['bids'][4][0]
+        shifted_buy_px, shifted_sell_px = self.get_limit_prices_for_order(ob_buy, ob_sell)
         # shifted_buy_px = price_buy * self.shifts['TAKER']
         # shifted_sell_px = price_sell / self.shifts['TAKER']
         max_buy_vol = ob_buy['asks'][0][1]
         max_sell_vol = ob_sell['bids'][0][1]
         # timer = time.time()
         ap_id = uuid.uuid4()
-        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px,
-                        shifted_sell_px)
+        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px, shifted_sell_px)
         if not client_buy.amount:
             print(f"DEAL IS BELOW MIN SIZE: SIZE: {client_buy.amount}")
             return
@@ -609,7 +620,7 @@ class MultiBot:
                                              time_parser=chosen_deal['time_parser'], symbol=coin,
                                              chat_id=config['TELEGRAM']['CHAT_ID'], token=config['TELEGRAM']['TOKEN'])
         self.telegram.send_message(
-            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px))
+            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px, buy_market))
         for client in [client_buy, client_sell]:
             client.error_info = None
             client.LAST_ORDER_ID = 'default'
