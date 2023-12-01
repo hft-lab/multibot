@@ -56,8 +56,13 @@ class Rabbit:
             task = self.tasks.get()
             try:
                 await self.publish_message(**task)
-            except Exception as e:
-                self.telegram.send_message(f"\n\nERROR WITH SENDING TO MQ:\n{str(e)}\n {task}\n\n", TG_Groups.Alerts)
+            except:
+                self.telegram.send_message(f"\n\nERROR WITH SENDING TO MQ. WILL TRY TO RECONNECT", TG_Groups.Alerts)
+                await self.setup_mq(self.loop)
+                try:
+                    await self.publish_message(**task)
+                except Exception as e:
+                    self.telegram.send_message(f"\n\FAILED ATTEMPT. ERROR: {str(e)}.\n TASK TO PUBLISH{task}\n\n", TG_Groups.Alerts)
             finally:
                 self.tasks.task_done()
                 await asyncio.sleep(0.1)

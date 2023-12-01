@@ -575,9 +575,9 @@ class MultiBot:
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
         # добавить сюда анализ response после того как добавить в return create_order
-        print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
+        print(f"[Buy: {buy_exchange}, Sell: {sell_exchange}]\n{responses=}")
         try:
-            self.telegram.send_message(f"{self.env}. Order was created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
+            self.telegram.send_message(f"{self.env}. Orders were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
                                        TG_Groups.DebugDima)
         except:
             print('Label1: error in sending TG message')
@@ -766,10 +766,9 @@ class MultiBot:
                 deal = None
                 if len(self.potential_deals):
                     deal = self.choose_deal()
-                if self.state == BotState.BOT:
-                    if deal:
-                        time_choose = time.time() - time_start
-                        await self.execute_deal(deal, time_choose)
+                if deal & (self.state == BotState.BOT):
+                    time_choose = time.time() - time_start
+                    await self.execute_deal(deal, time_choose)
 
 
 if __name__ == '__main__':
