@@ -9,19 +9,13 @@ from logging.config import dictConfig
 from logger import Logging
 import aiohttp
 
-from clients.apollox import ApolloxClient
-from clients.binance import BinanceClient
-from clients.bitmex import BitmexClient
-from clients.dydx import DydxClient
-from clients.kraken import KrakenClient
-from clients.okx import OkxClient
 from clients.enums import BotState
 from clients_markets_data import Clients_markets_data
 from arbitrage_finder import ArbitrageFinder
 from core.database import DB
 from core.telegram import Telegram, TG_Groups
 from core.rabbit import Rabbit
-
+from clients.core.all_clients import ALL_CLIENTS
 import sys
 import configparser
 
@@ -36,14 +30,7 @@ dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
 logger = logging.getLogger(__name__)
 
 leverage = float(config['SETTINGS']['LEVERAGE'])
-ALL_CLIENTS = {
-    'BITMEX': BitmexClient,
-    'DYDX': DydxClient,
-    'BINANCE': BinanceClient,
-    'APOLLOX': ApolloxClient,
-    'OKX': OkxClient,
-    'KRAKEN': KrakenClient
-}
+
 
 init_time = time.time()
 ob_zero = {'top_bid': 0, 'top_ask': 0, 'bid_vol': 0, 'ask_vol': 0, 'ts_exchange': 0, 'ts_start': 0, 'ts_end': 0}
