@@ -1,7 +1,7 @@
 from clients.binance import BinanceClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
-
+from core.telegram import Telegram, TG_Groups
 
 import configparser
 import sys
@@ -38,7 +38,7 @@ class Clients_markets_data:
             try:
                 client_coin_symbol[client] = client.get_markets()
             except Exception as error:
-                print(f'Ошибка в модуле Define_markets, client: {client.__class__.__name__}, error: {error}')
+                print(f'Ошибка в модуле clients_markets_data, client: {client.__class__.__name__}, error: {error}')
 
         # Меняем порядок ключей в справочнике
         coins_symbols_client = dict()

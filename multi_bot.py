@@ -68,7 +68,7 @@ class MultiBot:
                  'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
                  'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
-                 'markets', 'clients_markets_data', 'finder', 'clients_with_names', 'alert_token', 'alert_id',
+                 'markets', 'clients_markets_data', 'finder', 'clients_with_names',
                  'max_position_part', 'profit_close']
 
     def __init__(self):
@@ -90,10 +90,6 @@ class MultiBot:
         self.last_orderbooks = {}
         self.time_lock = 0
 
-        # TELEGRAM
-        self.alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
-        self.alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
-
         # ORDER CONFIGS
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
         self.max_order_size = int(self.setts['ORDER_SIZE'])
@@ -108,7 +104,7 @@ class MultiBot:
         self.clients = []
         for exchange, client in ALL_CLIENTS.items():
             if exchange in self.exchanges:
-                new = client(config[exchange], leverage, self.alert_id, self.alert_token, self.max_position_part)
+                new = client(keys=config[exchange], leverage=leverage, max_pos_part=self.max_position_part)
                 self.clients.append(new)
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
@@ -395,12 +391,12 @@ class MultiBot:
 
     def in_trade_exceptions(self, coin, exchange, direction):
         filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
-                  item['exchange'] == exchange and item['direction'] == direction]
+                    item['exchange'] == exchange and item['direction'] == direction]
         return len(filtered) > 0
 
     def check_active_positions(self, coin, buy_exchange, sell_exchange):
         result = {}
-        for direction, exchange in {'buy':buy_exchange, 'sell':sell_exchange}.items():
+        for direction, exchange in {'buy': buy_exchange, 'sell': sell_exchange}.items():
             client = self.clients_with_names[exchange]
             market = self.markets[coin][exchange]
             available = client.get_balance() * leverage * self.max_position_part / 100
@@ -413,12 +409,12 @@ class MultiBot:
                 if self.in_trade_exceptions(coin, exchange, direction):
                     pass
                 else:
-                    self.add_trade_exception(coin, exchange, direction,'Превышен порог % на монету')
-                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, available, self.max_position_part)
+                    self.add_trade_exception(coin, exchange, direction, 'Превышен порог % на монету')
+                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, available,
+                                                                   self.max_position_part)
                     self.telegram.send_message(message, TG_Groups.Alerts)
                 result[direction] = False
         return (result['buy'] and result['sell'])
-
 
     # def check_active_positions(self, coin, buy_exchange, sell_exchange):
     #     client_buy = self.clients_with_names[buy_exchange]
@@ -577,7 +573,8 @@ class MultiBot:
         max_sell_vol = ob_sell['bids'][0][1]
         # timer = time.time()
         ap_id = uuid.uuid4()
-        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px, shifted_sell_px)
+        self._fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, shifted_buy_px,
+                        shifted_sell_px)
         if not client_buy.amount:
             print(f"DEAL IS BELOW MIN SIZE: SIZE: {client_buy.amount}")
             return
@@ -593,7 +590,8 @@ class MultiBot:
         # добавить сюда анализ response после того как добавить в return create_order
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
         try:
-            self.telegram.send_message(f"Order were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",TG_Groups.DebugDima)
+            self.telegram.send_message(f"Order were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
+                                       TG_Groups.DebugDima)
         except:
             print('Label1: error in sending TG message')
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
@@ -604,16 +602,20 @@ class MultiBot:
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
 
-        #Как разберусь с response нужно будет извлечь из него exchange_order_id и bдобавить в save_orders, уйти от Last_ORDER_ID
-        order_id_buy = self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market, self.env)
-        order_id_sell = self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px, sell_market, self.env)
+        # Как разберусь с response нужно будет извлечь из него exchange_order_id и bдобавить в save_orders, уйти от Last_ORDER_ID
+        order_id_buy = self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px, buy_market,
+                                           self.env)
+        order_id_sell = self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px,
+                                            sell_market, self.env)
 
         if client_buy.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(self.telegram.order_error_message(self.env, buy_market, client_buy, order_id_buy),
-                                       TG_Groups.Alerts)
+            self.telegram.send_message(
+                self.telegram.order_error_message(self.env, buy_market, client_buy, order_id_buy),
+                TG_Groups.Alerts)
         if client_sell.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
-                                       TG_Groups.Alerts)
+            self.telegram.send_message(
+                self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
+                TG_Groups.Alerts)
 
         self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
                                              expect_buy_px, expect_sell_px, time_choose, shift=None,
@@ -723,7 +725,7 @@ class MultiBot:
     #                     time.sleep(7)
 
     async def __check_order_status(self):
-    # Эта функция инициирует обновление данных по ордеру в базе, когда обновление приходит от биржи в клиента после создания
+        # Эта функция инициирует обновление данных по ордеру в базе, когда обновление приходит от биржи в клиента после создания
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
@@ -733,7 +735,9 @@ class MultiBot:
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)
-
+    async def check_active_markets_status(self):
+        # Здесь должна быть проверка, что рынки, в которых у нас есть позиции активны. Если нет, то алерт
+        pass
     async def __launch_and_run(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
