@@ -577,7 +577,7 @@ class MultiBot:
         # добавить сюда анализ response после того как добавить в return create_order
         print(f"[{buy_exchange}, {sell_exchange}]\n{responses=}")
         try:
-            self.telegram.send_message(f"Order were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
+            self.telegram.send_message(f"{self.env}. Order was created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
                                        TG_Groups.DebugDima)
         except:
             print('Label1: error in sending TG message')
