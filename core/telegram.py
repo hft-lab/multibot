@@ -70,7 +70,7 @@ class Telegram:
                 message += f"TOT POS, USD: {total_pos}\n"
                 message += f"ABS POS, USD: {abs_pos}\n"
                 message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
-                message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n"
+                message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n\n"
                 total_position += total_pos
                 abs_total_position += abs_pos
                 total_balance += client.get_balance()

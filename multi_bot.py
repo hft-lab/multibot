@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
 import logging
+import json
 import threading
 import time
 import traceback
@@ -48,12 +49,12 @@ def timeit(func):
 
 
 class MultiBot:
-    __slots__ = ['deal_pause', 'max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
+    __slots__ = ['deal_pause', 'cycle_parser_delay','max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
                  'state', 'loop', 'start_time', 'last_message', 'trade_exceptions',
                  'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
                  'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
-                 'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_2',
-                 'loop_3', 'loop_4', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
+                 'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_1',
+                 'loop_2', 'loop_3', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
                  'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
                  'markets', 'clients_markets_data', 'finder', 'clients_with_names',
                  'max_position_part', 'profit_close']
@@ -64,6 +65,7 @@ class MultiBot:
         self.finish = None
         self.db = None
         self.setts = config['SETTINGS']
+        self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
         self.trade_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
@@ -89,10 +91,10 @@ class MultiBot:
         self.state = self.setts['STATE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
-        for exchange, client in ALL_CLIENTS.items():
-            if exchange in self.exchanges:
-                new = client(keys=config[exchange], leverage=leverage, max_pos_part=self.max_position_part)
-                self.clients.append(new)
+
+        for exchange in self.exchanges:
+            client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage, max_pos_part=self.max_position_part)
+            self.clients.append(client)
         self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
         for client in self.clients:
@@ -148,23 +150,19 @@ class MultiBot:
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
         self.loop_3 = asyncio.new_event_loop()
-        self.loop_4 = asyncio.new_event_loop()
-        self.rabbit = Rabbit(self.loop_4)
+        self.rabbit = Rabbit(self.loop_3)
 
-        t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__launch_and_run, self.loop_1])
-        t2 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_2])
-        t3 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_cycle_parser, self.loop_3])
-        t4 = threading.Thread(target=self.run_await_in_thread, args=[self.rabbit.send_messages, self.loop_4])
+        t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_1])
+        t2 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_cycle_parser, self.loop_2])
+        t3 = threading.Thread(target=self.run_await_in_thread, args=[self.rabbit.send_messages, self.loop_3])
 
         t1.start()
         t2.start()
         t3.start()
-        t4.start()
 
         t1.join()
         t2.join()
         t3.join()
-        t4.join()
 
     @staticmethod
     def run_await_in_thread(func, loop):
@@ -279,8 +277,13 @@ class MultiBot:
         return data
 
     async def websocket_cycle_parser(self):
-        while not init_time + 90 > time.time():
-            await asyncio.sleep(0.1)
+        self.db = DB(self.rabbit)
+        await self.db.setup_postgres()
+        self.telegram.send_message(self.telegram.start_message(self))
+        self.telegram.send_message(self.telegram.start_balance_message(self))
+
+        # while not init_time + 90 > time.time():
+        #     await asyncio.sleep(0.1)
         logger_custom = Logging()
         logger_custom.log_launch_params(self.clients)
 
@@ -289,17 +292,30 @@ class MultiBot:
         print(self.clients_markets_data)
 
         while True:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(self.cycle_parser_delay)
             if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
                 self.start_time -= 1
                 self.telegram.send_message(f"PARSER IS WORKING")
                 self.update_all_av_balances()
             time_start_cycle = time.time()
             results = self.get_data_for_parser()
+            # print('Data for parser:',json.dumps(results, indent=2))
+
             # results = self.add_status(results)
             # logger_custom.log_rates(iteration, results)
+            time_end_parsing = time.time()
+            time_parser = time_end_parsing - time_start_cycle
+            self.potential_deals = self.finder.arbitrage(results, time_parser)
+            # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
+            time_end_define_potential_deals = time.time()
+            deal = None
+            if len(self.potential_deals):
+                deal = self.choose_deal()
+            if deal and (self.state == BotState.BOT):
+                time_end_choosing = time.time()
+                time_choose = time_end_choosing - time_end_parsing
+                await self.execute_deal(deal, time_choose)
 
-            self.potential_deals = self.finder.arbitrage(results, time.time() - time_start_cycle)
             # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
 
@@ -569,9 +585,10 @@ class MultiBot:
         cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
         time_sent = int(datetime.utcnow().timestamp() * 1000)
         orders = []
-        orders.append(self.loop_1.create_task(
+        # Было self.loop_1.create_task, где loop_1 это был launch_and_run
+        orders.append(asyncio.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
-        orders.append(self.loop_1.create_task(
+        orders.append(asyncio.create_task(
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
         # добавить сюда анализ response после того как добавить в return create_order
@@ -725,51 +742,8 @@ class MultiBot:
     async def check_active_markets_status(self):
         # Здесь должна быть проверка, что рынки, в которых у нас есть позиции активны. Если нет, то алерт
         pass
-    async def __launch_and_run(self):
-        self.db = DB(self.rabbit)
-        await self.db.setup_postgres()
-
-        start = datetime.utcnow()
-        # await self.db.log_launch_config()
-        # start_shifts = self.shifts.copy()
-
-        # try:
-        #
-        #     await self.db.update_launch_config(self)
-        # except Exception:
-        #     print(f"LINE 723:")
-        #     traceback.print_exc()
-        self.telegram.send_message(self.telegram.start_message(self))
-        self.telegram.send_message(self.telegram.start_balance_message(self))
-
-        # Проверить, что сработает
-        # self.db.update_balance_trigger('bot-launch', int(datetime.utcnow()), self.env)
-        async with aiohttp.ClientSession() as session:
-            self.session = session
-            time.sleep(3)
-
-            # self.db.update_config(self)
-            # self.update_balances_trigger()
-            while True:
-                # if (datetime.utcnow()-start).total_seconds() >= 30:
-                #     try:
-                #         await self.db.update_launch_config()
-                #     except Exception:
-                #         traceback.print_exc()
-                #     start = datetime.utcnow()
-
-                if not round(datetime.utcnow().timestamp() - self.start_time) % 92:
-                    self.start_time -= 1
-                    self.telegram.send_message(f"CHECK DEALS IS WORKING")
-
-                time_start = time.time()
-                deal = None
-                if len(self.potential_deals):
-                    deal = self.choose_deal()
-                if deal & (self.state == BotState.BOT):
-                    time_choose = time.time() - time_start
-                    await self.execute_deal(deal, time_choose)
 
 
 if __name__ == '__main__':
     MultiBot()
+

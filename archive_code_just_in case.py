@@ -159,3 +159,41 @@ def check_ob_slippage(multibot, client_sell, client_buy):
     #         'bot_token': '6684267405:AAFf2z4yVXtW-afd3kM7vAfNkNipCJBAZbw'
     #         }
     #     }
+
+
+   # async def __launch_and_run(self):
+    #
+    #     start = datetime.utcnow()
+        # await self.db.log_launch_config()
+        # start_shifts = self.shifts.copy()
+
+        # try:
+        #
+        #     await self.db.update_launch_config(self)
+        # except Exception:
+        #     print(f"LINE 723:")
+        #     traceback.print_exc()
+
+
+        # Проверить, что сработает
+        # self.db.update_balance_trigger('bot-launch', int(datetime.utcnow()), self.env)
+        # async with aiohttp.ClientSession() as session:
+        #     self.session = session
+        #     time.sleep(1)
+        #
+        #     # self.db.update_config(self)
+        #     # self.update_balances_trigger()
+        #     while True:
+        #         # if (datetime.utcnow()-start).total_seconds() >= 30:
+        #         #     try:
+        #         #         await self.db.update_launch_config(self)
+        #         #     except Exception:
+        #         #         traceback.print_exc()
+        #         #     start = datetime.utcnow()
+        #
+        #         if not round(datetime.utcnow().timestamp() - self.start_time) % 92:
+        #             self.start_time -= 1
+        #             self.telegram.send_message(f"CHECK DEALS IS WORKING")
+        #
+        #
+        #         await asyncio.sleep(1)
