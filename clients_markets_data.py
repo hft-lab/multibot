@@ -13,8 +13,10 @@ class Clients_markets_data:
     def __init__(self, clients_list, instance_num):
         self.instance_num = int(instance_num)
         self.clients_list = clients_list
+        self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
         self.coins_clients_symbols = self.get_coins_clients_symbol()
         self.clients_data = self.get_clients_data()
+        
     #
     # {'CELO': {'DYDX': 'CELO-USD', 'BINANCE': 'CELOUSDT'},
     #  'LINK': {'DYDX': 'LINK-USD', 'BINANCE': 'LINKUSDT', 'KRAKEN': 'PF_LINKUSD'},
@@ -60,8 +62,8 @@ class Clients_markets_data:
 
     def get_instance_markets(self, coins_symbols_client):
         total_len = len(list(coins_symbols_client.keys()))
-        list_end = self.instance_num * 10 if self.instance_num * 10 < total_len else total_len
-        list_start = (self.instance_num - 1) * 10
+        list_end = self.instance_num * self.instance_markets_amount if self.instance_num * self.instance_markets_amount < total_len else total_len
+        list_start = (self.instance_num - 1) * 20
         new_dict = dict()
         for key in list(coins_symbols_client.keys())[list_start:list_end]:
             new_dict.update({key: coins_symbols_client[key]})
