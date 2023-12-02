@@ -27,7 +27,6 @@ class TG_Groups(Enum):
 class Telegram:
     def __init__(self):
         self.tg_url = "https://api.telegram.org/bot"
-
     def send_message(self, message: str, group_obj: TG_Groups = None):
         group = group_obj.value if group_obj else TG_Groups.MainGroup.value
         url = self.tg_url + group['bot_token'] + "/sendMessage"
