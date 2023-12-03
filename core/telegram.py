@@ -1,7 +1,6 @@
 import traceback
 import datetime
 import requests
-from enum import Enum
 
 from configparser import ConfigParser
 
@@ -9,7 +8,7 @@ config = ConfigParser()
 config.read('config.ini', "utf-8")
 
 
-class TG_Groups(Enum):
+class TG_Groups():
     _main_id = int(config['TELEGRAM']['CHAT_ID'])
     _main_token = config['TELEGRAM']['TOKEN']
     # self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
@@ -27,15 +26,21 @@ class TG_Groups(Enum):
 class Telegram:
     def __init__(self):
         self.tg_url = "https://api.telegram.org/bot"
-    def send_message(self, message: str, group_obj: TG_Groups = None):
-        group = group_obj.value if group_obj else TG_Groups.MainGroup.value
-        url = self.tg_url + group['bot_token'] + "/sendMessage"
-        message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML", "text": "<pre>" + str(message) + "</pre>"}
-        try:
-            r = requests.post(url, json=message_data)
-            return r.json()
-        except Exception as e:
-            return e
+        self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
+
+    def send_message(self, message: str, tg_group_obj: TG_Groups = None):
+        if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
+            print('TG_DEBUG IS OFF')
+        else:
+            group = tg_group_obj if tg_group_obj else TG_Groups.DebugDima
+            url = self.tg_url + group['bot_token'] + "/sendMessage"
+            message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML", "text": "<pre>" + str(message) + "</pre>"}
+            try:
+                r = requests.post(url, json=message_data)
+                return r.json()
+            except Exception as e:
+                return e
+
 
     @staticmethod
     def start_message(multibot):
@@ -169,3 +174,7 @@ class Telegram:
 #         'exchange_name': RabbitMqQueues.get_exchange_name(RabbitMqQueues.TELEGRAM),
 #         'queue_name': RabbitMqQueues.TELEGRAM
 #     })
+
+if __name__ == '__main__':
+    tg = Telegram()
+    tg.send_message('Hi Dima')

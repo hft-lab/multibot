@@ -50,12 +50,11 @@ def timeit(func):
 
 class MultiBot:
     __slots__ = ['deal_pause', 'cycle_parser_delay','max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
-                 'state', 'loop', 'start_time', 'last_message', 'trade_exceptions',
-                 'last_max_deal_size', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
-                 'session', 'clients', 'exchanges', 'ribs', 'env', 'exchanges_len', 'db', 'tasks',
-                 'start', 'finish', 's_time', 'f_time', 'run_1', 'run_2', 'run_3', 'run_4', 'loop_1', 'loop_1',
-                 'loop_2', 'loop_3', 'need_check_shift', 'last_orderbooks', 'time_start', 'time_parser',
-                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name', 'time_lock',
+                 'state', 'start_time', 'trade_exceptions', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
+                 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
+                 'start', 'finish', 's_time', 'f_time', 'loop_1','loop_2', 'loop_3', 'need_check_shift',
+                 'last_orderbooks', 'time_start', 'time_parser',
+                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name',
                  'markets', 'clients_markets_data', 'finder', 'clients_with_names',
                  'max_position_part', 'profit_close']
 
@@ -77,7 +76,6 @@ class MultiBot:
         self.f_time = ''
         # self.create_csv('extra_countings.csv')
         self.last_orderbooks = {}
-        self.time_lock = 0
 
         # ORDER CONFIGS
         self.deal_pause = int(self.setts['DEALS_PAUSE'])
@@ -95,19 +93,18 @@ class MultiBot:
         for exchange in self.exchanges:
             client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage, max_pos_part=self.max_position_part)
             self.clients.append(client)
-        self.exchanges_len = len(self.clients)
         self.clients_with_names = {}
         for client in self.clients:
             self.clients_with_names.update({client.EXCHANGE_NAME: client})
 
         self.start_time = datetime.utcnow().timestamp()
-        self.last_message = None
-        self.last_max_deal_size = 0
         self.potential_deals = []
         self.deals_counter = []
         self.deals_executed = []
         self.available_balances = {}
         self.update_all_av_balances()
+        print('Available_balances', json.dumps(self.available_balances, indent=2))
+        input('SMTH')
         self.session = None
 
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
@@ -355,7 +352,7 @@ class MultiBot:
                 deal_size = self.avail_balance_define(buy_exch, sell_exch, deal['buy_market'], deal['sell_market'])
             except Exception:
                 traceback.print_exc()
-                print(f"LINE 422 {self.available_balances=}")
+                print(f"LINE 355 {self.available_balances=}")
                 continue
             # print(f"\n\nBUY {buy_exch} {deal['buy_price']}")
             # print(f"SELL {sell_exch} {deal['sell_price']}")
