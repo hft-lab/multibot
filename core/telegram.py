@@ -22,7 +22,6 @@ class TG_Groups():
     Alerts = {'chat_id': _alert_id, 'bot_token': _alert_token}
     DebugDima = {'chat_id': _debug_id, 'bot_token': _debug_token}
 
-
 class Telegram:
     def __init__(self):
         self.tg_url = "https://api.telegram.org/bot"
@@ -33,6 +32,7 @@ class Telegram:
             print('TG_DEBUG IS OFF')
         else:
             group = tg_group_obj if tg_group_obj else TG_Groups.DebugDima
+            print(group)
             url = self.tg_url + group['bot_token'] + "/sendMessage"
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML", "text": "<pre>" + str(message) + "</pre>"}
             try:
@@ -178,3 +178,4 @@ class Telegram:
 if __name__ == '__main__':
     tg = Telegram()
     tg.send_message('Hi Dima')
+

@@ -104,7 +104,6 @@ class MultiBot:
         self.available_balances = {}
         self.update_all_av_balances()
         print('Available_balances', json.dumps(self.available_balances, indent=2))
-        input('SMTH')
         self.session = None
 
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
@@ -276,8 +275,9 @@ class MultiBot:
     async def websocket_cycle_parser(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
-        self.telegram.send_message(self.telegram.start_message(self))
-        self.telegram.send_message(self.telegram.start_balance_message(self))
+        self.telegram.send_message(self.telegram.start_message(self),TG_Groups.MainGroup)
+        self.telegram.send_message(self.telegram.start_balance_message(self),TG_Groups.MainGroup)
+        self.db.update_balance_trigger(context='bot-launch', parent_id=int(time.time()), env=self.env)
 
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)

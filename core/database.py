@@ -5,6 +5,7 @@ from datetime import datetime
 from configparser import ConfigParser
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from core.telegram import Telegram, TG_Groups
+
 # from core.enums import Context
 # from queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 # from telegram import Telegram, TG_Groups
