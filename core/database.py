@@ -39,6 +39,7 @@ class DB:
         except Exception as e:
             print('ERROR DURING POSTGRES CONFIGURATION' + str(e))
         print(f"SETUP POSTGRES ENDED")
+
     def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol, chat_id, token):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
@@ -100,7 +101,6 @@ class DB:
 
         self.rabbit.add_task_to_queue(message, "ORDERS")
         return order_id
-
 
     # ex __check_start_launch_config
     # Смотрится есть ли в базе неиспользованные настройки, если есть используются они, если нет,

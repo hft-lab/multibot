@@ -270,7 +270,7 @@ class MultiBot:
             data.update(client.get_all_tops())
         return data
 
-    @try_exc_regular
+    @try_exc_async
     async def websocket_cycle_parser(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
