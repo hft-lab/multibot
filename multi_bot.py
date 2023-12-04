@@ -17,6 +17,7 @@ from core.database import DB
 from core.telegram import Telegram, TG_Groups
 from core.rabbit import Rabbit
 from clients.core.all_clients import ALL_CLIENTS
+from core.wrappers import timeit, try_exc_regular, try_exc_async
 import sys
 import configparser
 
@@ -35,17 +36,6 @@ leverage = float(config['SETTINGS']['LEVERAGE'])
 
 init_time = time.time()
 ob_zero = {'top_bid': 0, 'top_ask': 0, 'bid_vol': 0, 'ask_vol': 0, 'ts_exchange': 0, 'ts_start': 0, 'ts_end': 0}
-
-
-def timeit(func):
-    async def wrapper(*args, **kwargs):
-        ts_start = int(time.time() * 1000)
-        result = await func(*args, **kwargs)
-        result['ts_start'] = ts_start
-        result['ts_end'] = int(time.time() * 1000)
-        return result
-
-    return wrapper
 
 
 class MultiBot:
@@ -69,7 +59,6 @@ class MultiBot:
         self.trade_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
-
         with open(f'rates.txt', 'a') as file:
             file.write('')
         self.s_time = ''
@@ -161,6 +150,7 @@ class MultiBot:
         t3.join()
 
     @staticmethod
+    @try_exc_regular
     def run_await_in_thread(func, loop):
         try:
             loop.run_until_complete(func())
@@ -170,6 +160,7 @@ class MultiBot:
             loop.close()
 
     @staticmethod
+    @try_exc_async
     async def gather_dict(tasks: dict):
         async def mark(key, coro):
             try:
@@ -182,6 +173,7 @@ class MultiBot:
             for key, result in await asyncio.gather(*(mark(key, coro) for key, coro in tasks.items()))
         }
 
+    @try_exc_async
     @timeit
     async def get_ob_top(self, client, symbol):
         try:
@@ -192,6 +184,7 @@ class MultiBot:
             #     self.flag = True
             return ob_zero
 
+    @try_exc_async
     async def create_and_await_ob_requests_tasks(self):
         tasks_dict = {}
         iter_start = datetime.utcnow()
@@ -219,6 +212,7 @@ class MultiBot:
         return await self.gather_dict(tasks_dict)
 
     @staticmethod
+    @try_exc_regular
     def add_status(results):
         for exchange_coin_key, value in results.items():
             if results[exchange_coin_key] != {}:
@@ -229,6 +223,7 @@ class MultiBot:
                 results[exchange_coin_key]['Status'] = 'Timeout'
         return results
 
+    @try_exc_regular
     def find_ribs(self):
         ribs = self.setts['RIBS'].split(',')
         for rib in ribs:
@@ -242,6 +237,7 @@ class MultiBot:
                         if [client_2, client_1] not in self.ribs:
                             self.ribs.append([client_2, client_1])
 
+    @try_exc_regular
     def find_position_gap(self):
         position_gap = 0
         for client in self.clients:
@@ -249,11 +245,13 @@ class MultiBot:
                 position_gap += res['amount']
         return position_gap
 
+    @try_exc_regular
     def find_balancing_elements(self):
         position_gap = self.find_position_gap()
         amount_to_balancing = abs(position_gap) / len(self.clients)
         return position_gap, amount_to_balancing
 
+    @try_exc_regular
     def check_last_ob(self, client_buy, client_sell, ob_sell, ob_buy):
         exchanges = client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME
         last_obs = self.last_orderbooks.get(exchanges, None)
@@ -266,12 +264,14 @@ class MultiBot:
         else:
             return True
 
+    @try_exc_regular
     def get_data_for_parser(self):
         data = dict()
         for client in self.clients:
             data.update(client.get_all_tops())
         return data
 
+    @try_exc_regular
     async def websocket_cycle_parser(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
@@ -342,6 +342,7 @@ class MultiBot:
     #                 client.count_flag = False
     # print(f"Full cycle time: {time.time() - time_start}")
 
+    @try_exc_regular
     def choose_deal(self):
         max_profit = self.profit_close
         chosen_deal = None
@@ -385,16 +386,19 @@ class MultiBot:
             print(f"{chosen_deal=}")
         return chosen_deal
 
+    @try_exc_regular
     def add_trade_exception(self, coin, exchange, direction, reason) -> None:
         self.trade_exceptions.append(
             {'coin': coin, 'exchange': exchange, 'direction': direction,
              'reason': reason, 'ts_added': str(datetime.utcnow())})
 
+    @try_exc_regular
     def in_trade_exceptions(self, coin, exchange, direction):
         filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
                     item['exchange'] == exchange and item['direction'] == direction]
         return len(filtered) > 0
 
+    @try_exc_regular
     def check_active_positions(self, coin, buy_exchange, sell_exchange):
         result = {}
         for direction, exchange in {'buy': buy_exchange, 'sell': sell_exchange}.items():
@@ -415,7 +419,7 @@ class MultiBot:
                                                                    self.max_position_part)
                     self.telegram.send_message(message, TG_Groups.Alerts)
                 result[direction] = False
-        return (result['buy'] and result['sell'])
+        return result['buy'] and result['sell']
 
     # def check_active_positions(self, coin, buy_exchange, sell_exchange):
     #     client_buy = self.clients_with_names[buy_exchange]
@@ -472,6 +476,7 @@ class MultiBot:
     #                                      'time_parser': time.time() - time_start})
 
     @staticmethod
+    @try_exc_regular
     def _fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, buy_price, sell_price):
         # print(f"Started _fit_sizes: AMOUNT: {amount}")
         client_buy.fit_sizes(max_deal_size, buy_price, buy_market)
@@ -490,6 +495,7 @@ class MultiBot:
         print(f"\n\n\nSIZES FIT\nBUY MARKET: {buy_market}\nSELL MARKET: {sell_market}\nFIT AMOUNT: {max_amount}\n\n\n")
         return max_amount
 
+    @try_exc_regular
     def get_target_profit(self, deal_direction):
         if deal_direction == 'open':
             target_profit = self.profit_taker
@@ -499,6 +505,7 @@ class MultiBot:
             target_profit = (self.profit_taker + self.profit_close) / 2
         return target_profit
 
+    @try_exc_regular
     def if_still_good(self, target_profit, ob_buy, ob_sell, exchange_buy, exchange_sell):
         profit = (ob_sell['bids'][0][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
         profit = profit - self.clients_with_names[exchange_buy].taker_fee - self.clients_with_names[
@@ -508,6 +515,7 @@ class MultiBot:
         else:
             return False
 
+    @try_exc_regular
     def get_limit_prices_for_order(self, ob_buy, ob_sell):
         buy_point_price = (ob_buy['asks'][1][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
         sell_point_price = (ob_sell['bids'][0][0] - ob_sell['bids'][1][0]) / ob_sell['bids'][0][0]
@@ -521,6 +529,7 @@ class MultiBot:
             shifted_sell_px = ob_sell['bids'][4][0]
         return shifted_buy_px, shifted_sell_px
 
+    @try_exc_async
     async def execute_deal(self, chosen_deal: dict, time_choose) -> None:
         # print(f"B:{chosen_deal['buy_exch'].EXCHANGE_NAME}|S:{chosen_deal['sell_exch'].EXCHANGE_NAME}")
         # print(f"BP:{chosen_deal['expect_buy_px']}|SP:{chosen_deal['expect_sell_px']}")
@@ -630,11 +639,13 @@ class MultiBot:
         self.update_all_av_balances()
         await asyncio.sleep(self.deal_pause)
 
+    @try_exc_regular
     def update_all_av_balances(self):
         for client in self.clients_with_names.values():
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
     @staticmethod
+    @try_exc_regular
     def _check_order_place_time(client, time_sent, responses) -> int:
         for response in responses:
             try:
@@ -646,6 +657,7 @@ class MultiBot:
             except:
                 return 0
 
+    @try_exc_regular
     def avail_balance_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
         if self.available_balances[buy_exchange].get(buy_market):
             buy_size = self.available_balances[buy_exchange][buy_market]['buy']
@@ -657,6 +669,7 @@ class MultiBot:
             sell_size = self.available_balances[sell_exchange]['sell']
         return min(buy_size, sell_size, self.max_order_size)
 
+    @try_exc_regular
     def __rates_update(self):
         message = ''
         with open(f'rates.txt', 'a') as file:
@@ -665,6 +678,7 @@ class MultiBot:
             file.write(message + '\n')
         self.update_all_av_balances()
 
+    @try_exc_async
     async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
         if datetime.utcnow() - datetime.timedelta(seconds=15) > self.start_time:
             self.start_time = datetime.utcnow()
@@ -698,6 +712,7 @@ class MultiBot:
     #     self.client_2.step_size = step_size
 
     @staticmethod
+    @try_exc_regular
     def get_positions_data(client):
         coins = []
         total_pos = 0
@@ -724,6 +739,7 @@ class MultiBot:
     #                     await client.create_order(abs(res), price, side, session)
     #                     time.sleep(7)
 
+    @try_exc_async
     async def __check_order_status(self):
         # Эта функция инициирует обновление данных по ордеру в базе, когда обновление приходит от биржи в клиента после создания
         while True:
@@ -735,6 +751,8 @@ class MultiBot:
                     client.orders.pop(order_id)
 
             await asyncio.sleep(3)
+
+    @try_exc_async
     async def check_active_markets_status(self):
         # Здесь должна быть проверка, что рынки, в которых у нас есть позиции активны. Если нет, то алерт
         pass

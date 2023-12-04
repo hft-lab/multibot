@@ -22,6 +22,7 @@ class TG_Groups():
     Alerts = {'chat_id': _alert_id, 'bot_token': _alert_token}
     DebugDima = {'chat_id': _debug_id, 'bot_token': _debug_token}
 
+
 class Telegram:
     def __init__(self):
         self.tg_url = "https://api.telegram.org/bot"
@@ -40,7 +41,6 @@ class Telegram:
                 return r.json()
             except Exception as e:
                 return e
-
 
     @staticmethod
     def start_message(multibot):
