@@ -33,20 +33,18 @@ logger = logging.getLogger(__name__)
 
 leverage = float(config['SETTINGS']['LEVERAGE'])
 
-
 init_time = time.time()
 ob_zero = {'top_bid': 0, 'top_ask': 0, 'bid_vol': 0, 'ask_vol': 0, 'ts_exchange': 0, 'ts_start': 0, 'ts_end': 0}
 
 
 class MultiBot:
-    __slots__ = ['deal_pause', 'cycle_parser_delay','max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
-                 'state', 'start_time', 'trade_exceptions', 'potential_deals', 'deals_counter', 'deals_executed', 'available_balances',
-                 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
-                 'start', 'finish', 's_time', 'f_time', 'loop_1','loop_2', 'loop_3', 'need_check_shift',
-                 'last_orderbooks', 'time_start', 'time_parser',
-                 'bot_launch_id', 'base_launch_config', 'launch_fields', 'setts', 'rates_file_name',
-                 'markets', 'clients_markets_data', 'finder', 'clients_with_names',
-                 'max_position_part', 'profit_close']
+    __slots__ = ['deal_pause', 'cycle_parser_delay', 'max_order_size', 'profit_taker', 'shifts', 'rabbit', 'telegram',
+                 'state', 'start_time', 'trade_exceptions', 'potential_deals', 'deals_counter', 'deals_executed',
+                 'available_balances', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
+                 'start', 'finish', 's_time', 'f_time', 'loop_1', 'loop_2', 'loop_3', 'need_check_shift',
+                 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id', 'base_launch_config',
+                 'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
+                 'clients_with_names', 'max_position_part', 'profit_close']
 
     def __init__(self):
         self.bot_launch_id = None
@@ -59,6 +57,7 @@ class MultiBot:
         self.trade_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
+
         with open(f'rates.txt', 'a') as file:
             file.write('')
         self.s_time = ''
@@ -275,8 +274,8 @@ class MultiBot:
     async def websocket_cycle_parser(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
-        self.telegram.send_message(self.telegram.start_message(self),TG_Groups.MainGroup)
-        self.telegram.send_message(self.telegram.start_balance_message(self),TG_Groups.MainGroup)
+        self.telegram.send_message(self.telegram.start_message(self), TG_Groups.MainGroup)
+        self.telegram.send_message(self.telegram.start_balance_message(self), TG_Groups.MainGroup)
         self.db.update_balance_trigger(context='bot-launch', parent_id=int(time.time()), env=self.env)
 
         # while not init_time + 90 > time.time():
