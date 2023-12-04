@@ -287,31 +287,32 @@ class MultiBot:
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
         print(self.clients_markets_data)
+        async with aiohttp.ClientSession() as session:
+            self.session = session
+            while True:
+                await asyncio.sleep(self.cycle_parser_delay)
+                if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
+                    self.start_time -= 1
+                    self.telegram.send_message(f"PARSER IS WORKING")
+                    self.update_all_av_balances()
+                time_start_cycle = time.time()
+                results = self.get_data_for_parser()
+                # print('Data for parser:',json.dumps(results, indent=2))
 
-        while True:
-            await asyncio.sleep(self.cycle_parser_delay)
-            if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
-                self.start_time -= 1
-                self.telegram.send_message(f"PARSER IS WORKING")
-                self.update_all_av_balances()
-            time_start_cycle = time.time()
-            results = self.get_data_for_parser()
-            # print('Data for parser:',json.dumps(results, indent=2))
-
-            # results = self.add_status(results)
-            # logger_custom.log_rates(iteration, results)
-            time_end_parsing = time.time()
-            time_parser = time_end_parsing - time_start_cycle
-            self.potential_deals = self.finder.arbitrage(results, time_parser)
-            # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
-            time_end_define_potential_deals = time.time()
-            deal = None
-            if len(self.potential_deals):
-                deal = self.choose_deal()
-            if deal and (self.state == BotState.BOT):
-                time_end_choosing = time.time()
-                time_choose = time_end_choosing - time_end_parsing
-                await self.execute_deal(deal, time_choose)
+                # results = self.add_status(results)
+                # logger_custom.log_rates(iteration, results)
+                time_end_parsing = time.time()
+                time_parser = time_end_parsing - time_start_cycle
+                self.potential_deals = self.finder.arbitrage(results, time_parser)
+                # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
+                time_end_define_potential_deals = time.time()
+                deal = None
+                if len(self.potential_deals):
+                    deal = self.choose_deal()
+                if deal and (self.state == BotState.BOT):
+                    time_end_choosing = time.time()
+                    time_choose = time_end_choosing - time_end_parsing
+                    await self.execute_deal(deal, time_choose)
 
             # print(f"AP FINDER CYCLE TIME: {time.time() - time_start} sec")
             # print(self.potential_deals)
@@ -583,18 +584,16 @@ class MultiBot:
         time_sent = int(datetime.utcnow().timestamp() * 1000)
         orders = []
         # Было self.loop_1.create_task, где loop_1 это был launch_and_run
-        orders.append(asyncio.create_task(
+        orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
-        orders.append(asyncio.create_task(
+        orders.append(self.loop_2.create_task(
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
         # добавить сюда анализ response после того как добавить в return create_order
-        print(f"[Buy: {buy_exchange}, Sell: {sell_exchange}]\n{responses=}")
-        try:
-            self.telegram.send_message(f"{self.env}. Orders were created: [{buy_exchange}, {sell_exchange}]\n{responses=}",
+        print(f"[{buy_exchange=}, {sell_exchange=}]\n{responses=}")
+        self.telegram.send_message(f"{self.env}. Orders were created: [{buy_exchange=}, {sell_exchange=}]\n{responses=}",
                                        TG_Groups.DebugDima)
-        except:
-            print('Label1: error in sending TG message')
+
         # print(f"FULL POOL ADDING AND CALLING TIME: {time.time() - timer}")
         # await asyncio.sleep(0.5)
         # !!! ALL TIMERS !!!
@@ -623,7 +622,7 @@ class MultiBot:
                                              time_parser=chosen_deal['time_parser'], symbol=coin,
                                              chat_id=config['TELEGRAM']['CHAT_ID'], token=config['TELEGRAM']['TOKEN'])
         self.telegram.send_message(
-            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px, buy_market))
+            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px, buy_market),TG_Groups.MainGroup)
         for client in [client_buy, client_sell]:
             client.error_info = None
             client.LAST_ORDER_ID = 'default'

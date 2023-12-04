@@ -56,6 +56,7 @@ class Rabbit:
             task = self.tasks.get()
             try:
                 print('TASK TO MQ:\n\n',task)
+                self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
                 await self.publish_message(**task)
             except Exception as e:
                 error_message = f"\n\nERROR WITH SENDING TO MQ: {str(e)}, TASK: \n{task}\n\n"
