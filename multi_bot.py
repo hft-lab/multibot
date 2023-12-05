@@ -47,7 +47,7 @@ class MultiBot:
                  'clients_with_names', 'max_position_part', 'profit_close']
 
     def __init__(self):
-        self.bot_launch_id = None
+        self.bot_launch_id = uuid.uuid4()
         self.start = None
         self.finish = None
         self.db = None
@@ -57,7 +57,6 @@ class MultiBot:
         self.trade_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
-
         with open(f'rates.txt', 'a') as file:
             file.write('')
         self.s_time = ''
@@ -90,8 +89,6 @@ class MultiBot:
         self.deals_counter = []
         self.deals_executed = []
         self.available_balances = {}
-        self.update_all_av_balances()
-        print('Available_balances', json.dumps(self.available_balances, indent=2))
         self.session = None
 
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
@@ -109,6 +106,7 @@ class MultiBot:
             client.markets_list = list(self.markets.keys())
             # client.markets_list = close_markets
             client.run_updater()
+
         # time.sleep(5)
         # for client in self.clients:
         #     print(client.EXCHANGE_NAME)
@@ -276,8 +274,16 @@ class MultiBot:
         await self.db.setup_postgres()
         self.telegram.send_message(self.telegram.start_message(self), TG_Groups.MainGroup)
         self.telegram.send_message(self.telegram.start_balance_message(self), TG_Groups.MainGroup)
-        self.db.update_balance_trigger(context='bot-launch', parent_id=int(time.time()), env=self.env)
 
+        self.update_all_av_balances()
+        print('Available_balances', json.dumps(self.available_balances, indent=2))
+
+        for client in self.clients:
+            print(f"{client.EXCHANGE_NAME}: \n Balance: {client.get_balance}\n"
+                  f"Positions: {json.dumps(client.get_positions(), indent=2)}\n")
+
+        self.db.save_launch_balance(self)
+        input('STOP PAUSE\n')
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
         logger_custom = Logging()

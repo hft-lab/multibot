@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+import time
 from datetime import datetime
 from configparser import ConfigParser
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
@@ -31,16 +32,67 @@ class DB:
         postgres = config['POSTGRES']
         try:
             conn = await asyncpg.create_pool(database=postgres['NAME'],
-                                            user=postgres['USER'],
-                                            password=postgres['PASSWORD'],
-                                            host=postgres['HOST'],
-                                            port=postgres['PORT'])
+                                             user=postgres['USER'],
+                                             password=postgres['PASSWORD'],
+                                             host=postgres['HOST'],
+                                             port=postgres['PORT'])
             self.db = conn
         except Exception as e:
             print('ERROR DURING POSTGRES CONFIGURATION' + str(e))
         print(f"SETUP POSTGRES ENDED")
 
-    def save_arbitrage_possibilities(self,_id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
+    def save_launch_balance(self, multibot) -> None:
+        for client in multibot.clients:
+            balance_id = uuid.uuid4()
+            sum_abs_position_usd = sum([abs(x.get('amount_usd', 0)) for _, x in client.get_positions().items()])
+            balance = client.get_balance()
+            message = {
+                'id': balance_id,
+                'datetime': datetime.utcnow(),
+                'ts': int(time.time() * 1000),
+                'context': 'bot-launch',
+                'parent_id': multibot.bot_launch_id,
+                'exchange': client.EXCHANGE_NAME,
+                'exchange_balance': round(balance, 1),
+                'available_for_buy': round(client.get_available_balance()['buy'], 1),
+                'available_for_sell': round(client.get_available_balance()['sell'], 1),
+                'env': multibot.env,
+                'chat_id': 123,
+                'bot_token': 'placeholder',
+                'current_margin': round(sum_abs_position_usd / balance, 1)
+            }
+            self.rabbit.add_task_to_queue(message, "BALANCES")
+
+    # async def save_start_balance_detalization(self, symbol, client, parent_id):
+    #     client_position_by_symbol = client.get_positions()[symbol]
+    #     mark_price = (client.get_orderbook(symbol)['asks'][0][0] +
+    #                   client.get_orderbook(symbol)['bids'][0][0]) / 2
+    #     position_usd = round(client_position_by_symbol['amount'] * mark_price, 1)
+    #     real_balance = client.get_balance()
+    #     message = {
+    #         'id': uuid.uuid4(),
+    #         'datetime': datetime.utcnow(),
+    #         'ts': int(time.time() * 1000),
+    #         'context': self.context,
+    #         'parent_id': parent_id,
+    #         'exchange': client.EXCHANGE_NAME,
+    #         'symbol': symbol,
+    #         'current_margin': round(abs(client_position_by_symbol['amount_usd'] / real_balance), 1),
+    #         'position_coin': client_position_by_symbol['amount'],
+    #         'position_usd': position_usd,
+    #         'entry_price': client_position_by_symbol['entry_price'],
+    #         'mark_price': mark_price,
+    #         'grand_parent_id': self.parent_id,
+    #         'available_for_buy': round(real_balance * client.leverage - position_usd, 1),
+    #         'available_for_sell': round(real_balance * client.leverage + position_usd, 1)
+    #     }
+    #     await self.publish_message(connect=self.app['mq'],
+    #                                message=message,
+    #                                routing_key=RabbitMqQueues.BALANCE_DETALIZATION,
+    #                                exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_DETALIZATION),
+    #                                queue_name=RabbitMqQueues.BALANCE_DETALIZATION
+    #                                )
+    def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol, chat_id, token):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
                 client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount

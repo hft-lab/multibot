@@ -6,6 +6,7 @@ class RabbitMqQueues:
     ORDERS = 'logger.event.insert_orders'
     UPDATE_ORDERS = 'logger.event.update_orders'
     CHECK_BALANCE = 'logger.event.check_balance'
+    BALANCES = 'logger.event.insert_balances'
     # BALANCES = 'logger.event.insert_balances'
     # BALANCE_DETALIZATION = 'logger.event.insert_balance_detalization'
     # DISBALANCE = 'logger.event.insert_disbalances'
