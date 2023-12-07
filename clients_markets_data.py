@@ -2,6 +2,8 @@ from clients.binance import BinanceClient
 from clients.dydx import DydxClient
 from clients.kraken import KrakenClient
 from core.telegram import Telegram, TG_Groups
+from core.wrappers import try_exc_regular, try_exc_async
+
 
 import configparser
 import sys
@@ -21,6 +23,7 @@ class Clients_markets_data:
     # {'CELO': {'DYDX': 'CELO-USD', 'BINANCE': 'CELOUSDT'},
     #  'LINK': {'DYDX': 'LINK-USD', 'BINANCE': 'LINKUSDT', 'KRAKEN': 'PF_LINKUSD'},
 
+    @try_exc_regular
     def get_clients_data(self):
         clients_data = dict()
         for client in self.clients_list:
@@ -32,27 +35,20 @@ class Clients_markets_data:
                 clients_data[exchange]['markets_amt'] += 1
         return clients_data
 
+    @try_exc_regular
     def get_coins_clients_symbol(self):
         client_coin_symbol = dict()
-
         # Собираем справочник: {client1:{coin1:symbol1, ...},...}
         for client in self.clients_list:
-            try:
-                client_coin_symbol[client] = client.get_markets()
-            except Exception as error:
-                print(f'Ошибка в модуле clients_markets_data, client: {client.__class__.__name__}, error: {error}')
-
+            client_coin_symbol[client] = client.get_markets()
         # Меняем порядок ключей в справочнике
         coins_symbols_client = dict()
         for client, coins_symbol in client_coin_symbol.items():
-            try:
-                for coin, symbol in coins_symbol.items():
-                    if coin in coins_symbols_client.keys():
-                        coins_symbols_client[coin].update({client.EXCHANGE_NAME: symbol})
-                    else:
-                        coins_symbols_client[coin] = {client.EXCHANGE_NAME: symbol}
-            except Exception as error:
-                input(f"Случилась ошибка 0 в модуле Define_markets: {coins_symbol},{client}. Error: {error}")
+            for coin, symbol in coins_symbol.items():
+                if coin in coins_symbols_client.keys():
+                    coins_symbols_client[coin].update({client.EXCHANGE_NAME: symbol})
+                else:
+                    coins_symbols_client[coin] = {client.EXCHANGE_NAME: symbol}
         #Удаляем монеты с единственным маркетом
         for coin, symbols_client in coins_symbols_client.copy().items():
             if len(symbols_client) == 1:

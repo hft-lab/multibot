@@ -6,6 +6,7 @@ from datetime import datetime
 from configparser import ConfigParser
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
 from core.telegram import Telegram, TG_Groups
+from core.wrappers import try_exc_regular, try_exc_async
 
 # from core.enums import Context
 # from queries import get_last_balance_jumps, get_total_balance, get_last_launch, get_last_deals
@@ -27,20 +28,18 @@ class DB:
         self.loop = asyncio.new_event_loop()
         self.rabbit = rabbit
 
+    @try_exc_async
     async def setup_postgres(self) -> None:
-        print(f"SETUP POSTGRES START")
         postgres = config['POSTGRES']
-        try:
-            conn = await asyncpg.create_pool(database=postgres['NAME'],
-                                             user=postgres['USER'],
-                                             password=postgres['PASSWORD'],
-                                             host=postgres['HOST'],
-                                             port=postgres['PORT'])
-            self.db = conn
-        except Exception as e:
-            print('ERROR DURING POSTGRES CONFIGURATION' + str(e))
+        conn = await asyncpg.create_pool(database=postgres['NAME'],
+                                         user=postgres['USER'],
+                                         password=postgres['PASSWORD'],
+                                         host=postgres['HOST'],
+                                         port=postgres['PORT'])
+        self.db = conn
         print(f"SETUP POSTGRES ENDED")
 
+    @try_exc_regular
     def save_launch_balance(self, multibot) -> None:
         for client in multibot.clients:
             balance_id = uuid.uuid4()
@@ -92,6 +91,7 @@ class DB:
     #                                exchange_name=RabbitMqQueues.get_exchange_name(RabbitMqQueues.BALANCE_DETALIZATION),
     #                                queue_name=RabbitMqQueues.BALANCE_DETALIZATION
     #                                )
+    @try_exc_regular
     def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
                                      expect_sell_px, time_choose, shift, time_parser, symbol, chat_id, token):
         expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
@@ -125,6 +125,7 @@ class DB:
         }
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
+    @try_exc_regular
     def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env):
         order_id = uuid.uuid4()
         message = {
@@ -157,6 +158,7 @@ class DB:
     # ex __check_start_launch_config
     # Смотрится есть ли в базе неиспользованные настройки, если есть используются они, если нет,
     # то берутся уже использованные и заносятся через вызов метода config_api.
+    @try_exc_async
     async def log_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
             # Поиск, что есть подходящие еще не использованные настройки
@@ -192,6 +194,7 @@ class DB:
                 requests.post(url=url, headers=headers, json=data)
 
     # раньше называлось start_db_update. В конце добавление в очередь.
+    @try_exc_async
     async def update_launch_config(self, multibot):
         async with self.db.acquire() as cursor:
             if launches := await get_last_launch(cursor,
@@ -226,6 +229,7 @@ class DB:
                     self.rabbit.add_task_to_queue(message, "UPDATE_LAUNCH")
                     self.update_balance_trigger('bot-config-update', multibot.bot_launch_id, multibot.env)
 
+    @try_exc_regular
     def update_balance_trigger(self, context: str, parent_id, env: str):
         message = {
             'parent_id': parent_id,

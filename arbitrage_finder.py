@@ -1,4 +1,5 @@
 from datetime import datetime
+from core.wrappers import try_exc_regular, try_exc_async
 
 
 class ArbitrageFinder:
@@ -11,6 +12,7 @@ class ArbitrageFinder:
         self.clients_list = clients_list
         self.fees = {x: y.taker_fee for x, y in self.clients_list.items()}
 
+    @try_exc_regular
     def check_direction(self, positions, exchange_buy, exchange_sell, buy_market, sell_market):
         buy_close = False
         sell_close = False
@@ -30,6 +32,7 @@ class ArbitrageFinder:
             deal_direction = 'open'
         return target_profit, deal_direction
 
+    @try_exc_regular
     def arbitrage(self, data, time_parse):
         possibilities = []
         poses = {x: y.get_positions() for x, y in self.clients_list.items()}

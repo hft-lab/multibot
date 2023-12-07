@@ -1,6 +1,7 @@
 import os
 import uuid
 from datetime import datetime
+from core.wrappers import try_exc_regular, try_exc_async
 
 
 class Logging:
@@ -13,6 +14,7 @@ class Logging:
         self.check_log_folder_and_files_exist()
         self.launch_id = self.get_launch_id()
 
+    @try_exc_regular
     def log_rates(self, iteration, result):
         # input format: {'Kraken__CRV': {'top_bid': 0.4369, 'top_ask': 0.4377, 'bid_vol': 2062, 'ask_vol': 4182,
         # ts_exchange': 1694169801252, 'ts_start': , 'ts_end': , 'Status': 'Ok'},...}
@@ -27,6 +29,7 @@ class Logging:
                 string_to_log += f"{self.launch_id},{iteration},{coin},bid,{exchange},{top_bid},{bid_vol}\n"
                 file.write(string_to_log)
 
+    @try_exc_regular
     def log_launch_params(self, clients_list):
         self.check_log_folder_and_files_exist()
         launch_datetime = datetime.utcnow()
@@ -35,6 +38,7 @@ class Logging:
                 launch_params_log.write(
                     f"{self.launch_id}, {launch_datetime},{client.EXCHANGE_NAME}, {client.taker_fee}\n")
 
+    @try_exc_regular
     def get_launch_id(self):
         with open(self.launch_params_log_file_path, 'r') as launch_param_log:
             last_line = launch_param_log.readlines()[-1]
@@ -43,6 +47,7 @@ class Logging:
             except:
                 return 0
 
+    @try_exc_regular
     def check_log_folder_and_files_exist(self):
         if not os.path.exists(self.log_folder_name):
             os.makedirs(self.log_folder_name)

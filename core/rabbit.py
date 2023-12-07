@@ -9,6 +9,7 @@ config = ConfigParser()
 config.read('config.ini', "utf-8")
 
 from core.telegram import Telegram, TG_Groups
+from core.wrappers import try_exc_regular, try_exc_async
 
 
 class Rabbit:
@@ -21,6 +22,7 @@ class Rabbit:
         self.loop = loop
 
     @staticmethod
+    @try_exc_regular
     def get_exchange_name(routing_key: str):
         routing_list = routing_key.split('.')
 
@@ -29,6 +31,7 @@ class Rabbit:
 
         raise f'Wrong routing key:{routing_key}'
 
+    @try_exc_regular
     def add_task_to_queue(self, message, queue_name):
         if hasattr(RabbitMqQueues, queue_name):
             event_name = getattr(RabbitMqQueues, queue_name)
@@ -43,38 +46,23 @@ class Rabbit:
             print(f"Method '{queue_name}' not found in RabbitMqQueues class")
             self.telegram.send_message(f"Method '{queue_name}' not found in RabbitMqQueues class", TG_Groups.Alerts)
 
-
-
+    @try_exc_async
     async def setup_mq(self, loop) -> None:
-        print(f"SETUP MQ START")
         self.mq = await connect_robust(self.rabbit_url, loop=loop)
-        print(f"SETUP MQ ENDED")
+        print(f"SETUP MQ DONE")
 
+    @try_exc_async
     async def send_messages(self):
         await self.setup_mq(self.loop)
         while True:
             task = self.tasks.get()
-            try:
-                print('TASK TO MQ:\n\n',task)
-                self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
-                await self.publish_message(**task)
-            except Exception as e:
-                error_message = f"\n\nERROR WITH SENDING TO MQ: {str(e)}, TASK: \n{task}\n\n"
-                print(error_message)
-                self.telegram.send_message(error_message, TG_Groups.Alerts)
-                try:
-                    await self.setup_mq(self.loop)
-                    await asyncio.sleep(1)
-                    await self.publish_message(**task)
-                except Exception as e:
-                    error_message = f"\n\nERROR AFTER RECONNECTING TO MQ: {str(e)}"
-                    print(error_message)
-                    self.telegram.send_message(error_message, TG_Groups.Alerts)
+            print('TASK TO MQ:\n\n',task)
+            self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
+            await self.publish_message(**task)
+            self.tasks.task_done()
+            await asyncio.sleep(0.1)
 
-            finally:
-                self.tasks.task_done()
-                await asyncio.sleep(0.1)
-
+    @try_exc_async
     async def publish_message(self, message, routing_key, exchange_name, queue_name):
         channel = await self.mq.channel()
         exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
