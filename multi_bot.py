@@ -482,23 +482,17 @@ class MultiBot:
 
     @staticmethod
     @try_exc_regular
-    def _fit_sizes(max_deal_size, client_buy, client_sell, buy_market, sell_market, buy_price, sell_price):
+    def _fit_sizes(deal_size, client_buy, client_sell, buy_market, sell_market, buy_price, sell_price):
         # print(f"Started _fit_sizes: AMOUNT: {amount}")
-        client_buy.fit_sizes(max_deal_size, buy_price, buy_market)
-        client_sell.fit_sizes(max_deal_size, sell_price, sell_market)
+
         # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
-        max_amount = min([client_buy.amount, client_sell.amount])
-        if client_buy.EXCHANGE_NAME == 'OKX' or client_sell.EXCHANGE_NAME == 'OKX':
-            if 0 not in [client_buy.amount, client_sell.amount]:
-                max_amount = max([client_buy.amount, client_sell.amount])
-            else:
-                max_amount = 0
-        print('BUY EXCH', client_buy.amount)
-        print('SELL EXCH', client_sell.amount)
-        client_buy.amount = max_amount
-        client_sell.amount = max_amount
-        print(f"\n\n\nSIZES FIT\nBUY MARKET: {buy_market}\nSELL MARKET: {sell_market}\nFIT AMOUNT: {max_amount}\n\n\n")
-        return max_amount
+        step_size = max(client_buy.instruments[buy_market]['step_size'],
+                        client_buy.instruments[sell_market]['step_size'])
+        size = round(deal_size / step_size) * step_size
+        client_buy.amount = size
+        client_sell.amount = size
+        client_buy.fit_sizes(buy_price, buy_market)
+        client_sell.fit_sizes(sell_price, sell_market)
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -536,30 +530,13 @@ class MultiBot:
 
     @try_exc_async
     async def execute_deal(self, chosen_deal: dict, time_choose) -> None:
-        # print(f"B:{chosen_deal['buy_exch'].EXCHANGE_NAME}|S:{chosen_deal['sell_exch'].EXCHANGE_NAME}")
-        # print(f"BP:{chosen_deal['expect_buy_px']}|SP:{chosen_deal['expect_sell_px']}")
-        # await asyncio.sleep(5)
-        # return
-        # example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
-        #            'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
-        #            'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
-        #            'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
-        #            'sell_market': 'pf_agldusd',
-        #            'datetime': datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
-        #            'deal_value': 'open|close|half-close'}
         buy_exchange = chosen_deal['buy_exchange']
         sell_exchange = chosen_deal['sell_exchange']
         client_buy = self.clients_with_names[buy_exchange]
         client_sell = self.clients_with_names[sell_exchange]
         coin = chosen_deal['coin']
-
         buy_market = chosen_deal['buy_market']
         sell_market = chosen_deal['sell_market']
-        # tasks = [asyncio.create_task(client_buy.get_orderbook_by_symbol(buy_market)),
-        #          asyncio.create_task(client_sell.get_orderbook_by_symbol(sell_market))]
-        # orderbooks = await asyncio.gather(*tasks, return_exceptions=True)
-        # ob_buy = orderbooks[0]
-        # ob_sell = orderbooks[1]
         target_profit = self.get_target_profit(chosen_deal['deal_direction'])
         ob_buy = self.clients_with_names[buy_exchange].get_orderbook(buy_market)
         ob_sell = self.clients_with_names[sell_exchange].get_orderbook(sell_market)
