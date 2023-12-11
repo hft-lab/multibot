@@ -48,7 +48,7 @@ class ArbitrageFinder:
                             buy_mrkt = self.markets[coin][ex_1]
                             sell_mrkt = self.markets[coin][ex_2]
                             buy_ticksize = client_1.instruments[buy_mrkt]['tick_size']
-                            sell_ticksize = client_2.instruments[buy_mrkt]['tick_size']
+                            sell_ticksize = client_2.instruments[sell_mrkt]['tick_size']
                             target_profit, deal_direction = self.check_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
                             if buy_ticksize / ob_1['top_bid'] > self.profit_taker:
                                 target_profit = buy_ticksize / ob_1['top_bid'] * 1.5
