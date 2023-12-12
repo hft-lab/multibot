@@ -45,6 +45,7 @@ class DB:
             balance_id = uuid.uuid4()
             sum_abs_position_usd = sum([abs(x.get('amount_usd', 0)) for _, x in client.get_positions().items()])
             balance = client.get_balance()
+            current_margin = round(sum_abs_position_usd / balance, 1) if balance else 0
             message = {
                 'id': balance_id,
                 'datetime': datetime.utcnow(),
@@ -58,7 +59,7 @@ class DB:
                 'env': multibot.env,
                 'chat_id': 123,
                 'bot_token': 'placeholder',
-                'current_margin': round(sum_abs_position_usd / balance, 1)
+                'current_margin': current_margin
             }
             self.rabbit.add_task_to_queue(message, "BALANCES")
 
