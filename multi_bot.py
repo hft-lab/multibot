@@ -487,7 +487,7 @@ class MultiBot:
 
         # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         step_size = max(client_buy.instruments[buy_market]['step_size'],
-                        client_buy.instruments[sell_market]['step_size'])
+                        client_sell.instruments[sell_market]['step_size'])
         size = round(deal_size / step_size) * step_size
         client_buy.amount = size
         client_sell.amount = size
