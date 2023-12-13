@@ -1,13 +1,15 @@
+import uuid
 from datetime import datetime
 from core.wrappers import try_exc_regular
 from typing import List
 
 class AP:
-    def __init__(self, coin, client_buy, client_sell, buy_exchange, sell_exchange, buy_market,
+    def __init__(self, ap_id,coin, client_buy, client_sell, buy_exchange, sell_exchange, buy_market,
                  sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_size,
                  buy_size, deal_size_coin, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
                  datetime, timestamp, deal_direction):
         # general section
+        self.ap_id = ap_id
         self.coin = coin
         self.deal_size_coin = deal_size_coin
         self.deal_size_usd = deal_size_usd
@@ -106,6 +108,7 @@ class ArbitrageFinder:
                                 deal_size_usd = deal_size * float(ob_2['top_bid'])
                                 expect_profit_abs = profit * deal_size_usd
                                 possibility = AP(
+                                    ap_id=uuid.uuid4(),
                                     coin=coin,
                                     client_buy=client_1,
                                     client_sell=client_2,

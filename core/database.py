@@ -124,11 +124,11 @@ class DB:
             'status': 'Processing',
             'bot_launch_id': 12345678
         }
-        print(f"SENDING TO MQ: {message}")
+        print(f"SENDING TO MQ. SAVE AP: {message}")
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
     @try_exc_regular
-    def save_orders(self, client, side, parent_id, order_place_time, expect_price, symbol, env):
+    def save_order(self, client, side, parent_id, order_place_time, expect_price, symbol, env):
         order_id = uuid.uuid4()
         message = {
             'id': order_id,
@@ -153,7 +153,7 @@ class DB:
             'order_place_time': order_place_time,
             'env': env,
         }
-
+        print(f"SENDING TO MQ. SAVE ORDER: {message}")
         self.rabbit.add_task_to_queue(message, "ORDERS")
         return order_id
 

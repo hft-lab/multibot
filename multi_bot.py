@@ -411,7 +411,7 @@ class MultiBot:
         shifted_buy_px = self.chosen_deal.limit_buy_px
         shifted_sell_px = self.chosen_deal.limit_sell_px
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-        ap_id = uuid.uuid4()
+        ap_id = self.chosen_deal.ap_id
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
 
@@ -420,10 +420,10 @@ class MultiBot:
             TG_Groups.MainGroup)
 
         # Как разберусь с response нужно будет извлечь из него exchange_order_id и добавить в save_orders, уйти от Last_ORDER_ID
-        order_id_buy = self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px,
-                                           buy_market, self.env)
-        order_id_sell = self.db.save_orders(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px,
-                                            sell_market, self.env)
+        order_id_buy = self.db.save_order(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px,
+                                          buy_market, self.env)
+        order_id_sell = self.db.save_order(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px,
+                                           sell_market, self.env)
 
         if client_buy.LAST_ORDER_ID == 'default':
             self.telegram.send_message(
