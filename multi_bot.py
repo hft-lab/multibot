@@ -194,8 +194,6 @@ class MultiBot:
     #     else:
     #         return True
 
-
-
     @try_exc_async
     async def launch(self):
         self.db = DB(self.rabbit)
@@ -247,7 +245,7 @@ class MultiBot:
                 # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()
 
-                if len(potential_deals)>0:
+                if len(potential_deals):
                     # Шаг 3 (Выбор лучшей AP, если их несколько)
                     self.chosen_deal: AP = self.choose_deal(potential_deals)
                     if self.chosen_deal:

@@ -124,6 +124,7 @@ class DB:
             'status': 'Processing',
             'bot_launch_id': 12345678
         }
+        print(f"SENDING TO MQ: {message}")
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
     @try_exc_regular
