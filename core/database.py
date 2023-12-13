@@ -14,7 +14,7 @@ from core.wrappers import try_exc_regular, try_exc_async
 # from enums import Context
 import requests
 import asyncpg
-from ..arbitrage_finder import AP
+from arbitrage_finder import AP
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")

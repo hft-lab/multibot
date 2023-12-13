@@ -3,7 +3,6 @@ import datetime
 import requests
 
 from configparser import ConfigParser
-from ..arbitrage_finder import AP
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")
@@ -92,7 +91,7 @@ class Telegram:
         return message
 
     @staticmethod
-    def ap_executed_message(multibot, ap:AP):
+    def ap_executed_message(multibot, ap):
         message = f"AP EXECUTED | ENV: {multibot.env}\n"
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.datetime.utcnow()}\n"
