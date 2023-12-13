@@ -33,7 +33,6 @@ class Telegram:
             print('TG_DEBUG IS OFF')
         else:
             group = tg_group_obj if tg_group_obj else TG_Groups.DebugDima
-            print(group)
             url = self.tg_url + group['bot_token'] + "/sendMessage"
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML", "text": "<pre>" + str(message) + "</pre>"}
             try:
@@ -54,8 +53,7 @@ class Telegram:
         message += f"ORDER SIZE: {multibot.setts['ORDER_SIZE']}\n"
         message += f"TARGET PROFIT: {multibot.setts['TARGET_PROFIT']}\n"
         message += f"CLOSE PROFIT: {multibot.setts['CLOSE_PROFIT']}\n"
-        message += f"START BALANCE: {multibot.start}\n"
-        message += f"CURRENT BALANCE: {multibot.finish}\n"
+        message += f"START BALANCE: TBD\n"
         return message
 
     @staticmethod

@@ -1,5 +1,40 @@
 from datetime import datetime
-from core.wrappers import try_exc_regular, try_exc_async
+from core.wrappers import try_exc_regular
+from typing import List
+
+class AP:
+    def __init__(self, coin, buy_exchange, sell_exchange, buy_market,
+                 sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_size,
+                 buy_size, deal_size_coin, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
+                 datetime, timestamp, deal_direction):
+        self.coin = coin
+        self.buy_exchange = buy_exchange
+        self.sell_exchange = sell_exchange
+        self.buy_market = buy_market
+        self.sell_market = sell_market
+        self.buy_fee = buy_fee
+        self.sell_fee = sell_fee
+        self.sell_price = sell_price
+        self.buy_price = buy_price
+        self.sell_size = sell_size
+        self.buy_size = buy_size
+        self.deal_size_coin = deal_size_coin
+        self.deal_size_usd = deal_size_usd
+        self.expect_profit_rel = expect_profit_rel
+        self.expect_profit_abs_usd = expect_profit_abs_usd
+        self.datetime = datetime
+        self.timestamp = timestamp
+        self.deal_direction = deal_direction
+        self.time_parser = None
+        self.time_define_potential_deals = None
+        self.time_choose_deal = None
+        self.time_sent = None  # время отправки ордеров
+        self.ob_buy = None
+        self.ob_sell = None
+        self.client_buy = None
+        self.client_sell = None
+        self.shifted_buy_px = None
+        self.shifted_sell_px = None
 
 
 class ArbitrageFinder:
@@ -33,7 +68,9 @@ class ArbitrageFinder:
         return target_profit, deal_direction
 
     @try_exc_regular
-    def arbitrage(self, data, time_parse):
+    def arbitrage_possibilities(self, data) -> List[AP]:
+        # data format:
+        # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
         possibilities = []
         poses = {x: y.get_positions() for x, y in self.clients_list.items()}
         for coin in self.coins:
@@ -61,26 +98,25 @@ class ArbitrageFinder:
                                 deal_size = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
                                 deal_size_usd = deal_size * float(ob_2['top_bid'])
                                 expect_profit_abs = profit * deal_size_usd
-                                possibility = {
-                                    'coin': coin,
-                                    'buy_exchange': ex_1,
-                                    'sell_exchange': ex_2,
-                                    'buy_market': buy_mrkt,
-                                    'sell_market': sell_mrkt,
-                                    'buy_fee': self.fees[ex_1],
-                                    'sell_fee': self.fees[ex_2],
-                                    'sell_price': float(ob_2['top_bid']),
-                                    'buy_price': float(ob_1['top_ask']),
-                                    'sell_size': float(ob_1['bid_vol']),
-                                    'buy_size': float(ob_2['ask_vol']),
-                                    'deal_size_coin': deal_size,
-                                    'deal_size_usd': deal_size_usd,
-                                    'expect_profit_rel': round(profit, 5),
-                                    'expect_profit_abs_usd': round(expect_profit_abs, 3),
-                                    'datetime': datetime.utcnow(),
-                                    'timestamp': int(round(datetime.utcnow().timestamp() * 1000)),
-                                    'time_parser': time_parse,
-                                    'deal_direction': deal_direction}
+                                possibility = AP(
+                                    coin=coin,
+                                    buy_exchange=ex_1,
+                                    sell_exchange=ex_2,
+                                    buy_market=buy_mrkt,
+                                    sell_market=sell_mrkt,
+                                    buy_fee=self.fees[ex_1],
+                                    sell_fee=self.fees[ex_2],
+                                    sell_price=float(ob_2['top_bid']),
+                                    buy_price=float(ob_1['top_ask']),
+                                    sell_size=float(ob_1['bid_vol']),
+                                    buy_size=float(ob_2['ask_vol']),
+                                    deal_size_coin=deal_size,
+                                    deal_size_usd=deal_size_usd,
+                                    expect_profit_rel=round(profit, 5),
+                                    expect_profit_abs_usd=round(expect_profit_abs, 3),
+                                    datetime=datetime.utcnow(),
+                                    timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
+                                    deal_direction=deal_direction)
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
                                 # with open('arbi.csv', 'a', newline='') as file:
                                 #     writer = csv.writer(file)
@@ -92,7 +128,7 @@ class ArbitrageFinder:
 
 if __name__ == '__main__':
     pass
-    from clients_markets_data import coins_symbols_client
+    # from clients_markets_data import coins_symbols_client
     # # from clients.kraken import KrakenClient
     # # from clients.binance import BinanceClient
     # # from clients.dydx import DydxClient
@@ -103,4 +139,3 @@ if __name__ == '__main__':
     # finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
     # data = {}
     # finder.arbitrage(data)
-

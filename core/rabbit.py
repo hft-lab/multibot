@@ -56,8 +56,8 @@ class Rabbit:
         await self.setup_mq(self.loop)
         while True:
             task = self.tasks.get()
-            print('TASK TO MQ:\n\n',task)
-            self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
+            # print('TASK TO MQ:\n\n',task)
+            # self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
             await self.publish_message(**task)
             self.tasks.task_done()
             await asyncio.sleep(0.1)
