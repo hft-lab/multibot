@@ -94,12 +94,12 @@ class DB:
     #                                queue_name=RabbitMqQueues.BALANCE_DETALIZATION
     #                                )
     @try_exc_regular
-    def save_arbitrage_possibilities(self, _id, ap : AP):
+    def save_arbitrage_possibilities(self, ap : AP):
         expect_profit_usd = ((ap.sell_price - ap.buy_price) / ap.buy_price - (
                 ap.client_buy.taker_fee + ap.client_sell.taker_fee)) * ap.client_buy.amount
         expect_amount_usd = ap.client_buy.amount * (ap.sell_price + ap.buy_price) / 2
         message = {
-            'id': _id,
+            'id': ap.ap_id,
             'datetime': datetime.utcnow(),
             'ts': int(round(datetime.utcnow().timestamp())),
             'buy_exchange': ap.buy_exchange,
@@ -128,15 +128,14 @@ class DB:
         self.rabbit.add_task_to_queue(message, "ARBITRAGE_POSSIBILITIES")
 
     @try_exc_regular
-    def save_order(self, client, side, parent_id, order_place_time, expect_price, symbol, env):
-        order_id = uuid.uuid4()
+    def save_order(self, order_id, exchange_order_id, client, side, parent_id, order_place_time, expect_price, symbol, env):
         message = {
             'id': order_id,
             'datetime': datetime.utcnow(),
             'ts': int(round((datetime.utcnow().timestamp()) * 1000)),
             'context': 'bot',
             'parent_id': parent_id,
-            'exchange_order_id': client.LAST_ORDER_ID,
+            'exchange_order_id': exchange_order_id,
             'type': 'GTT' if client.EXCHANGE_NAME == 'DYDX' else 'GTC',
             'status': 'Processing',
             'exchange': client.EXCHANGE_NAME,
@@ -155,7 +154,6 @@ class DB:
         }
         print(f"SENDING TO MQ. SAVE ORDER: {message}")
         self.rabbit.add_task_to_queue(message, "ORDERS")
-        return order_id
 
     # ex __check_start_launch_config
     # Смотрится есть ли в базе неиспользованные настройки, если есть используются они, если нет,

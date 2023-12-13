@@ -21,7 +21,7 @@ class AP:
         self.time_parser = None
         self.time_define_potential_deals = None
         self.time_choose = None
-        self.time_sent = None  # время отправки ордеров
+        self.time_sent = None  # Момент отправки ордеров
 
         # buy section
         self.client_buy = client_buy
@@ -33,6 +33,9 @@ class AP:
         self.ob_buy = None
         self.limit_buy_px = None
         self.max_buy_vol = None
+        self.buy_exchange_order_id = None
+        self.buy_order_place_time = None
+        self.order_id_buy = None
 
         # sell section
         self.client_sell = client_sell
@@ -44,6 +47,10 @@ class AP:
         self.ob_sell = None
         self.limit_sell_px = None
         self.max_sell_vol = None
+        self.sell_exchange_order_id = None
+        self.sell_order_place_time = None
+        self.order_id_sell = None
+
 
 
 class ArbitrageFinder:

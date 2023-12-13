@@ -90,20 +90,19 @@ class Telegram:
             traceback.print_exc()
         return message
 
-    @staticmethod
-    def ap_executed_message(multibot, ap):
-        message = f"AP EXECUTED | ENV: {multibot.env}\n"
+
+    def send_ap_executed_message(self, ap, group: TG_Groups = None):
+        message = f"AP EXECUTED\n"
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
         message += f"B.P.: {str(ap.buy_price)} | S.P.: {str(ap.sell_price)}\n"
-        return message
+        self.send_message(message, group)
 
-    @staticmethod
-    def order_error_message(env, symbol, client, order_id):
+    def send_order_error_message(self, env, symbol, client, order_id, group: TG_Groups = None):
         message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {env}\n"
         message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
-        return message
+        self.send_message(message, group)
 
     @staticmethod
     def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):

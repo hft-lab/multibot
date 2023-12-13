@@ -98,7 +98,7 @@ class MultiBot:
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
-        self.chosen_deal= None
+        self.chosen_deal : AP
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
             # client.markets_list = close_markets
@@ -258,7 +258,7 @@ class MultiBot:
                             if self.state == 'BOT':
                                 # Шаг 5 (Отправка ордеров на исполнение и получение результатов)
                                 responses = await self.execute_deal()
-                                # Шаг 6 (Логирование результатов и нотификация)
+                                # Шаг 6 (Анализ, логирование, нотификация по ордерам
                                 await self.notification_and_logging(responses)
                                 self.update_all_av_balances()
                                 await asyncio.sleep(self.deal_pause)
@@ -380,9 +380,14 @@ class MultiBot:
                   f"\n {sell_exchange=}, {client_sell.amount=}")
 
             return
+        id = str(uuid.uuid4())
+        self.chosen_deal.order_id_buy = id
+        cl_id_buy = f"api_deal_{id.replace('-', '')[:20]}"
 
-        cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
-        cl_id_sell = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
+        id = str(uuid.uuid4())
+        self.chosen_deal.order_id_sell = id
+        cl_id_sell = f"api_deal_{id.replace('-', '')[:20]}"
+
         self.chosen_deal.time_sent = int(datetime.utcnow().timestamp() * 1000)
         orders = []
         orders.append(self.loop_2.create_task(
@@ -402,40 +407,39 @@ class MultiBot:
     async def notification_and_logging(self, responses):
         message = f"Orders were created: [{self.chosen_deal.buy_exchange=}, {self.chosen_deal.sell_exchange=}]\n{responses=}"
         print(message)
+
         self.telegram.send_message(message,TG_Groups.DebugDima)
 
+        time_sent = self.chosen_deal.time_sent
+        self.chosen_deal.buy_exchange_order_id = responses[0]['exchange_order_id']
+        self.chosen_deal.sell_exchange_order_id = responses[1]['exchange_order_id']
         self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
         self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
-        client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
-        time_sent = self.chosen_deal.time_sent
-        shifted_buy_px = self.chosen_deal.limit_buy_px
-        shifted_sell_px = self.chosen_deal.limit_sell_px
-        buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+        self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - time_sent) / 1000
+        self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - time_sent) / 1000
+
         ap_id = self.chosen_deal.ap_id
-        buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
-        sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+        client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
+        shifted_buy_px,shifted_sell_px = self.chosen_deal.limit_buy_px,self.chosen_deal.limit_sell_px
+        buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+        order_id_buy, order_id_sell = self.chosen_deal.order_id_buy,self.chosen_deal.order_id_sell
+        buy_exchange_order_id,sell_exchange_order_id = self.chosen_deal.buy_exchange_order_id,self.chosen_deal.sell_exchange_order_id
+        buy_order_place_time = self.chosen_deal.buy_order_place_time
+        sell_order_place_time = self.chosen_deal.sell_order_place_time
 
-        self.telegram.send_message(
-            self.telegram.ap_executed_message(self, self.chosen_deal),
-            TG_Groups.MainGroup)
+        self.telegram.send_ap_executed_message(self.chosen_deal, TG_Groups.MainGroup)
+        self.db.save_arbitrage_possibilities(self.chosen_deal)
 
-        # Как разберусь с response нужно будет извлечь из него exchange_order_id и добавить в save_orders, уйти от Last_ORDER_ID
-        order_id_buy = self.db.save_order(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px,
+
+        self.db.save_order(order_id_buy, buy_exchange_order_id, client_buy,  'buy', ap_id, buy_order_place_time, shifted_buy_px,
                                           buy_market, self.env)
-        order_id_sell = self.db.save_order(client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px,
+        self.db.save_order(order_id_sell, sell_exchange_order_id, client_sell, 'sell', ap_id, sell_order_place_time, shifted_sell_px,
                                            sell_market, self.env)
 
-        if client_buy.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(
-                self.telegram.order_error_message(self.env, buy_market, client_buy, order_id_buy),
-                TG_Groups.Alerts)
-        if client_sell.LAST_ORDER_ID == 'default':
-            self.telegram.send_message(
-                self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
-                TG_Groups.Alerts)
-
-        self.db.save_arbitrage_possibilities(ap_id, self.chosen_deal)
-
+        if buy_exchange_order_id == 'default':
+            self.telegram.send_order_error_message(self.env, buy_market, client_buy, order_id_buy,TG_Groups.Alerts)
+        if sell_exchange_order_id == 'default':
+            self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell,TG_Groups.Alerts)
 
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
     @try_exc_regular
