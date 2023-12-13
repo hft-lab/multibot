@@ -94,7 +94,7 @@ class DB:
     #                                queue_name=RabbitMqQueues.BALANCE_DETALIZATION
     #                                )
     @try_exc_regular
-    def save_arbitrage_possibilities(self, _id, ap : AP, max_buy_vol, max_sell_vol):
+    def save_arbitrage_possibilities(self, _id, ap : AP):
         expect_profit_usd = ((ap.sell_price - ap.buy_price) / ap.buy_price - (
                 ap.client_buy.taker_fee + ap.client_sell.taker_fee)) * ap.client_buy.amount
         expect_amount_usd = ap.client_buy.amount * (ap.sell_price + ap.buy_price) / 2
@@ -107,8 +107,8 @@ class DB:
             'symbol': ap.coin,
             'buy_order_id': ap.client_buy.LAST_ORDER_ID,
             'sell_order_id': ap.client_sell.LAST_ORDER_ID,
-            'max_buy_vol_usd': round(max_buy_vol * ap.buy_price),
-            'max_sell_vol_usd': round(max_sell_vol * ap.sell_price),
+            'max_buy_vol_usd': round(ap.max_buy_vol * ap.buy_price),
+            'max_sell_vol_usd': round(ap.max_sell_vol * ap.sell_price),
             'expect_buy_price': ap.buy_price,
             'expect_sell_price': ap.sell_price,
             'expect_amount_usd': expect_amount_usd,
@@ -118,7 +118,7 @@ class DB:
             'expect_fee_buy': ap.client_buy.taker_fee,
             'expect_fee_sell': ap.client_sell.taker_fee,
             'time_parser': ap.time_parser,
-            'time_choose': ap.time_choose_deal,
+            'time_choose': ap.time_choose,
             'chat_id': 12345678,
             'bot_token': 'Placeholder',
             'status': 'Processing',

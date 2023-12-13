@@ -17,7 +17,7 @@ from core.database import DB
 from core.telegram import Telegram, TG_Groups
 from core.rabbit import Rabbit
 from clients.core.all_clients import ALL_CLIENTS
-from core.wrappers import timeit, try_exc_regular, try_exc_async
+from core.wrappers import try_exc_regular, try_exc_async
 import sys
 import configparser
 
@@ -253,7 +253,7 @@ class MultiBot:
                         self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
                         self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
                         self.chosen_deal.time_choose = time_end_choose - time_end_define_potential_deals
-                        # Шаг 4 (Проверка, что выбранная AP все еще действует)
+                        # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
                         if self.check_ap_still_good():
                             if self.state == 'BOT':
                                 # Шаг 5 (Отправка ордеров на исполнение и получение результатов)
@@ -404,8 +404,8 @@ class MultiBot:
         print(message)
         self.telegram.send_message(message,TG_Groups.DebugDima)
 
-        max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
-        max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
+        self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
+        self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         time_sent = self.chosen_deal.time_sent
         shifted_buy_px = self.chosen_deal.limit_buy_px
@@ -434,13 +434,13 @@ class MultiBot:
                 self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
                 TG_Groups.Alerts)
 
-        self.db.save_arbitrage_possibilities(ap_id, self.chosen_deal, max_buy_vol, max_sell_vol)
+        self.db.save_arbitrage_possibilities(ap_id, self.chosen_deal)
 
 
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
     @try_exc_regular
     def update_all_av_balances(self):
-        for client in self.clients_with_names.values():
+        for client in self.clients:
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
     @try_exc_regular

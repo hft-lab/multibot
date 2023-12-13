@@ -18,7 +18,7 @@ class AP:
         self.deal_direction = deal_direction
         self.time_parser = None
         self.time_define_potential_deals = None
-        self.time_choose_deal = None
+        self.time_choose = None
         self.time_sent = None  # время отправки ордеров
 
         # buy section
@@ -30,6 +30,8 @@ class AP:
         self.buy_size = buy_size
         self.ob_buy = None
         self.limit_buy_px = None
+        self.max_buy_vol = None
+
         # sell section
         self.client_sell = client_sell
         self.sell_exchange = sell_exchange
@@ -39,6 +41,7 @@ class AP:
         self.sell_size = sell_size
         self.ob_sell = None
         self.limit_sell_px = None
+        self.max_sell_vol = None
 
 
 class ArbitrageFinder:
