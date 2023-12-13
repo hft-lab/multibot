@@ -3,7 +3,7 @@ from core.wrappers import try_exc_regular
 from typing import List
 
 class AP:
-    def __init__(self, coin, buy_exchange, sell_exchange, buy_market,
+    def __init__(self, coin, client_buy, client_sell, buy_exchange, sell_exchange, buy_market,
                  sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_size,
                  buy_size, deal_size_coin, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
                  datetime, timestamp, deal_direction):
@@ -22,7 +22,7 @@ class AP:
         self.time_sent = None  # время отправки ордеров
 
         # buy section
-        self.client_buy = None
+        self.client_buy = client_buy
         self.buy_exchange = buy_exchange
         self.buy_market = buy_market
         self.buy_fee = buy_fee
@@ -31,7 +31,7 @@ class AP:
         self.ob_buy = None
         self.limit_buy_px = None
         # sell section
-        self.client_sell = None
+        self.client_sell = client_sell
         self.sell_exchange = sell_exchange
         self.sell_market = sell_market
         self.sell_fee = sell_fee
@@ -104,6 +104,8 @@ class ArbitrageFinder:
                                 expect_profit_abs = profit * deal_size_usd
                                 possibility = AP(
                                     coin=coin,
+                                    client_buy=client_1,
+                                    client_sell=client_2,
                                     buy_exchange=ex_1,
                                     sell_exchange=ex_2,
                                     buy_market=buy_mrkt,
