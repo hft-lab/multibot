@@ -283,7 +283,6 @@ class MultiBot:
                   f"Positions: {json.dumps(client.get_positions(), indent=2)}\n")
 
         self.db.save_launch_balance(self)
-        input('STOP PAUSE\n')
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
         logger_custom = Logging()
