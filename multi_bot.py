@@ -251,7 +251,6 @@ class MultiBot:
                     # Шаг 3 (Выбор лучшей AP, если их несколько)
                     self.chosen_deal: AP = self.choose_deal(potential_deals)
                     if self.chosen_deal:
-                        self.telegram.send_message(f'Chosen_deal не пустой, проверить отработку дальше {vars(self.chosen_deal)}')
                         time_end_choose = time.time()
                         self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
                         self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
@@ -274,7 +273,9 @@ class MultiBot:
                             #     writer.writerow(row_data)
                         else:
                             print(
-                                f'\n\n\nDEAL {vars(self.chosen_deal)} ALREADY EXPIRED\n'
+                                f'\n\n\nDEAL ALREADY EXPIRED\n'
+                                f'EXCH_BUY: {self.chosen_deal.buy_exchange}'
+                                f'EXCH_SELL: {self.chosen_deal.sell_exchange}'
                                 f'OLD PRICES:\n'
                                 f'BUY: {self.chosen_deal.buy_price}\n'
                                 f'SELL: {self.chosen_deal.sell_price}\n'
@@ -327,17 +328,14 @@ class MultiBot:
 
     @try_exc_regular
     def check_ap_still_good(self):
-        buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
 
         target_profit = self.get_target_profit(self.chosen_deal.deal_direction)
-        self.chosen_deal.ob_buy = self.clients_with_names[buy_exchange].get_orderbook(buy_market)
-        self.chosen_deal.ob_sell = self.clients_with_names[sell_exchange].get_orderbook(sell_market)
+        self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
+        self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
 
-        profit = (self.chosen_deal.ob_sell['bids'][0][0] - self.chosen_deal.ob_buy['asks'][0][0]) / \
-                 self.chosen_deal.ob_buy['asks'][0][0]
-        profit = profit - self.clients_with_names[buy_exchange].taker_fee - self.clients_with_names[
-            sell_exchange].taker_fee
+        profit = (self.chosen_deal.ob_sell['bids'][0][0] - self.chosen_deal.ob_buy['asks'][0][0]) / self.chosen_deal.ob_buy['asks'][0][0]
+        profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
         if profit >= target_profit:
             return True
         else:
@@ -361,8 +359,8 @@ class MultiBot:
 
         buy_exchange = self.chosen_deal.buy_exchange
         sell_exchange = self.chosen_deal.sell_exchange
-        client_buy = self.clients_with_names[buy_exchange]
-        client_sell = self.clients_with_names[sell_exchange]
+        client_buy = self.chosen_deal.client_buy
+        client_sell = self.chosen_deal.client_sell
         buy_market = self.chosen_deal.buy_market
         sell_market = self.chosen_deal.sell_market
 
@@ -374,19 +372,15 @@ class MultiBot:
         deal_size_amount = deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
 
         # shift = self.shifts[client_sell.EXCHANGE_NAME + ' ' + client_buy.EXCHANGE_NAME] / 2
-        shifted_buy_px,shifted_sell_px = self.chosen_deal.shifted_buy_px, self.chosen_deal.shifted_sell_px =\
+        self.chosen_deal.limit_buy_px, self.chosen_deal.limit_sell_px = \
             self.get_limit_prices_for_order(self.chosen_deal.ob_buy, self.chosen_deal.ob_sell)
 
-        # shifted_buy_px = price_buy * self.shifts['TAKER']
-        # shifted_sell_px = price_sell / self.shifts['TAKER']
-
         #вынести в отдельный модуль
-        self._fit_sizes(deal_size_amount, client_buy, client_sell, buy_market, sell_market, shifted_buy_px,
-                        shifted_sell_px)
+        self._fit_sizes(deal_size_amount, self.chosen_deal)
         if not client_buy.amount or not client_sell.amount:
             print(f"DEAL IS BELOW MIN SIZE:\n {buy_exchange=}, {client_buy.amount=}"
                   f"\n {sell_exchange=}, {client_sell.amount=}")
-            # Добавить алерт в телегу
+
             return
 
         cl_id_buy = f"api_deal_{str(uuid.uuid4()).replace('-', '')[:20]}"
@@ -411,19 +405,21 @@ class MultiBot:
         message = f"Orders were created: [{self.chosen_deal.buy_exchange=}, {self.chosen_deal.sell_exchange=}]\n{responses=}"
         print(message)
         self.telegram.send_message(message,TG_Groups.DebugDima)
-        expect_buy_px = self.chosen_deal.buy_price
-        expect_sell_px = self.chosen_deal.sell_price
+
         max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
         max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
-        coin = self.chosen_deal.coin
         time_sent = self.chosen_deal.time_sent
-        shifted_buy_px = self.chosen_deal.shifted_buy_px
-        shifted_sell_px = self.chosen_deal.shifted_sell_px
+        shifted_buy_px = self.chosen_deal.limit_buy_px
+        shifted_sell_px = self.chosen_deal.limit_sell_px
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
         ap_id = uuid.uuid4()
         buy_order_place_time = self._check_order_place_time(client_buy, time_sent, responses)
         sell_order_place_time = self._check_order_place_time(client_sell, time_sent, responses)
+
+        self.telegram.send_message(
+            self.telegram.ap_executed_message(self, self.chosen_deal),
+            TG_Groups.MainGroup)
 
         # Как разберусь с response нужно будет извлечь из него exchange_order_id и добавить в save_orders, уйти от Last_ORDER_ID
         order_id_buy = self.db.save_orders(client_buy, 'buy', ap_id, buy_order_place_time, shifted_buy_px,
@@ -440,13 +436,8 @@ class MultiBot:
                 self.telegram.order_error_message(self.env, sell_market, client_sell, order_id_sell),
                 TG_Groups.Alerts)
 
-        self.db.save_arbitrage_possibilities(ap_id, client_buy, client_sell, max_buy_vol, max_sell_vol,
-                                             expect_buy_px, expect_sell_px, self.chosen_deal.time_choose, shift=None,
-                                             time_parser=self.chosen_deal.time_parser, symbol=coin,
-                                             chat_id=config['TELEGRAM']['CHAT_ID'], token=config['TELEGRAM']['TOKEN'])
-        self.telegram.send_message(
-            self.telegram.ap_executed_message(self, client_buy, client_sell, expect_buy_px, expect_sell_px, buy_market),
-            TG_Groups.MainGroup)
+        self.db.save_arbitrage_possibilities(ap_id, self.chosen_deal, max_buy_vol, max_sell_vol)
+
 
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
     @try_exc_regular
@@ -543,19 +534,20 @@ class MultiBot:
     #                                      'time_start': time_start,
     #                                      'time_parser': time.time() - time_start})
 
-    @staticmethod
     @try_exc_regular
-    def _fit_sizes(deal_size, client_buy, client_sell, buy_market, sell_market, buy_price, sell_price):
+    def _fit_sizes(self, deal_size, chosen_deal: AP):
         # print(f"Started _fit_sizes: AMOUNT: {amount}")
-
+        client_buy, client_sell = chosen_deal.client_buy, chosen_deal.client_sell
+        buy_market, sell_market = chosen_deal.buy_market, chosen_deal.sell_market
+        limit_buy_price, limit_sell_price = chosen_deal.limit_buy_px,chosen_deal.limit_sell_px
         # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         step_size = max(client_buy.instruments[buy_market]['step_size'],
                         client_sell.instruments[sell_market]['step_size'])
         size = round(deal_size / step_size) * step_size
         client_buy.amount = size
         client_sell.amount = size
-        client_buy.fit_sizes(buy_price, buy_market)
-        client_sell.fit_sizes(sell_price, sell_market)
+        client_buy.fit_sizes(limit_buy_price, buy_market)
+        client_sell.fit_sizes(limit_sell_price, sell_market)
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):

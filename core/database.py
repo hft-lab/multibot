@@ -14,6 +14,7 @@ from core.wrappers import try_exc_regular, try_exc_async
 # from enums import Context
 import requests
 import asyncpg
+from ..arbitrage_finder import AP
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")
@@ -93,34 +94,33 @@ class DB:
     #                                queue_name=RabbitMqQueues.BALANCE_DETALIZATION
     #                                )
     @try_exc_regular
-    def save_arbitrage_possibilities(self, _id, client_buy, client_sell, max_buy_vol, max_sell_vol, expect_buy_px,
-                                     expect_sell_px, time_choose, shift, time_parser, symbol, chat_id, token):
-        expect_profit_usd = ((expect_sell_px - expect_buy_px) / expect_buy_px - (
-                client_buy.taker_fee + client_sell.taker_fee)) * client_buy.amount
-        expect_amount_usd = client_buy.amount * (expect_sell_px + expect_buy_px) / 2
+    def save_arbitrage_possibilities(self, _id, ap : AP, max_buy_vol, max_sell_vol):
+        expect_profit_usd = ((ap.sell_price - ap.buy_price) / ap.buy_price - (
+                ap.client_buy.taker_fee + ap.client_sell.taker_fee)) * ap.client_buy.amount
+        expect_amount_usd = ap.client_buy.amount * (ap.sell_price + ap.buy_price) / 2
         message = {
             'id': _id,
             'datetime': datetime.utcnow(),
             'ts': int(round(datetime.utcnow().timestamp())),
-            'buy_exchange': client_buy.EXCHANGE_NAME,
-            'sell_exchange': client_sell.EXCHANGE_NAME,
-            'symbol': symbol,
-            'buy_order_id': client_buy.LAST_ORDER_ID,
-            'sell_order_id': client_sell.LAST_ORDER_ID,
-            'max_buy_vol_usd': round(max_buy_vol * expect_buy_px),
-            'max_sell_vol_usd': round(max_sell_vol * expect_sell_px),
-            'expect_buy_price': expect_buy_px,
-            'expect_sell_price': expect_sell_px,
+            'buy_exchange': ap.buy_exchange,
+            'sell_exchange': ap.sell_exchange,
+            'symbol': ap.coin,
+            'buy_order_id': ap.client_buy.LAST_ORDER_ID,
+            'sell_order_id': ap.client_sell.LAST_ORDER_ID,
+            'max_buy_vol_usd': round(max_buy_vol * ap.buy_price),
+            'max_sell_vol_usd': round(max_sell_vol * ap.sell_price),
+            'expect_buy_price': ap.buy_price,
+            'expect_sell_price': ap.sell_price,
             'expect_amount_usd': expect_amount_usd,
-            'expect_amount_coin': client_buy.amount,
+            'expect_amount_coin': ap.client_buy.amount,
             'expect_profit_usd': expect_profit_usd,
             'expect_profit_relative': expect_profit_usd / expect_amount_usd,
-            'expect_fee_buy': client_buy.taker_fee,
-            'expect_fee_sell': client_sell.taker_fee,
-            'time_parser': time_parser,
-            'time_choose': time_choose,
-            'chat_id': chat_id,
-            'bot_token': token,
+            'expect_fee_buy': ap.client_buy.taker_fee,
+            'expect_fee_sell': ap.client_sell.taker_fee,
+            'time_parser': ap.time_parser,
+            'time_choose': ap.time_choose_deal,
+            'chat_id': 12345678,
+            'bot_token': 'Placeholder',
             'status': 'Processing',
             'bot_launch_id': 12345678
         }

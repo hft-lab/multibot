@@ -3,6 +3,7 @@ import datetime
 import requests
 
 from configparser import ConfigParser
+from ..arbitrage_finder import AP
 
 config = ConfigParser()
 config.read('config.ini', "utf-8")
@@ -36,7 +37,7 @@ class Telegram:
             group = tg_group_obj if tg_group_obj else TG_Groups.DebugDima
             url = self.tg_url + group['bot_token'] + "/sendMessage"
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML",
-                            "text": f"<pre> ENV: {self.env}\n{str(message)}</pre>"}
+                            "text": f"<pre>ENV: {self.env}\n{str(message)}</pre>"}
             try:
                 r = requests.post(url, json=message_data)
                 return r.json()
@@ -91,12 +92,12 @@ class Telegram:
         return message
 
     @staticmethod
-    def ap_executed_message(multibot, client_buy, client_sell, expect_buy_px, expect_sell_px, symbol):
+    def ap_executed_message(multibot, ap:AP):
         message = f"AP EXECUTED | ENV: {multibot.env}\n"
-        message += f"SYMBOL: {symbol}\n"
+        message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.datetime.utcnow()}\n"
-        message += f"B.E.: {client_buy.EXCHANGE_NAME} | S.E.: {client_sell.EXCHANGE_NAME}\n"
-        message += f"B.P.: {str(expect_buy_px)} | S.P.: {str(expect_sell_px)}\n"
+        message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
+        message += f"B.P.: {str(ap.buy_price)} | S.P.: {str(ap.sell_price)}\n"
         return message
 
     @staticmethod

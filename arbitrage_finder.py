@@ -29,7 +29,7 @@ class AP:
         self.buy_price = buy_price
         self.buy_size = buy_size
         self.ob_buy = None
-        self.shifted_buy_px = None
+        self.limit_buy_px = None
         # sell section
         self.client_sell = None
         self.sell_exchange = sell_exchange
@@ -38,7 +38,7 @@ class AP:
         self.sell_price = sell_price
         self.sell_size = sell_size
         self.ob_sell = None
-        self.shifted_sell_px = None
+        self.limit_sell_px = None
 
 
 class ArbitrageFinder:
