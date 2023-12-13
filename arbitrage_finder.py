@@ -7,17 +7,8 @@ class AP:
                  sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_size,
                  buy_size, deal_size_coin, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
                  datetime, timestamp, deal_direction):
+        # general section
         self.coin = coin
-        self.buy_exchange = buy_exchange
-        self.sell_exchange = sell_exchange
-        self.buy_market = buy_market
-        self.sell_market = sell_market
-        self.buy_fee = buy_fee
-        self.sell_fee = sell_fee
-        self.sell_price = sell_price
-        self.buy_price = buy_price
-        self.sell_size = sell_size
-        self.buy_size = buy_size
         self.deal_size_coin = deal_size_coin
         self.deal_size_usd = deal_size_usd
         self.expect_profit_rel = expect_profit_rel
@@ -29,11 +20,24 @@ class AP:
         self.time_define_potential_deals = None
         self.time_choose_deal = None
         self.time_sent = None  # время отправки ордеров
-        self.ob_buy = None
-        self.ob_sell = None
+
+        # buy section
         self.client_buy = None
-        self.client_sell = None
+        self.buy_exchange = buy_exchange
+        self.buy_market = buy_market
+        self.buy_fee = buy_fee
+        self.buy_price = buy_price
+        self.buy_size = buy_size
+        self.ob_buy = None
         self.shifted_buy_px = None
+        # sell section
+        self.client_sell = None
+        self.sell_exchange = sell_exchange
+        self.sell_market = sell_market
+        self.sell_fee = sell_fee
+        self.sell_price = sell_price
+        self.sell_size = sell_size
+        self.ob_sell = None
         self.shifted_sell_px = None
 
 
@@ -121,7 +125,6 @@ class ArbitrageFinder:
                                 # with open('arbi.csv', 'a', newline='') as file:
                                 #     writer = csv.writer(file)
                                 #     writer.writerow([str(y) for y in possibility.values()])
-
                                 possibilities.append(possibility)
         return possibilities
 
