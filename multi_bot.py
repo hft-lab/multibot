@@ -305,10 +305,14 @@ class MultiBot:
             self.chosen_deal.expect_profit_rel = profit
             return True
         else:
-            message = f'DEAL ALREADY EXPIRED\n' \
-                      f'EXCH_BUY: {self.chosen_deal.buy_exchange}, EXCH_SELL: {self.chosen_deal.sell_exchange}\n' \
-                      f'OLD PRICES: BUY: {self.chosen_deal.buy_price}, SELL: {self.chosen_deal.sell_price}\n' \
+            message = f'ALERT NAME: AP EXPIRED\n---\n' \
+                      f'DEAL DIRECTION: {self.chosen_deal.deal_direction}\n' \
+                      f'TARGET PROFIT: {self.chosen_deal.target_profit}\n' \
+                      f'EXCH_BUY: {self.chosen_deal.buy_exchange}\nEXCH_SELL: {self.chosen_deal.sell_exchange}\n' \
+                      f'---\nOLD PRICES: BUY: {self.chosen_deal.buy_price}, SELL: {self.chosen_deal.sell_price}\n' \
+                      f'OLD PROFIT: {self.chosen_deal.expect_profit_rel}\n---\n' \
                       f'NEW PRICES: BUY: {self.chosen_deal.ob_buy["asks"][0][0]}, SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n' \
+                      f'NEW PROFIT: {round(profit,6)}\n---\n' \
                       f'TIMESTAMP: {int(round(datetime.utcnow().timestamp() * 1000))}\n'
             print(message)
             self.telegram.send_message(message, TG_Groups.Alerts)
@@ -336,12 +340,18 @@ class MultiBot:
         size_amount = round(deal_size_amount / step_size) * step_size
         client_buy.amount = size_amount
         client_sell.amount = size_amount
+        print('label2')
+        print('client buy:', client_buy.amount)
+        print('client sell:', client_sell.amount)
 
         limit_buy_price, limit_sell_price = self.get_limit_prices_for_order(self.chosen_deal.ob_buy,
                                                                             self.chosen_deal.ob_sell)
         client_buy.fit_sizes(limit_buy_price, buy_market)
         client_sell.fit_sizes(limit_sell_price, sell_market)
-
+        print('label3')
+        print('client buy:', client_buy.amount)
+        print('client sell:', client_sell.amount)
+        input('Wait2')
         # Сохраняем значения, которые пойдут на исполнение на AP
         self.chosen_deal.limit_buy_px = client_buy.price
         self.chosen_deal.limit_sell_px = client_sell.price
@@ -396,6 +406,14 @@ class MultiBot:
         self.chosen_deal.time_sent = int(datetime.utcnow().timestamp() * 1000)
 
         orders = []
+        print('Track Orders Creation')
+        message1 = f'{client_buy.price=},{client_buy.amount=}, {buy_market=}, {cl_id_buy}'
+        message2 = f'{client_sell.price=},{client_sell.amount=}, {sell_market=}, {cl_id_sell}'
+        print(message1)
+        print(message2)
+        input('WAIT')
+        self.telegram.send_message(message1)
+        self.telegram.send_message(message2)
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
         orders.append(self.loop_2.create_task(
@@ -476,7 +494,8 @@ class MultiBot:
         for direction, exchange in {'buy': buy_exchange, 'sell': sell_exchange}.items():
             client = self.clients_with_names[exchange]
             market = self.markets[coin][exchange]
-            available = client.get_balance() * leverage * self.max_position_part / 100
+            total_abs_available_position = client.get_balance() * leverage
+            available = total_abs_available_position * self.max_position_part / 100
             position = 0
             if client.get_positions().get(market):
                 position = abs(client.get_positions()[market]['amount_usd'])
@@ -488,7 +507,7 @@ class MultiBot:
                 else:
                     self.add_trade_exception(coin, exchange, direction,
                                              f'Превышено максимальная доля баланса на монету')
-                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, available,
+                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, total_abs_available_position,
                                                                    self.max_position_part)
                     self.telegram.send_message(message, TG_Groups.Alerts)
                 result[direction] = False

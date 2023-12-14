@@ -106,8 +106,11 @@ class Telegram:
 
     @staticmethod
     def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):
-        message = f"ACTIVE POS {coin} > {max_position_part} %"
-        message += f"Exchange: {exchange} \n Direction: {direction} \n POS: {position} \n AVAIL: {available}"
+        message = f"ALERT: MARKET SHARE THRESHOLD " \
+                  f"MARKET SHARE {round(position/available,3)} > {max_position_part}%\n" \
+                  f"COIN: {coin} \nExchange: {exchange} \n" \
+                  f"Direction: {direction} \nPOSITION: {round(position,1)} \n AVAIL: {round(available,1)}" \
+                  f"ACTION: Добавлены в список исключений"
         return message
 
 # Скрытые шаблоны
