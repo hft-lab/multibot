@@ -109,8 +109,9 @@ class Telegram:
         message = f"ALERT: MARKET SHARE THRESHOLD " \
                   f"MARKET SHARE {round(position/available,3)} > {max_position_part}%\n" \
                   f"COIN: {coin} \nExchange: {exchange} \n" \
-                  f"Direction: {direction} \nPOSITION: {round(position,1)} \n AVAIL: {round(available,1)}" \
-                  f"ACTION: Добавлены в список исключений"
+                  f"Direction: {direction} \nPOSITION: {round(position,1)} \n" \
+                  f"AVAILABLE BALANCE: {round(available,1)}\n" \
+                  f"ACTION: Рынок добавлен список исключений"
         return message
 
 # Скрытые шаблоны

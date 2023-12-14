@@ -18,12 +18,15 @@ class AP:
         self.expect_profit_rel = expect_profit_rel
         self.expect_profit_abs_usd = expect_profit_abs_usd
         self.deal_direction = deal_direction
+
         self.datetime = datetime
         self.timestamp = timestamp
-
+        self.time_end_choose = None
+        self.time_end_define_potential_deals = None
         self.time_parser = None
         self.time_define_potential_deals = None
         self.time_choose = None
+        self.time_check = None
         self.time_sent = None  # Момент отправки ордеров
 
         # buy section

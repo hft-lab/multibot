@@ -246,6 +246,7 @@ class MultiBot:
                     self.chosen_deal: AP = self.choose_deal(potential_deals)
                     if self.chosen_deal:
                         time_end_choose = time.time()
+                        self.chosen_deal.time_end_choose = time.time()
                         self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
                         self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
                         self.chosen_deal.time_choose = time_end_choose - time_end_define_potential_deals
@@ -253,6 +254,7 @@ class MultiBot:
                         if self.check_ap_still_good():
                             # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                             if self.fit_sizes_and_prices():
+                                time_end_fit_sizes = time.time()
                                 # Шаг 6. Финальная проверка профита
                                 if self.final_profit_check():
                                     if self.state == 'BOT':
@@ -285,26 +287,42 @@ class MultiBot:
     def choose_deal(self, potential_deals: List[AP]) -> AP:
         max_profit = 0
         chosen_deal = None
+        # t1= time.time()
         for deal in potential_deals:
+            t2=time.time()
             if deal.expect_profit_rel > max_profit:
                 if self.check_available_balance_and_exceptions(deal.coin, deal.buy_exchange, deal.sell_exchange):
                     max_profit = deal.expect_profit_rel
                     chosen_deal = deal
+                    # t3=time.time()
+                    # print(f'{deal.coin=}\n{deal.buy_exchange=}\n{deal.sell_exchange=}\nTimedelta = {round(t3-t2,3)}\n')
+        # if chosen_deal:
+        #     t4 = time.time()
+        #     print(f'Overall: {round(t4-t1,3)}')
         return chosen_deal
 
     @try_exc_regular
     def check_ap_still_good(self):
+        # t1 = time.time()
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
         self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
-
+        # t2 = time.time()
         profit = (self.chosen_deal.ob_sell['bids'][0][0] - self.chosen_deal.ob_buy['asks'][0][0]) / \
                  self.chosen_deal.ob_buy['asks'][0][0]
         profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
+        # t3 = time.time()
         if profit >= self.chosen_deal.target_profit:
             self.chosen_deal.expect_profit_rel = profit
             return True
         else:
+            # t4 = time.time()
+            # timer_message = f'{round(t2-t1,3)=}\n{round(t3-t2,3)=}\n{round(t4-t3,3)=}\n'
+            # print(timer_message)
+            # self.telegram.send_message(timer_message, TG_Groups.Alerts)
+
+            time_end_check_still_good = time.time()
+            self.chosen_deal.time_check = time_end_check_still_good - self.chosen_deal.time_end_choose
             message = f'ALERT NAME: AP EXPIRED\n---\n' \
                       f'DEAL DIRECTION: {self.chosen_deal.deal_direction}\n' \
                       f'TARGET PROFIT: {self.chosen_deal.target_profit}\n' \
@@ -313,9 +331,17 @@ class MultiBot:
                       f'OLD PROFIT: {self.chosen_deal.expect_profit_rel}\n---\n' \
                       f'NEW PRICES: BUY: {self.chosen_deal.ob_buy["asks"][0][0]}, SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n' \
                       f'NEW PROFIT: {round(profit,6)}\n---\n' \
-                      f'TIMESTAMP: {int(round(datetime.utcnow().timestamp() * 1000))}\n'
+                      f'TIMINGS.\n' \
+                      f'CURRENT TS: {int(round(datetime.utcnow().timestamp() * 1000))}\n' \
+                      f'PARSE TIME: {round(self.chosen_deal.time_parser,5)}\n' \
+                      f'DEFINE POT. DEALS TIME: {round(self.chosen_deal.time_define_potential_deals,5)}\n' \
+                      f'CHOOSE TIME: {round(self.chosen_deal.time_choose,5)}\n' \
+                      f'STILL GOOD CHECK TIME{round(self.chosen_deal.time_check,5)=}\n'
+
             print(message)
             self.telegram.send_message(message, TG_Groups.Alerts)
+
+
             return False
 
     def fit_sizes_and_prices(self):
@@ -340,18 +366,12 @@ class MultiBot:
         size_amount = round(deal_size_amount / step_size) * step_size
         client_buy.amount = size_amount
         client_sell.amount = size_amount
-        print('label2')
-        print('client buy:', client_buy.amount)
-        print('client sell:', client_sell.amount)
 
         limit_buy_price, limit_sell_price = self.get_limit_prices_for_order(self.chosen_deal.ob_buy,
                                                                             self.chosen_deal.ob_sell)
         client_buy.fit_sizes(limit_buy_price, buy_market)
         client_sell.fit_sizes(limit_sell_price, sell_market)
-        print('label3')
-        print('client buy:', client_buy.amount)
-        print('client sell:', client_sell.amount)
-        input('Wait2')
+
         # Сохраняем значения, которые пойдут на исполнение на AP
         self.chosen_deal.limit_buy_px = client_buy.price
         self.chosen_deal.limit_sell_px = client_sell.price
@@ -371,9 +391,10 @@ class MultiBot:
             self.chosen_deal.expect_profit_abs_usd = profit * self.chosen_deal.deal_size_usd
             return True
         else:
-            message = f'MULTIBOT. Final profit check failed. \n' \
-                      f'Actual profit: {round(profit,5)}\n' \
-                      f'Target profit: {self.chosen_deal.target_profit}'
+            message = f'ALERT NAME: FINAL PROFIT CHECK. \n' \
+                      f'ACTUAL PROFIT: {round(profit,5)}\n' \
+                      f'TARGET PROFIT: {self.chosen_deal.target_profit}\n' \
+                      f'LAST AP PROFIT : {round(self.chosen_deal.expect_profit_rel,5)}'
             print(message)
             self.telegram.send_message(message, TG_Groups.Alerts)
             return False
