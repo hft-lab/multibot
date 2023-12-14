@@ -308,8 +308,8 @@ class MultiBot:
         self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
         # t2 = time.time()
-        profit = (self.chosen_deal.ob_sell['bids'][0][0] - self.chosen_deal.ob_buy['asks'][0][0]) / \
-                 self.chosen_deal.ob_buy['asks'][0][0]
+        ob_buy = self.chosen_deal.ob_buy['asks'][0][0]
+        profit = (self.chosen_deal.ob_sell['bids'][0][0] - ob_buy) / ob_buy
         profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
         # t3 = time.time()
         if profit >= self.chosen_deal.target_profit:
@@ -340,14 +340,16 @@ class MultiBot:
 
             print(message)
             self.telegram.send_message(message, TG_Groups.Alerts)
-
-
             return False
 
+    @try_exc_regular
     def fit_sizes_and_prices(self):
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+        min_size_buy = client_buy.instruments[buy_market]['min_size']
+        min_size_sell = client_sell.instruments[sell_market]['min_size']
+        total_min_size = min(min_size_buy, min_size_sell)
 
         # Определяем размер ордеров в крипте
         deal_size_result = self.deal_size_define(buy_exchange, sell_exchange, buy_market, sell_market)
@@ -360,6 +362,8 @@ class MultiBot:
 
         # НУЖНО ДОБАВИТЬ ПРОВЕРКУ НА МИНИМАЛЬНЫЙ РАЗМЕР ОРДЕРА
         deal_size_amount = deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
+        if total_min_size > deal_size_amount:
+            return False
         step_size = max(client_buy.instruments[buy_market]['step_size'],
                         client_sell.instruments[sell_market]['step_size'])
         # Важно, чтобы step_size на двух биржах отличались в ЦЕЛОЕ количество раз, иначе итоговые размеры ордеров могут оказаться разными
@@ -454,7 +458,6 @@ class MultiBot:
 
     @try_exc_async
     async def notification_and_logging(self):
-
         self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
         self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
 
@@ -496,6 +499,7 @@ class MultiBot:
     def in_exchange_exceptions(self, exchange):
         filtered = [item for item in self.exchange_exceptions if item['exchange'] == exchange]
         return len(filtered) > 0
+
     @try_exc_regular
     def add_trade_exception(self, coin, exchange, direction, reason) -> None:
         self.trade_exceptions.append(
@@ -507,7 +511,6 @@ class MultiBot:
         filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
                     item['exchange'] == exchange and item['direction'] == direction]
         return len(filtered) > 0
-
 
     @try_exc_regular
     def check_available_balance_and_exceptions(self, coin, buy_exchange, sell_exchange):
@@ -533,8 +536,6 @@ class MultiBot:
                     self.telegram.send_message(message, TG_Groups.Alerts)
                 result[direction] = False
         return result['buy'] and result['sell']
-
-
 
     # def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
     #     profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
