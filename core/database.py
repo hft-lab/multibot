@@ -95,8 +95,7 @@ class DB:
     #                                )
     @try_exc_regular
     def save_arbitrage_possibilities(self, ap : AP):
-        expect_profit_usd = ((ap.sell_price - ap.buy_price) / ap.buy_price - (
-                ap.client_buy.taker_fee + ap.client_sell.taker_fee)) * ap.client_buy.amount
+
         expect_amount_usd = ap.client_buy.amount * (ap.sell_price + ap.buy_price) / 2
         message = {
             'id': ap.ap_id,
@@ -111,12 +110,12 @@ class DB:
             'max_sell_vol_usd': round(ap.max_sell_vol * ap.sell_price),
             'expect_buy_price': ap.buy_price,
             'expect_sell_price': ap.sell_price,
-            'expect_amount_usd': expect_amount_usd,
-            'expect_amount_coin': ap.client_buy.amount,
-            'expect_profit_usd': expect_profit_usd,
-            'expect_profit_relative': expect_profit_usd / expect_amount_usd,
-            'expect_fee_buy': ap.client_buy.taker_fee,
-            'expect_fee_sell': ap.client_sell.taker_fee,
+            'expect_amount_usd': ap.deal_size_usd,
+            'expect_amount_coin': ap.deal_size_amount,
+            'expect_profit_usd': ap.expect_profit_abs_usd,
+            'expect_profit_relative': ap.expect_profit_rel,
+            'expect_fee_buy': ap.buy_fee,
+            'expect_fee_sell': ap.sell_fee,
             'time_parser': ap.time_parser,
             'time_choose': ap.time_choose,
             'chat_id': 12345678,

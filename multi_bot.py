@@ -305,7 +305,7 @@ class MultiBot:
             self.chosen_deal.expect_profit_rel = profit
             return True
         else:
-            message = f'\nDEAL ALREADY EXPIRED\n' \
+            message = f'DEAL ALREADY EXPIRED\n' \
                       f'EXCH_BUY: {self.chosen_deal.buy_exchange}, EXCH_SELL: {self.chosen_deal.sell_exchange}\n' \
                       f'OLD PRICES: BUY: {self.chosen_deal.buy_price}, SELL: {self.chosen_deal.sell_price}\n' \
                       f'NEW PRICES: BUY: {self.chosen_deal.ob_buy["asks"][0][0]}, SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n' \
@@ -357,6 +357,8 @@ class MultiBot:
         profit = (self.chosen_deal.limit_sell_px - self.chosen_deal.limit_buy_px) / self.chosen_deal.limit_buy_px
         profit = profit - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
         if profit >= self.chosen_deal.target_profit:
+            self.chosen_deal.expect_profit_rel = profit
+            self.chosen_deal.expect_profit_abs_usd = profit * self.chosen_deal.deal_size_usd
             return True
         else:
             message = f'MULTIBOT. Final profit check failed. \n' \
