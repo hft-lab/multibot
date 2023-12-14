@@ -39,8 +39,7 @@ init_time = time.time()
 
 class MultiBot:
     __slots__ = ['deal_pause', 'cycle_parser_delay', 'max_order_size', 'chosen_deal', 'profit_taker', 'shifts',
-                 'rabbit', 'telegram',
-                 'state', 'start_time', 'trade_exceptions', 'deals_counter', 'deals_executed',
+                 'rabbit', 'telegram','state', 'start_time', 'trade_exceptions', 'exchange_exceptions',
                  'available_balances', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
                  'loop_1', 'loop_2', 'loop_3', 'need_check_shift',
                  'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id', 'base_launch_config',
@@ -55,6 +54,7 @@ class MultiBot:
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
         self.trade_exceptions = []
+        self.exchange_exceptions = []
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
         with open(f'rates.txt', 'a') as file:
@@ -85,8 +85,6 @@ class MultiBot:
             self.clients_with_names.update({client.EXCHANGE_NAME: client})
 
         self.start_time = datetime.utcnow().timestamp()
-        self.deals_counter = []
-        self.deals_executed = []
         self.available_balances = {}
         self.session = None
 
@@ -106,12 +104,6 @@ class MultiBot:
             client.markets_list = list(self.markets.keys())
             # client.markets_list = close_markets
             client.run_updater()
-
-        # time.sleep(5)
-        # for client in self.clients:
-        #     print(client.EXCHANGE_NAME)
-        #     print(client.get_all_tops())
-        # quit()
 
         self.base_launch_config = {
             "env": self.setts['ENV'],
@@ -206,9 +198,10 @@ class MultiBot:
 
         self.update_all_av_balances()
         # print('Available_balances', json.dumps(self.available_balances, indent=2))
-
+        #
         # for client in self.clients:
-        #     print(f"{client.EXCHANGE_NAME}: \n Balance: {client.get_balance()}\n"
+        #     print(f"{client.EXCHANGE_NAME}:\n "
+        #           f"Balance: {client.get_balance()}\n"
         #           f"Positions: {json.dumps(client.get_positions(), indent=2)}\n")
 
         self.db.save_launch_balance(self)
@@ -260,36 +253,26 @@ class MultiBot:
                         if self.check_ap_still_good():
                             # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                             if self.fit_sizes_and_prices():
-                                if self.state == 'BOT':
-                                    # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                                    await self.execute_deal()
-                                    # Шаг 7 (Анализ, логирование, нотификация по ордерам
-                                    await self.notification_and_logging()
-                                    # Удалить обнуление Last Order ID, когда разберусь с ним
-                                    for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
-                                        client.error_info = None
-                                        client.LAST_ORDER_ID = 'default'
-                                    self.update_all_av_balances()
-                                    await asyncio.sleep(self.deal_pause)
-                                if self.state == 'PARSER':
+                                # Шаг 6. Финальная проверка профита
+                                if self.final_profit_check():
+                                    if self.state == 'BOT':
+                                        # Шаг 7 (Отправка ордеров на исполнение и получение результатов)
+                                        await self.execute_deal()
+                                        # Шаг 8 (Анализ, логирование, нотификация по ордерам
+                                        await self.notification_and_logging()
+                                        # Удалить обнуление Last Order ID, когда разберусь с ним
+                                        for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
+                                            client.error_info = None
+                                            client.LAST_ORDER_ID = 'default'
+                                        self.update_all_av_balances()
+                                        await asyncio.sleep(self.deal_pause)
+                                    if self.state == 'PARSER':
                                         pass
 
                             # with open('ap_still_active_status.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)
                             #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients']
                             #     writer.writerow(row_data)
-                        else:
-                            print(
-                                f'\n\n\nDEAL ALREADY EXPIRED\n'
-                                f'EXCH_BUY: {self.chosen_deal.buy_exchange}'
-                                f'EXCH_SELL: {self.chosen_deal.sell_exchange}'
-                                f'OLD PRICES:\n'
-                                f'BUY: {self.chosen_deal.buy_price}\n'
-                                f'SELL: {self.chosen_deal.sell_price}\n'
-                                f'NEW PRICES:\n'
-                                f'BUY: {self.chosen_deal.ob_buy["asks"][0][0]}\n'
-                                f'SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n'
-                                f'TIMESTAMP: {int(round(datetime.utcnow().timestamp() * 1000))}\n')
 
     @try_exc_regular
     def get_data_for_parser(self):
@@ -300,55 +283,35 @@ class MultiBot:
 
     @try_exc_regular
     def choose_deal(self, potential_deals: List[AP]) -> AP:
-        max_profit = self.profit_close
-        deal_direction = 'open'
+        max_profit = 0
         chosen_deal = None
         for deal in potential_deals:
-            buy_exch = deal.buy_exchange
-            sell_exch = deal.sell_exchange
-            try:
-                deal_size = self.deal_size_define(buy_exch, sell_exch, deal.buy_market, deal.sell_market)
-            except Exception:
-                traceback.print_exc()
-                print(f"LINE 372 {self.available_balances=}")
-                self.telegram.send_message(f'Мультибот. Произошел обрабатываемый экспешн при расчете Deal Size',
-                                           TG_Groups.Alerts)
-                continue
-            if deal_size >= self.max_order_size:
-                if deal_direction != deal.deal_direction:
-                    if deal_direction == 'close':
-                        continue
-                    elif deal_direction == 'open':
-                        chosen_deal = deal
-                        continue
-                    elif deal.deal_direction == 'close':
-                        chosen_deal = deal
-                        continue
-                    elif deal.deal_direction == 'open':
-                        continue
-                if self.check_active_positions(deal.coin, buy_exch, sell_exch):
-                    if deal.expect_profit_rel > max_profit:
-                        max_profit = deal.expect_profit_rel
-                        chosen_deal = deal
-            else:
-                self.telegram.send_message(f'Multibot. Label0 {deal_size=} < {self.max_order_size=}')
-                time.sleep(10)
+            if deal.expect_profit_rel > max_profit:
+                if self.check_available_balance_and_exceptions(deal.coin, deal.buy_exchange, deal.sell_exchange):
+                    max_profit = deal.expect_profit_rel
+                    chosen_deal = deal
         return chosen_deal
 
     @try_exc_regular
     def check_ap_still_good(self):
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-
-        target_profit = self.get_target_profit(self.chosen_deal.deal_direction)
         self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
 
         profit = (self.chosen_deal.ob_sell['bids'][0][0] - self.chosen_deal.ob_buy['asks'][0][0]) / \
                  self.chosen_deal.ob_buy['asks'][0][0]
         profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
-        if profit >= target_profit:
+        if profit >= self.chosen_deal.target_profit:
+            self.chosen_deal.expect_profit_rel = profit
             return True
         else:
+            message = f'\nDEAL ALREADY EXPIRED\n' \
+                      f'EXCH_BUY: {self.chosen_deal.buy_exchange}, EXCH_SELL: {self.chosen_deal.sell_exchange}\n' \
+                      f'OLD PRICES: BUY: {self.chosen_deal.buy_price}, SELL: {self.chosen_deal.sell_price}\n' \
+                      f'NEW PRICES: BUY: {self.chosen_deal.ob_buy["asks"][0][0]}, SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n' \
+                      f'TIMESTAMP: {int(round(datetime.utcnow().timestamp() * 1000))}\n'
+            print(message)
+            self.telegram.send_message(message, TG_Groups.Alerts)
             return False
 
     def fit_sizes_and_prices(self):
@@ -356,31 +319,53 @@ class MultiBot:
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
 
-        deal_size_usd = self.deal_size_define(buy_exchange, sell_exchange, buy_market, sell_market)
+        # Определяем размер ордеров в крипте
+        deal_size_result = self.deal_size_define(buy_exchange, sell_exchange, buy_market, sell_market)
+        deal_size_usd = deal_size_result['deal_size']
+        if deal_size_usd <= 0:
+            # print(f"NOT ENOUGH AVAILABLE BALANCE:"
+            #       f"\n {deal_size_result['status']}")
+            # ДОБАВИТЬ РЫНКИ В ИСКЛЮЧЕНИЯ
+            return False
+
+        # НУЖНО ДОБАВИТЬ ПРОВЕРКУ НА МИНИМАЛЬНЫЙ РАЗМЕР ОРДЕРА
         deal_size_amount = deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
-
-
-
-        self.chosen_deal.limit_buy_px, self.chosen_deal.limit_sell_px = \
-            self.get_limit_prices_for_order(self.chosen_deal.ob_buy, self.chosen_deal.ob_sell)
-        limit_buy_price, limit_sell_price = self.chosen_deal.limit_buy_px, self.chosen_deal.limit_sell_px
-        # print(f"{client.EXCHANGE_NAME}|AMOUNT: {amount}|FIT AMOUNT: {client.expect_amount_coin}")
         step_size = max(client_buy.instruments[buy_market]['step_size'],
                         client_sell.instruments[sell_market]['step_size'])
         # Важно, чтобы step_size на двух биржах отличались в ЦЕЛОЕ количество раз, иначе итоговые размеры ордеров могут оказаться разными
-        size = round(deal_size_amount / step_size) * step_size
-        client_buy.amount = size
-        client_sell.amount = size
+        size_amount = round(deal_size_amount / step_size) * step_size
+        client_buy.amount = size_amount
+        client_sell.amount = size_amount
+
+        limit_buy_price, limit_sell_price = self.get_limit_prices_for_order(self.chosen_deal.ob_buy,
+                                                                            self.chosen_deal.ob_sell)
         client_buy.fit_sizes(limit_buy_price, buy_market)
         client_sell.fit_sizes(limit_sell_price, sell_market)
 
-        if not client_buy.amount or not client_sell.amount:
-            print(f"DEAL IS BELOW MIN SIZE:"
-                  f"\n {buy_exchange=}, {client_buy.amount=}"
-                  f"\n {sell_exchange=}, {client_sell.amount=}")
-            return False
+        # Сохраняем значения, которые пойдут на исполнение на AP
+        self.chosen_deal.limit_buy_px = client_buy.price
+        self.chosen_deal.limit_sell_px = client_sell.price
+        self.chosen_deal.buy_size = client_buy.amount
+        self.chosen_deal.sell_size = client_sell.amount
+        self.chosen_deal.deal_size_amount = (client_buy.amount + client_sell.amount) / 2
+        self.chosen_deal.deal_size_usd = self.chosen_deal.deal_size_amount * (client_buy.price + client_sell.price) / 2
 
         return True
+
+    @try_exc_regular
+    def final_profit_check(self):
+        profit = (self.chosen_deal.limit_sell_px - self.chosen_deal.limit_buy_px) / self.chosen_deal.limit_buy_px
+        profit = profit - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
+        if profit >= self.chosen_deal.target_profit:
+            return True
+        else:
+            message = f'MULTIBOT. Final profit check failed. \n' \
+                      f'Actual profit: {round(profit,5)}\n' \
+                      f'Target profit: {self.chosen_deal.target_profit}'
+            print(message)
+            self.telegram.send_message(message, TG_Groups.Alerts)
+            return False
+
     @try_exc_async
     async def execute_deal(self):
 
@@ -392,7 +377,6 @@ class MultiBot:
         #            'datetime': datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
         #            'deal_value': 'open|close|half-close'}
 
-
         client_buy = self.chosen_deal.client_buy
         client_sell = self.chosen_deal.client_sell
         buy_market = self.chosen_deal.buy_market
@@ -402,7 +386,6 @@ class MultiBot:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
-
 
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
         self.chosen_deal.order_id_buy, self.chosen_deal.order_id_sell = id1, id2
@@ -418,6 +401,7 @@ class MultiBot:
         responses = await asyncio.gather(*orders, return_exceptions=True)
 
         time_sent = self.chosen_deal.time_sent
+
         self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - time_sent) / 1000
         self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - time_sent) / 1000
         self.chosen_deal.buy_exchange_order_id = responses[0]['exchange_order_id']
@@ -428,7 +412,7 @@ class MultiBot:
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @try_exc_async
-    async def notification_and_logging(self, responses):
+    async def notification_and_logging(self):
 
         self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
         self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
@@ -463,6 +447,15 @@ class MultiBot:
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
     @try_exc_regular
+    def add_exchange_exception(self, exchange, reason) -> None:
+        self.exchange_exceptions.append(
+            {'exchange': exchange,'reason': reason, 'ts_added': str(datetime.utcnow())})
+
+    @try_exc_regular
+    def in_exchange_exceptions(self, exchange):
+        filtered = [item for item in self.exchange_exceptions if item['exchange'] == exchange]
+        return len(filtered) > 0
+    @try_exc_regular
     def add_trade_exception(self, coin, exchange, direction, reason) -> None:
         self.trade_exceptions.append(
             {'coin': coin, 'exchange': exchange, 'direction': direction,
@@ -474,8 +467,9 @@ class MultiBot:
                     item['exchange'] == exchange and item['direction'] == direction]
         return len(filtered) > 0
 
+
     @try_exc_regular
-    def check_active_positions(self, coin, buy_exchange, sell_exchange):
+    def check_available_balance_and_exceptions(self, coin, buy_exchange, sell_exchange):
         result = {}
         for direction, exchange in {'buy': buy_exchange, 'sell': sell_exchange}.items():
             client = self.clients_with_names[exchange]
@@ -490,48 +484,15 @@ class MultiBot:
                 if self.in_trade_exceptions(coin, exchange, direction):
                     pass
                 else:
-                    self.add_trade_exception(coin, exchange, direction, 'Превышен порог % на монету')
+                    self.add_trade_exception(coin, exchange, direction,
+                                             f'Превышено максимальная доля баланса на монету')
                     message = self.telegram.coin_threshold_message(coin, exchange, direction, position, available,
                                                                    self.max_position_part)
                     self.telegram.send_message(message, TG_Groups.Alerts)
                 result[direction] = False
         return result['buy'] and result['sell']
 
-    # def check_active_positions(self, coin, buy_exchange, sell_exchange):
-    #     client_buy = self.clients_with_names[buy_exchange]
-    #     client_sell = self.clients_with_names[sell_exchange]
-    #     market_buy = self.markets[coin][buy_exchange]
-    #     market_sell = self.markets[coin][sell_exchange]
-    #     available_buy = client_buy.get_balance() * leverage * self.max_position_part / 100
-    #     available_sell = client_sell.get_balance() * leverage * self.max_position_part / 100
-    #     position_sell = 0
-    #     position_buy = 0
-    #     if client_buy.get_positions().get(market_buy):
-    #         position_buy = abs(client_buy.get_positions()[market_buy]['amount_usd'])
-    #     if client_sell.get_positions().get(market_sell):
-    #         position_sell = abs(client_sell.get_positions()[market_sell]['amount_usd'])
-    #     if position_buy < available_buy and position_sell < available_sell:
-    #         return True
-    #     elif position_buy >= available_buy:
-    #         if self.in_trade_exceptions(coin,buy_exchange,'buy'):
-    #             pass
-    #         else:
-    #             self.add_trade_exception(coin, buy_exchange, 'buy', 'Превышен порог допустимого лимита на 1 монету')
-    #             message = self.telegram.coin_threshold_message(coin,self.max_position_part,buy_exchange,
-    #                                                            sell_exchange,position_buy,position_sell,
-    #                                                            available_buy,available_sell)
-    #             self.telegram.send_message(message,TG_Groups.Alerts)
-    #         return False
-    #     else:
-    #         if self.in_trade_exceptions(coin, sell_exchange, 'sell'):
-    #             pass
-    #         else:
-    #             self.add_trade_exception(coin, sell_exchange, 'sell', 'Превышен порог допустимого лимита на 1 монету')
-    #             message = self.telegram.coin_threshold_message(coin, self.max_position_part, buy_exchange,
-    #                                                            sell_exchange, position_buy, position_sell,
-    #                                                            available_buy, available_sell)
-    #             self.telegram.send_message(message, TG_Groups.Alerts)
-    #         return False
+
 
     # def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
     #     profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
@@ -552,19 +513,6 @@ class MultiBot:
     #                                      'time_parser': time.time() - time_start})
 
     @try_exc_regular
-
-
-    @try_exc_regular
-    def get_target_profit(self, deal_direction):
-        if deal_direction == 'open':
-            target_profit = self.profit_taker
-        elif deal_direction == 'close':
-            target_profit = self.profit_close
-        else:
-            target_profit = (self.profit_taker + self.profit_close) / 2
-        return target_profit
-
-    @try_exc_regular
     def get_limit_prices_for_order(self, ob_buy, ob_sell):
         buy_point_price = (ob_buy['asks'][1][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
         sell_point_price = (ob_sell['bids'][0][0] - ob_sell['bids'][1][0]) / ob_sell['bids'][0][0]
@@ -578,21 +526,9 @@ class MultiBot:
             shifted_sell_px = ob_sell['bids'][4][0]
         return shifted_buy_px, shifted_sell_px
 
-    @staticmethod
-    @try_exc_regular
-    def _check_order_place_time(client, time_sent, responses) -> int:
-        for response in responses:
-            try:
-                if response['exchange_name'] == client.EXCHANGE_NAME:
-                    if response['timestamp']:
-                        return (response['timestamp'] - time_sent) / 1000
-                    else:
-                        return 0
-            except:
-                return 0
-
     @try_exc_regular
     def deal_size_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
+
         if self.available_balances[buy_exchange].get(buy_market):
             buy_size = self.available_balances[buy_exchange][buy_market]['buy']
         else:
@@ -601,35 +537,26 @@ class MultiBot:
             sell_size = self.available_balances[sell_exchange][sell_market]['sell']
         else:
             sell_size = self.available_balances[sell_exchange]['sell']
-        return min(buy_size, sell_size, self.max_order_size)
+        if buy_size == 0:
+            status = f'{buy_exchange=}{buy_market=} недоступен для покупок, превышено абсолютное плечо для БИРЖИ'
+        elif buy_size < 0:
+            status = f'{buy_exchange=}{buy_market=} недоступен для покупок, превышено плечо для РЫНКА'
+        elif sell_size == 0:
+            status = f'{sell_exchange=}{sell_market=} недоступен для продаж, превышено абсолютное плечо для БИРЖИ'
+        elif sell_size < 0:
+            status = f'{sell_exchange=}{sell_market=} недоступен для продаж, превышено плечо для РЫНКА'
+        else:
+            status = 'OK'
+        return {'deal_size': min(buy_size, sell_size, self.max_order_size), 'status': status}
 
-    @try_exc_regular
-    def __rates_update(self):
-        message = ''
-        with open(f'rates.txt', 'a') as file:
-            for client in self.clients:
-                message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.utcnow()} | {time.time()}\n"
-            file.write(message + '\n')
-        self.update_all_av_balances()
-
-    @try_exc_async
-    async def potential_real_deals(self, sell_client, buy_client, orderbook_buy, orderbook_sell):
-        # if (datetime.utcnow() - self.start_time).timedelta > 15:
-        #     self.start_time = datetime.utcnow()
-
-        # deals_potential = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
-        # deals_executed = {'SELL': {x: 0 for x in self.exchanges}, 'BUY': {x: 0 for x in self.exchanges}}
-        #
-        # deals_potential['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_counter)
-        # deals_potential['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_counter)
-        #
-        # deals_executed['SELL'][sell_client.EXCHANGE_NAME] += len(self.deals_executed)
-        # deals_executed['BUY'][buy_client.EXCHANGE_NAME] += len(self.deals_executed)
-        #
-        # self.deals_counter = []
-        # self.deals_executed = []
-
-        self.__rates_update()
+    # @try_exc_regular
+    # def __rates_update(self):
+    #     message = ''
+    #     with open(f'rates.txt', 'a') as file:
+    #         for client in self.clients:
+    #             message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.utcnow()} | {time.time()}\n"
+    #         file.write(message + '\n')
+    #     self.update_all_av_balances()
 
     # def get_sizes(self):
     #     tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
