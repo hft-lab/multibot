@@ -349,7 +349,7 @@ class MultiBot:
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
         min_size_buy = client_buy.instruments[buy_market]['min_size']
         min_size_sell = client_sell.instruments[sell_market]['min_size']
-        total_min_size = min(min_size_buy, min_size_sell)
+        total_min_size = max(min_size_buy, min_size_sell)
 
         # Определяем размер ордеров в крипте
         deal_size_result = self.deal_size_define(buy_exchange, sell_exchange, buy_market, sell_market)
