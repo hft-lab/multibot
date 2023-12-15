@@ -7,6 +7,7 @@ import threading
 import time
 import traceback
 import uuid
+import math
 from datetime import datetime
 from logging.config import dictConfig
 from typing import List
@@ -250,7 +251,7 @@ class MultiBot:
                         self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
                         self.chosen_deal.time_choose = time_end_choose - time_end_define_potential_deals
                         # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
-                        if self.check_ap_still_good():
+                        if self.check_prices_still_good():
                             # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                             if self.fit_sizes_and_prices():
                                 time_end_fit_sizes = time.time()
@@ -297,12 +298,15 @@ class MultiBot:
         return chosen_deal
 
     @try_exc_regular
-    def check_ap_still_good(self):
+    def check_prices_still_good(self):
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
         self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
-        ob_buy = self.chosen_deal.ob_buy['asks'][0][0]
-        profit = (self.chosen_deal.ob_sell['bids'][0][0] - ob_buy) / ob_buy
+
+        buy_price = self.chosen_deal.ob_buy['asks'][0][0]
+        sell_price = self.chosen_deal.ob_sell['bids'][0][0]
+
+        profit = (sell_price - buy_price) / buy_price
         profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
         if profit >= self.chosen_deal.target_profit:
             self.chosen_deal.expect_profit_rel = profit
@@ -322,7 +326,7 @@ class MultiBot:
         return avail_size
 
     @try_exc_regular
-    def check_avail_balances_and_set_deal_size_usd(self):
+    def get_avail_balance_for_deal(self):
         coin = self.chosen_deal.coin
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
@@ -337,7 +341,6 @@ class MultiBot:
             if deal_avail_size_buy_usd == 0:
                 message += " Биржа в целом"
             self.add_trade_exception(coin, buy_exchange, 'buy', message)
-            return False
 
         if deal_avail_size_sell_usd <= 0:
             message = f"Доступный баланс: {deal_avail_size_sell_usd} недостаточен для совершения сделки."
@@ -346,32 +349,37 @@ class MultiBot:
             if deal_avail_size_sell_usd == 0:
                 message += " Биржа в целом"
             self.add_trade_exception(coin, sell_exchange, 'sell', message)
-            return False
 
-        self.chosen_deal.deal_size_usd = min(deal_avail_size_buy_usd, deal_avail_size_sell_usd, self.max_order_size)
-        return True
+        return min(deal_avail_size_buy_usd, deal_avail_size_sell_usd)
 
     @try_exc_regular
-    def check_deal_size_above_min(self):
+    def check_deal_size_is_above_markets_min_sizes(self, deal_size_amount,step_size_buy,step_size_sell):
         coin = self.chosen_deal.coin
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-
         min_buy_amount = client_buy.instruments[buy_market]['min_size']
         min_sell_amount = client_sell.instruments[sell_market]['min_size']
 
-        if self.chosen_deal.deal_size_usd < self.chosen_deal.ob_buy['asks'][0][0] * min_buy_amount:
-            message = f"Наш максимальный размер ордера ({self.max_order_size}) " \
-                      f"меньше меньше минимального допустимого " \
-                      f"({self.chosen_deal.ob_buy['asks'][0][0] * min_buy_amount}) на этом рынке"
+        if deal_size_amount < step_size_buy :
+            message = f"Получившийся размер ордера ({deal_size_amount}) меньше {step_size_buy=}"
             self.add_trade_exception(coin, buy_exchange, 'buy', message)
             return False
 
-        if self.chosen_deal.deal_size_usd < self.chosen_deal.ob_sell['bids'][0][0] * min_sell_amount:
-            message = f"Наш максимальный размер ордера ({self.max_order_size}) " \
-                      f"меньше меньше минимального допустимого " \
-                      f"({self.chosen_deal.ob_sell['bids'][0][0] * min_sell_amount}) на этом рынке"
+        if deal_size_amount < step_size_sell :
+            message = f"Получившийся размер ордера ({deal_size_amount}) меньше {step_size_sell=}"
+            self.add_trade_exception(coin, sell_exchange, 'sell', message)
+            return False
+
+        if deal_size_amount < min_buy_amount:
+            message = f"Размер ордера ({deal_size_amount}) " \
+                      f"меньше меньше минимального допустимого {min_buy_amount})"
+            self.add_trade_exception(coin, buy_exchange, 'buy', message)
+            return False
+
+        if deal_size_amount < min_sell_amount:
+            message = f"Размер ордера ({deal_size_amount}) " \
+                      f"меньше меньше минимального допустимого {min_sell_amount}) "
             print(message)
             self.add_trade_exception(coin, sell_exchange, 'sell', message)
             return False
@@ -384,23 +392,24 @@ class MultiBot:
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
 
-        if not self.check_avail_balances_and_set_deal_size_usd():
-            return False
-        if not self.check_deal_size_above_min():
+        avail_balance_for_deal = self.get_avail_balance_for_deal()
+        if avail_balance_for_deal <= 0:
             return False
 
-        deal_size_amount = self.chosen_deal.deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
-        step_size = max(client_buy.instruments[buy_market]['step_size'],
-                        client_sell.instruments[sell_market]['step_size'])
-        rounded_deal_size_amount = round(deal_size_amount / step_size) * step_size
-        if rounded_deal_size_amount == 0:
-            message = f"ALERT. Размер ордера округлился до нуля\n" \
-                      f"{deal_size_amount=}, {step_size=}\n"\
-                      f"{buy_exchange=}, {buy_market=}\n" \
-                      f"{sell_exchange=},{sell_market=}"
-            print(message)
-            self.telegram.send_message(message,TG_Groups.Alerts)
+        max_deal_size_usd = min(avail_balance_for_deal, self.max_order_size)
+        max_deal_size_amount = max_deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
+        self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
+        self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
+
+        deal_size_amount = min(max_deal_size_amount,self.chosen_deal.max_buy_vol, self.chosen_deal.max_sell_vol)
+
+        step_size_buy = client_buy.instruments[buy_market]['step_size']
+        step_size_sell = client_sell.instruments[sell_market]['step_size']
+        if not self.check_deal_size_is_above_markets_min_sizes(deal_size_amount,step_size_buy,step_size_sell):
             return False
+
+        step_size = max(step_size_buy, step_size_sell)
+        rounded_deal_size_amount = math.floor(deal_size_amount / step_size) * step_size
 
         client_buy.amount = rounded_deal_size_amount
         client_sell.amount = rounded_deal_size_amount
@@ -416,8 +425,18 @@ class MultiBot:
         self.chosen_deal.buy_size = client_buy.amount
         self.chosen_deal.sell_size = client_sell.amount
 
-        self.chosen_deal.deal_size_amount = (client_buy.amount + client_sell.amount) / 2
+        self.chosen_deal.deal_size_amount = client_buy.amount
         self.chosen_deal.deal_size_usd = self.chosen_deal.deal_size_amount * (client_buy.price + client_sell.price) / 2
+        if client_sell.amount != client_sell.amount:
+            message = f'ALERT: Разошлись целевые объемы покупки и продажи\n ' \
+                      f'{client_buy.amount=}\n' \
+                      f'{client_sell.amount=}'\
+                      f'{buy_exchange=}' \
+                      f'{buy_market=}' \
+                      f'{sell_market=}' \
+                      f'{sell_exchange=}'
+            print(message)
+            self.telegram.send_message(message,TG_Groups.Alerts)
         return True
 
     @try_exc_regular
@@ -473,15 +492,16 @@ class MultiBot:
 
         message = f"Results of create_order requests:\n" \
                   f"{self.chosen_deal.buy_exchange=}\n" \
+                  f"{self.chosen_deal.buy_market=}\n" \
                   f"{self.chosen_deal.sell_exchange=}\n" \
+                  f"{self.chosen_deal.sell_market=}\n" \
                   f"Responses:\n{json.dumps(responses,indent=2)}"
         print(message)
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @try_exc_async
     async def notification_and_logging(self):
-        self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
-        self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
+
 
         ap_id = self.chosen_deal.ap_id
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
