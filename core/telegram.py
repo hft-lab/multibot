@@ -1,5 +1,5 @@
 import traceback
-import datetime
+from datetime import datetime
 import requests
 
 from configparser import ConfigParser
@@ -94,9 +94,26 @@ class Telegram:
     def send_ap_executed_message(self, ap, group: TG_Groups = None):
         message = f"AP EXECUTED\n"
         message += f"SYMBOL: {ap.coin}\n"
-        message += f"DT: {datetime.datetime.utcnow()}\n"
+        message += f"DT: {datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
         message += f"B.P.: {str(ap.buy_price)} | S.P.: {str(ap.sell_price)}\n"
+        self.send_message(message, group)
+
+    def send_ap_expired_message(self, deal, profit, group: TG_Groups = None):
+        message = f'ALERT NAME: AP EXPIRED\n---\n' \
+              f'DEAL DIRECTION: {deal.deal_direction}\n' \
+              f'TARGET PROFIT: {deal.target_profit}\n' \
+              f'EXCH_BUY: {deal.buy_exchange}\nEXCH_SELL: {deal.sell_exchange}\n' \
+              f'---\nOLD PRICES: BUY: {deal.buy_price}, SELL: {deal.sell_price}\n' \
+              f'OLD PROFIT: {deal.expect_profit_rel}\n---\n' \
+              f'NEW PRICES: BUY: {deal.ob_buy["asks"][0][0]}, SELL: {deal.ob_sell["bids"][0][0]}\n' \
+              f'NEW PROFIT: {round(profit, 6)}\n---\n' \
+              f'TIMINGS.\n' \
+              f'CURRENT TS: {int(round(datetime.utcnow().timestamp() * 1000))}\n' \
+              f'PARSE TIME: {round(deal.time_parser, 4)}\n' \
+              f'DEFINE POT. DEALS TIME: {round(deal.time_define_potential_deals, 4)}\n' \
+              f'CHOOSE TIME: {round(deal.time_choose, 4)}\n' \
+              f'STILL GOOD CHECK TIME: {round(deal.time_check, 4)}\n'
         self.send_message(message, group)
 
     def send_order_error_message(self, env, symbol, client, order_id, group: TG_Groups = None):
@@ -104,15 +121,15 @@ class Telegram:
         message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
         self.send_message(message, group)
 
-    @staticmethod
-    def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):
-        message = f"ALERT: MARKET SHARE THRESHOLD " \
-                  f"MARKET SHARE {round(position/available,3)} > {max_position_part}%\n" \
-                  f"COIN: {coin} \nExchange: {exchange} \n" \
-                  f"Direction: {direction} \nPOSITION: {round(position,1)} \n" \
-                  f"AVAILABLE BALANCE: {round(available,1)}\n" \
-                  f"ACTION: Рынок добавлен список исключений"
-        return message
+    # @staticmethod
+    # def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):
+    #     message = f"ALERT: MARKET SHARE THRESHOLD EXCEEDED\n" \
+    #               f"COIN: {coin} \nExchange: {exchange} \n" \
+    #               f"MARKET SHARE {round(position/available,3)} > {max_position_part}%\n" \
+    #               f"Direction: {direction} \nPOSITION: {round(position,1)} \n" \
+    #               f"AVAILABLE BALANCE: {round(available,1)}\n" \
+    #               f"ACTION: Рынок добавлен список исключений"
+    #     return message
 
 # Скрытые шаблоны
 # def create_result_message(self, deals_potential: dict, deals_executed: dict, time: int) -> str:

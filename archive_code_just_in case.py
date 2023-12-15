@@ -197,3 +197,19 @@ def check_ob_slippage(multibot, client_sell, client_buy):
         #
         #
         #         await asyncio.sleep(1)
+
+    # async def close_all_positions(self):
+    #     async with aiohttp.ClientSession() as session:
+    #         print('START')
+    #         while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
+    #                 or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
+    #             print('START WHILE')
+    #             for client in self.clients:
+    #                 print(f'START CLIENT {client.EXCHANGE_NAME}')
+    #                 client.cancel_all_orders()
+    #                 if res := client.get_positions().get(client.symbol, {}).get('amount'):
+    #                     orderbook = client.get_orderbook()[client.symbol]
+    #                     side = 'buy' if res < 0 else 'sell'
+    #                     price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
+    #                     await client.create_order(abs(res), price, side, session)
+    #                     time.sleep(7)

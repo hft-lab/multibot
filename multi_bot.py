@@ -213,6 +213,7 @@ class MultiBot:
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
         print(json.dumps(self.clients_markets_data, indent=2))
+        print('PARSER STARTING')
 
     @try_exc_async
     async def websocket_main_cycle(self):
@@ -226,13 +227,11 @@ class MultiBot:
                     self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
                     print('PARSER IS WORKING')
                     self.update_all_av_balances()
-                time_start_parsing = time.time()
                 # Шаг 1 (Сбор данных с бирж по рынкам)
+                time_start_parsing = time.time()
                 results = self.get_data_for_parser()
                 time_end_parsing = time.time()
-                # print('Data for parser:',json.dumps(results, indent=2))
 
-                # results = self.add_status(results)
                 # logger_custom.log_rates(iteration, results)
 
                 # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
@@ -287,103 +286,144 @@ class MultiBot:
     def choose_deal(self, potential_deals: List[AP]) -> AP:
         max_profit = 0
         chosen_deal = None
-        # t1= time.time()
         for deal in potential_deals:
-            t2=time.time()
+            if self.is_in_trade_exceptions(deal.coin, deal.buy_exchange, 'buy'):
+                continue
+            if self.is_in_trade_exceptions(deal.coin, deal.sell_exchange, 'sell'):
+                continue
             if deal.expect_profit_rel > max_profit:
-                if self.check_available_balance_and_exceptions(deal.coin, deal.buy_exchange, deal.sell_exchange):
-                    max_profit = deal.expect_profit_rel
-                    chosen_deal = deal
-                    # t3=time.time()
-                    # print(f'{deal.coin=}\n{deal.buy_exchange=}\n{deal.sell_exchange=}\nTimedelta = {round(t3-t2,3)}\n')
-        # if chosen_deal:
-        #     t4 = time.time()
-        #     print(f'Overall: {round(t4-t1,3)}')
+                max_profit = deal.expect_profit_rel
+                chosen_deal = deal
         return chosen_deal
 
     @try_exc_regular
     def check_ap_still_good(self):
-        # t1 = time.time()
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
         self.chosen_deal.ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         self.chosen_deal.ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
-        # t2 = time.time()
         ob_buy = self.chosen_deal.ob_buy['asks'][0][0]
         profit = (self.chosen_deal.ob_sell['bids'][0][0] - ob_buy) / ob_buy
         profit = profit - self.chosen_deal.client_buy.taker_fee - self.chosen_deal.client_sell.taker_fee
-        # t3 = time.time()
         if profit >= self.chosen_deal.target_profit:
             self.chosen_deal.expect_profit_rel = profit
             return True
         else:
-            # t4 = time.time()
-            # timer_message = f'{round(t2-t1,3)=}\n{round(t3-t2,3)=}\n{round(t4-t3,3)=}\n'
-            # print(timer_message)
-            # self.telegram.send_message(timer_message, TG_Groups.Alerts)
-
             time_end_check_still_good = time.time()
             self.chosen_deal.time_check = time_end_check_still_good - self.chosen_deal.time_end_choose
-            message = f'ALERT NAME: AP EXPIRED\n---\n' \
-                      f'DEAL DIRECTION: {self.chosen_deal.deal_direction}\n' \
-                      f'TARGET PROFIT: {self.chosen_deal.target_profit}\n' \
-                      f'EXCH_BUY: {self.chosen_deal.buy_exchange}\nEXCH_SELL: {self.chosen_deal.sell_exchange}\n' \
-                      f'---\nOLD PRICES: BUY: {self.chosen_deal.buy_price}, SELL: {self.chosen_deal.sell_price}\n' \
-                      f'OLD PROFIT: {self.chosen_deal.expect_profit_rel}\n---\n' \
-                      f'NEW PRICES: BUY: {self.chosen_deal.ob_buy["asks"][0][0]}, SELL: {self.chosen_deal.ob_sell["bids"][0][0]}\n' \
-                      f'NEW PROFIT: {round(profit,6)}\n---\n' \
-                      f'TIMINGS.\n' \
-                      f'CURRENT TS: {int(round(datetime.utcnow().timestamp() * 1000))}\n' \
-                      f'PARSE TIME: {round(self.chosen_deal.time_parser,5)}\n' \
-                      f'DEFINE POT. DEALS TIME: {round(self.chosen_deal.time_define_potential_deals,5)}\n' \
-                      f'CHOOSE TIME: {round(self.chosen_deal.time_choose,5)}\n' \
-                      f'STILL GOOD CHECK TIME{round(self.chosen_deal.time_check,5)=}\n'
-
-            print(message)
-            self.telegram.send_message(message, TG_Groups.Alerts)
+            self.telegram.send_ap_expired_message(self.chosen_deal,profit,TG_Groups.Alerts)
             return False
 
     @try_exc_regular
+    def get_available_balance(self, exchange, market, direction):
+        if self.available_balances[exchange].get(market):
+            avail_size = self.available_balances[exchange][market][direction]
+        else:
+            avail_size = self.available_balances[exchange][direction]
+        return avail_size
+
+    @try_exc_regular
+    def check_avail_balances_and_set_deal_size_usd(self):
+        coin = self.chosen_deal.coin
+        buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
+        buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+
+        deal_avail_size_buy_usd = self.get_available_balance(buy_exchange, buy_market, 'buy')
+        deal_avail_size_sell_usd = self.get_available_balance(sell_exchange, sell_market, 'sell')
+
+        if deal_avail_size_buy_usd <= 0:
+            message = f"Доступный баланс: {deal_avail_size_buy_usd} недостаточен для совершения сделки."
+            if deal_avail_size_buy_usd < 0:
+                message += "Конкретный рынок (с учетом ограничения на 1 рынок)"
+            if deal_avail_size_buy_usd == 0:
+                message += " Биржа в целом"
+            self.add_trade_exception(coin, buy_exchange, 'buy', message)
+            return False
+
+        if deal_avail_size_sell_usd <= 0:
+            message = f"Доступный баланс: {deal_avail_size_sell_usd} недостаточен для совершения сделки."
+            if deal_avail_size_sell_usd < 0:
+                message += "Конкретный рынок (с учетом ограничения на 1 рынок)"
+            if deal_avail_size_sell_usd == 0:
+                message += " Биржа в целом"
+            self.add_trade_exception(coin, sell_exchange, 'sell', message)
+            return False
+
+        self.chosen_deal.deal_size_usd = min(deal_avail_size_buy_usd, deal_avail_size_sell_usd, self.max_order_size)
+        return True
+
+    @try_exc_regular
+    def check_deal_size_above_min(self):
+        coin = self.chosen_deal.coin
+        client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
+        buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
+        buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+
+        min_buy_amount = client_buy.instruments[buy_market]['min_size']
+        min_sell_amount = client_sell.instruments[sell_market]['min_size']
+
+        if self.chosen_deal.deal_size_usd < self.chosen_deal.ob_buy['asks'][0][0] * min_buy_amount:
+            message = f"Наш максимальный размер ордера ({self.max_order_size}) " \
+                      f"меньше меньше минимального допустимого " \
+                      f"({self.chosen_deal.ob_buy['asks'][0][0] * min_buy_amount}) на этом рынке"
+            self.add_trade_exception(coin, buy_exchange, 'buy', message)
+            return False
+
+        if self.chosen_deal.deal_size_usd < self.chosen_deal.ob_sell['bids'][0][0] * min_sell_amount:
+            message = f"Наш максимальный размер ордера ({self.max_order_size}) " \
+                      f"меньше меньше минимального допустимого " \
+                      f"({self.chosen_deal.ob_sell['bids'][0][0] * min_sell_amount}) на этом рынке"
+            print(message)
+            self.add_trade_exception(coin, sell_exchange, 'sell', message)
+            return False
+
+        return True
+    @try_exc_regular
     def fit_sizes_and_prices(self):
+
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+<<<<<<< Updated upstream
         min_size_buy = client_buy.instruments[buy_market]['min_size']
         min_size_sell = client_sell.instruments[sell_market]['min_size']
         total_min_size = max(min_size_buy, min_size_sell)
+=======
+>>>>>>> Stashed changes
 
-        # Определяем размер ордеров в крипте
-        deal_size_result = self.deal_size_define(buy_exchange, sell_exchange, buy_market, sell_market)
-        deal_size_usd = deal_size_result['deal_size']
-        if deal_size_usd <= 0:
-            # print(f"NOT ENOUGH AVAILABLE BALANCE:"
-            #       f"\n {deal_size_result['status']}")
-            # ДОБАВИТЬ РЫНКИ В ИСКЛЮЧЕНИЯ
+        if not self.check_avail_balances_and_set_deal_size_usd():
+            return False
+        if not self.check_deal_size_above_min():
             return False
 
-        # НУЖНО ДОБАВИТЬ ПРОВЕРКУ НА МИНИМАЛЬНЫЙ РАЗМЕР ОРДЕРА
-        deal_size_amount = deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
-        if total_min_size > deal_size_amount:
-            return False
+        deal_size_amount = self.chosen_deal.deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
         step_size = max(client_buy.instruments[buy_market]['step_size'],
                         client_sell.instruments[sell_market]['step_size'])
-        # Важно, чтобы step_size на двух биржах отличались в ЦЕЛОЕ количество раз, иначе итоговые размеры ордеров могут оказаться разными
-        size_amount = round(deal_size_amount / step_size) * step_size
-        client_buy.amount = size_amount
-        client_sell.amount = size_amount
+        rounded_deal_size_amount = round(deal_size_amount / step_size) * step_size
+        if rounded_deal_size_amount == 0:
+            message = f"ALERT. Размер ордера округлился до нуля\n" \
+                      f"{deal_size_amount=}, {step_size=}\n"\
+                      f"{buy_exchange=}, {buy_market=}\n" \
+                      f"{sell_exchange=},{sell_market=}"
+            print(message)
+            self.telegram.send_message(message,TG_Groups.Alerts)
+            return False
 
+        client_buy.amount = rounded_deal_size_amount
+        client_sell.amount = rounded_deal_size_amount
         limit_buy_price, limit_sell_price = self.get_limit_prices_for_order(self.chosen_deal.ob_buy,
                                                                             self.chosen_deal.ob_sell)
+        # Здесь происходит уточнение и финализации размеров ордеров и их цен
         client_buy.fit_sizes(limit_buy_price, buy_market)
         client_sell.fit_sizes(limit_sell_price, sell_market)
 
-        # Сохраняем значения, которые пойдут на исполнение на AP
+        # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
         self.chosen_deal.limit_buy_px = client_buy.price
         self.chosen_deal.limit_sell_px = client_sell.price
         self.chosen_deal.buy_size = client_buy.amount
         self.chosen_deal.sell_size = client_sell.amount
+
         self.chosen_deal.deal_size_amount = (client_buy.amount + client_sell.amount) / 2
         self.chosen_deal.deal_size_usd = self.chosen_deal.deal_size_amount * (client_buy.price + client_sell.price) / 2
-
         return True
 
     @try_exc_regular
@@ -395,24 +435,17 @@ class MultiBot:
             self.chosen_deal.expect_profit_abs_usd = profit * self.chosen_deal.deal_size_usd
             return True
         else:
-            message = f'ALERT NAME: FINAL PROFIT CHECK. \n' \
+            message = f'ALERT NAME: FINAL PROFIT CHECK FAILED \n' \
                       f'ACTUAL PROFIT: {round(profit,5)}\n' \
                       f'TARGET PROFIT: {self.chosen_deal.target_profit}\n' \
-                      f'LAST AP PROFIT : {round(self.chosen_deal.expect_profit_rel,5)}'
+                      f'LAST AP PROFIT : {round(self.chosen_deal.expect_profit_rel,5)}\n'
+                        #Добавить сюда тайминги
             print(message)
             self.telegram.send_message(message, TG_Groups.Alerts)
             return False
 
     @try_exc_async
     async def execute_deal(self):
-
-        # example = {'coin': 'AGLD', 'buy_exchange': 'BINANCE', 'sell_exchange': 'KRAKEN', 'buy_fee': 0.00036,
-        #            'sell_fee': 0.0005, 'sell_price': 0.6167, 'buy_price': 0.6158, 'sell_size': 1207.0,
-        #            'buy_size': 1639.0, 'deal_size_coin': 1207.0, 'deal_size_usd': 744.3569,
-        #            'expect_profit_rel': 0.0006, 'expect_profit_abs_usd': 0.448, 'buy_market': 'AGLDUSDT',
-        #            'sell_market': 'pf_agldusd',
-        #            'datetime': datetime(2023, 10, 2, 11, 33, 17, 855077), 'timestamp': 1696246397.855,
-        #            'deal_value': 'open|close|half-close'}
 
         client_buy = self.chosen_deal.client_buy
         client_sell = self.chosen_deal.client_sell
@@ -431,14 +464,6 @@ class MultiBot:
         self.chosen_deal.time_sent = int(datetime.utcnow().timestamp() * 1000)
 
         orders = []
-        print('Track Orders Creation')
-        message1 = f'{client_buy.price=},{client_buy.amount=}, {buy_market=}, {cl_id_buy}'
-        message2 = f'{client_sell.price=},{client_sell.amount=}, {sell_market=}, {cl_id_sell}'
-        print(message1)
-        print(message2)
-        input('WAIT')
-        self.telegram.send_message(message1)
-        self.telegram.send_message(message2)
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
         orders.append(self.loop_2.create_task(
@@ -452,7 +477,10 @@ class MultiBot:
         self.chosen_deal.buy_exchange_order_id = responses[0]['exchange_order_id']
         self.chosen_deal.sell_exchange_order_id = responses[1]['exchange_order_id']
 
-        message = f"Results of create_order requests: [{self.chosen_deal.buy_exchange=}, {self.chosen_deal.sell_exchange=}]\n{responses=}"
+        message = f"Results of create_order requests:\n" \
+                  f"{self.chosen_deal.buy_exchange=}\n" \
+                  f"{self.chosen_deal.sell_exchange=}\n" \
+                  f"Responses:\n{json.dumps(responses,indent=2)}"
         print(message)
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
@@ -491,69 +519,20 @@ class MultiBot:
             self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
 
     @try_exc_regular
-    def add_exchange_exception(self, exchange, reason) -> None:
-        self.exchange_exceptions.append(
-            {'exchange': exchange,'reason': reason, 'ts_added': str(datetime.utcnow())})
-
-    @try_exc_regular
-    def in_exchange_exceptions(self, exchange):
-        filtered = [item for item in self.exchange_exceptions if item['exchange'] == exchange]
-        return len(filtered) > 0
-
-    @try_exc_regular
     def add_trade_exception(self, coin, exchange, direction, reason) -> None:
-        self.trade_exceptions.append(
-            {'coin': coin, 'exchange': exchange, 'direction': direction,
-             'reason': reason, 'ts_added': str(datetime.utcnow())})
+        exception = {'coin': coin, 'exchange': exchange, 'direction': direction,
+             'reason': reason, 'ts_added': str(datetime.utcnow())}
+        self.trade_exceptions.append(exception)
+        print(f'ALERT: Exception Added\n{json.dumps(exception, indent=2, ensure_ascii=False)}')
+        self.telegram.send_message((f'ALERT: Exception Added\n'
+              f'{json.dumps(exception, indent=2, ensure_ascii=False)}'),TG_Groups.Alerts)
 
     @try_exc_regular
-    def in_trade_exceptions(self, coin, exchange, direction):
+    def is_in_trade_exceptions(self, coin, exchange, direction):
         filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
                     item['exchange'] == exchange and item['direction'] == direction]
         return len(filtered) > 0
 
-    @try_exc_regular
-    def check_available_balance_and_exceptions(self, coin, buy_exchange, sell_exchange):
-        result = {}
-        for direction, exchange in {'buy': buy_exchange, 'sell': sell_exchange}.items():
-            client = self.clients_with_names[exchange]
-            market = self.markets[coin][exchange]
-            total_abs_available_position = client.get_balance() * leverage
-            available = total_abs_available_position * self.max_position_part / 100
-            position = 0
-            if client.get_positions().get(market):
-                position = abs(client.get_positions()[market]['amount_usd'])
-            if position < available:
-                result[direction] = True
-            else:
-                if self.in_trade_exceptions(coin, exchange, direction):
-                    pass
-                else:
-                    self.add_trade_exception(coin, exchange, direction,
-                                             f'Превышено максимальная доля баланса на монету')
-                    message = self.telegram.coin_threshold_message(coin, exchange, direction, position, total_abs_available_position,
-                                                                   self.max_position_part)
-                    self.telegram.send_message(message, TG_Groups.Alerts)
-                result[direction] = False
-        return result['buy'] and result['sell']
-
-    # def taker_order_profit(self, client_sell, client_buy, sell_price, buy_price, ob_buy, ob_sell, time_start):
-    #     profit = ((sell_price - buy_price) / buy_price) - (client_sell.taker_fee + client_buy.taker_fee)
-    #     # print(f"S: {client_sell.EXCHANGE_NAME} | B: {client_buy.EXCHANGE_NAME} | PROFIT: {round(profit, 5)}")
-    #     if profit > self.profit_taker:
-    #         self.potential_deals.append({'buy_exch': client_buy,
-    #                                      "sell_exch": client_sell,
-    #                                      "sell_px": sell_price,
-    #                                      "buy_px": buy_price,
-    #                                      'expect_buy_px': ob_buy['asks'][0][0],
-    #                                      'expect_sell_px': ob_sell['bids'][0][0],
-    #                                      "ob_buy": ob_buy,
-    #                                      "ob_sell": ob_sell,
-    #                                      'max_deal_size': self.available_balances[
-    #                                          f"+{client_buy.EXCHANGE_NAME}-{client_sell.EXCHANGE_NAME}"],
-    #                                      "profit": profit,
-    #                                      'time_start': time_start,
-    #                                      'time_parser': time.time() - time_start})
 
     @try_exc_regular
     def get_limit_prices_for_order(self, ob_buy, ob_sell):
@@ -569,28 +548,7 @@ class MultiBot:
             shifted_sell_px = ob_sell['bids'][4][0]
         return shifted_buy_px, shifted_sell_px
 
-    @try_exc_regular
-    def deal_size_define(self, buy_exchange, sell_exchange, buy_market, sell_market):
 
-        if self.available_balances[buy_exchange].get(buy_market):
-            buy_size = self.available_balances[buy_exchange][buy_market]['buy']
-        else:
-            buy_size = self.available_balances[buy_exchange]['buy']
-        if self.available_balances[sell_exchange].get(sell_market):
-            sell_size = self.available_balances[sell_exchange][sell_market]['sell']
-        else:
-            sell_size = self.available_balances[sell_exchange]['sell']
-        if buy_size == 0:
-            status = f'{buy_exchange=}{buy_market=} недоступен для покупок, превышено абсолютное плечо для БИРЖИ'
-        elif buy_size < 0:
-            status = f'{buy_exchange=}{buy_market=} недоступен для покупок, превышено плечо для РЫНКА'
-        elif sell_size == 0:
-            status = f'{sell_exchange=}{sell_market=} недоступен для продаж, превышено абсолютное плечо для БИРЖИ'
-        elif sell_size < 0:
-            status = f'{sell_exchange=}{sell_market=} недоступен для продаж, превышено плечо для РЫНКА'
-        else:
-            status = 'OK'
-        return {'deal_size': min(buy_size, sell_size, self.max_order_size), 'status': status}
 
     # @try_exc_regular
     # def __rates_update(self):
@@ -627,21 +585,6 @@ class MultiBot:
             abs_pos += abs(position['amount_usd'])
         return coins, int(round(total_pos)), int(round(abs_pos))
 
-    # async def close_all_positions(self):
-    #     async with aiohttp.ClientSession() as session:
-    #         print('START')
-    #         while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
-    #                 or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
-    #             print('START WHILE')
-    #             for client in self.clients:
-    #                 print(f'START CLIENT {client.EXCHANGE_NAME}')
-    #                 client.cancel_all_orders()
-    #                 if res := client.get_positions().get(client.symbol, {}).get('amount'):
-    #                     orderbook = client.get_orderbook()[client.symbol]
-    #                     side = 'buy' if res < 0 else 'sell'
-    #                     price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
-    #                     await client.create_order(abs(res), price, side, session)
-    #                     time.sleep(7)
 
     @try_exc_async
     async def __check_order_status(self):
