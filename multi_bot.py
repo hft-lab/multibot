@@ -383,12 +383,6 @@ class MultiBot:
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-<<<<<<< Updated upstream
-        min_size_buy = client_buy.instruments[buy_market]['min_size']
-        min_size_sell = client_sell.instruments[sell_market]['min_size']
-        total_min_size = max(min_size_buy, min_size_sell)
-=======
->>>>>>> Stashed changes
 
         if not self.check_avail_balances_and_set_deal_size_usd():
             return False
