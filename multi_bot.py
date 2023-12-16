@@ -398,10 +398,10 @@ class MultiBot:
 
         max_deal_size_usd = min(avail_balance_for_deal, self.max_order_size)
         max_deal_size_amount = max_deal_size_usd / self.chosen_deal.ob_buy['asks'][0][0]
-        self.chosen_deal.max_buy_vol = self.chosen_deal.ob_buy['asks'][0][1]
-        self.chosen_deal.max_sell_vol = self.chosen_deal.ob_sell['bids'][0][1]
+        self.chosen_deal.buy_max_amount_final = self.chosen_deal.ob_buy['asks'][0][1]
+        self.chosen_deal.sell_max_amount_final = self.chosen_deal.ob_sell['bids'][0][1]
 
-        deal_size_amount = min(max_deal_size_amount,self.chosen_deal.max_buy_vol, self.chosen_deal.max_sell_vol)
+        deal_size_amount = min(max_deal_size_amount, self.chosen_deal.buy_max_amount_final, self.chosen_deal.sell_max_amount_final)
 
         step_size_buy = client_buy.instruments[buy_market]['step_size']
         step_size_sell = client_sell.instruments[sell_market]['step_size']
@@ -413,15 +413,16 @@ class MultiBot:
 
         client_buy.amount = rounded_deal_size_amount
         client_sell.amount = rounded_deal_size_amount
-        limit_buy_price, limit_sell_price = self.get_limit_prices_for_order(self.chosen_deal.ob_buy,
-                                                                            self.chosen_deal.ob_sell)
+
+        buy_price_shifted = self.get_shifted_price_for_order(self.chosen_deal.ob_buy, 'ask')
+        sell_price_shifted = self.get_shifted_price_for_order(self.chosen_deal.ob_sell, 'bid')
         # Здесь происходит уточнение и финализации размеров ордеров и их цен
-        client_buy.fit_sizes(limit_buy_price, buy_market)
-        client_sell.fit_sizes(limit_sell_price, sell_market)
+        client_buy.fit_sizes(buy_price_shifted, buy_market)
+        client_sell.fit_sizes(sell_price_shifted, sell_market)
 
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
-        self.chosen_deal.limit_buy_px = client_buy.price
-        self.chosen_deal.limit_sell_px = client_sell.price
+        self.chosen_deal.buy_price_final = client_buy.price
+        self.chosen_deal.sell_price_final = client_sell.price
         self.chosen_deal.buy_size = client_buy.amount
         self.chosen_deal.sell_size = client_sell.amount
 
@@ -441,7 +442,7 @@ class MultiBot:
 
     @try_exc_regular
     def final_profit_check(self):
-        profit = (self.chosen_deal.limit_sell_px - self.chosen_deal.limit_buy_px) / self.chosen_deal.limit_buy_px
+        profit = (self.chosen_deal.sell_price_final - self.chosen_deal.buy_price_final) / self.chosen_deal.buy_price_final
         profit = profit - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
         if profit >= self.chosen_deal.target_profit:
             self.chosen_deal.expect_profit_rel = profit
@@ -471,7 +472,7 @@ class MultiBot:
         #     writer.writerow(row_data)
 
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
-        self.chosen_deal.order_id_buy, self.chosen_deal.order_id_sell = id1, id2
+        self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
         cl_id_buy, cl_id_sell = f"api_deal_{id1.replace('-', '')[:20]}", f"api_deal_{id2.replace('-', '')[:20]}"
 
         self.chosen_deal.time_sent = int(datetime.utcnow().timestamp() * 1000)
@@ -505,9 +506,9 @@ class MultiBot:
 
         ap_id = self.chosen_deal.ap_id
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
-        shifted_buy_px, shifted_sell_px = self.chosen_deal.limit_buy_px, self.chosen_deal.limit_sell_px
+        shifted_buy_px, shifted_sell_px = self.chosen_deal.buy_price_final, self.chosen_deal.sell_price_final
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-        order_id_buy, order_id_sell = self.chosen_deal.order_id_buy, self.chosen_deal.order_id_sell
+        order_id_buy, order_id_sell = self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id
         buy_exchange_order_id, sell_exchange_order_id = self.chosen_deal.buy_exchange_order_id, self.chosen_deal.sell_exchange_order_id
         buy_order_place_time = self.chosen_deal.buy_order_place_time
         sell_order_place_time = self.chosen_deal.sell_order_place_time
@@ -549,19 +550,13 @@ class MultiBot:
 
 
     @try_exc_regular
-    def get_limit_prices_for_order(self, ob_buy, ob_sell):
-        buy_point_price = (ob_buy['asks'][1][0] - ob_buy['asks'][0][0]) / ob_buy['asks'][0][0]
-        sell_point_price = (ob_sell['bids'][0][0] - ob_sell['bids'][1][0]) / ob_sell['bids'][0][0]
-        if buy_point_price > 0.2 * self.profit_taker:
-            shifted_buy_px = ob_buy['asks'][0][0]
+    def get_shifted_price_for_order(self, ob, direction):
+        point_price = abs(ob[direction][1][0] - ob[direction][0][0]) / ob[direction][0][0]
+        if point_price > 0.2 * self.profit_taker:
+            shifted_price = ob[direction][0][0]
         else:
-            shifted_buy_px = ob_buy['asks'][4][0]
-        if sell_point_price > 0.2 * self.profit_taker:
-            shifted_sell_px = ob_sell['bids'][0][0]
-        else:
-            shifted_sell_px = ob_sell['bids'][4][0]
-        return shifted_buy_px, shifted_sell_px
-
+            shifted_price = ob[direction][4][0]
+        return shifted_price
 
 
     # @try_exc_regular

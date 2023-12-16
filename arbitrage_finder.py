@@ -3,21 +3,37 @@ from datetime import datetime
 from core.wrappers import try_exc_regular
 from typing import List
 
+class Side:
+    def __init__(self, client, exchange, market, fee, price_parser, max_amount_parser, ob):
+        self.client = client
+        self.exchange = exchange
+        self.market = market
+        self.fee = fee
+        self.price_parser = price_parser
+        self.max_amount_parser = max_amount_parser
+        #
+        self.ob = None  # Заполняется после обновления ордербука
+        self.max_amount_final = None  # Максимально возможный размер ордера в крипте. Заполняется после обновления ордербука
+        self.limit_px = None  # Итоговое целевое значение цены ордера
+        self.buy_size = None  # Итоговый размер ордера в крипте
 
+        self.buy_exchange_order_id = None
+        self.buy_order_id = None
+        self.buy_order_place_time = None
 class AP:
     def __init__(self, ap_id, coin, target_profit, client_buy, client_sell, buy_exchange, sell_exchange, buy_market,
-                 sell_market, buy_fee, sell_fee, sell_price, buy_price, parser_max_sell_amount,
-                 parser_max_buy_amount, deal_size_amount, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
+                 sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_max_amount_parser,
+                 buy_max_amount_parser, deal_size_amount, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
                  datetime, timestamp, deal_direction):
         # general section # Изначально из парсера, потом частично перезатирается целевыми значениями
-        self.ap_id = ap_id
-        self.coin = coin
+        self.ap_id = ap_id # Не перезатирается
+        self.coin = coin # Не перезатирается
         self.deal_direction = deal_direction  # Не перезатирается
         self.target_profit = target_profit # Не перезатирается
-        self.deal_size_amount = deal_size_amount # потом перетирается целевым значением ордеров
-        self.deal_size_usd = deal_size_usd # Потом перетирается
-        self.expect_profit_rel = expect_profit_rel # Перетирается после обновления ордербука
-        self.expect_profit_abs_usd = expect_profit_abs_usd # Потом перезаписывается
+        self.deal_size_amount = deal_size_amount # потом перезатирается целевым значением ордеров
+        self.deal_size_usd = deal_size_usd # Потом перезатирается
+        self.expect_profit_rel = expect_profit_rel # Перезатирается после обновления ордербука
+        self.expect_profit_abs_usd = expect_profit_abs_usd # В самом конце перезаписывается
 
         # time section
         self.datetime = datetime
@@ -35,16 +51,16 @@ class AP:
         self.buy_exchange = buy_exchange
         self.buy_market = buy_market
         self.buy_fee = buy_fee
-        self.buy_price = buy_price # Из парсера
-        self.parser_max_buy_amount = parser_max_buy_amount # Из парсера
+        self.buy_price = buy_price
+        self.buy_max_amount_parser = buy_max_amount_parser
         #
-        self.ob_buy = None
-        self.max_buy_vol = None  # Максимально возможный размер ордера в крипте. Заполняется после обновления ордербука
-        self.limit_buy_px = None # Итоговое целевое значение цены ордера
-        self.buy_size = None # Итоговый размер ордера в крипте.
+        self.ob_buy = None # Заполняется после обновления ордербука
+        self.buy_max_amount_final = None  # Максимально возможный размер ордера в крипте. Заполняется после обновления ордербука
+        self.buy_price_final = None # Итоговое целевое значение цены ордера
+        self.buy_size = None # Итоговый размер ордера в крипте
 
         self.buy_exchange_order_id = None
-        self.order_id_buy = None
+        self.buy_order_id = None
         self.buy_order_place_time = None
 
         # sell section
@@ -52,16 +68,16 @@ class AP:
         self.sell_exchange = sell_exchange
         self.sell_market = sell_market
         self.sell_fee = sell_fee
-        self.sell_price = sell_price # Из парсера
-        self.parser_max_sell_amount = parser_max_sell_amount
+        self.sell_price = sell_price
+        self.sell_max_amount_parser = sell_max_amount_parser
 
-        self.ob_sell = None
-        self.max_sell_vol = None  # Заполняется после обновления ордербука
-        self.limit_sell_px = None # Итоговое целевое значение цены ордера
+        self.ob_sell = None # Заполняется после обновления ордербука
+        self.sell_max_amount_final = None  # Заполняется после обновления ордербука
+        self.sell_price_final = None # Итоговое целевое значение цены ордера
         self.sell_size = None  # Изначально из парсера, потом перезатирается целевым значением
 
         self.sell_exchange_order_id = None
-        self.order_id_sell = None
+        self.sell_order_id = None
         self.sell_order_place_time = None
 
 
@@ -150,8 +166,8 @@ class ArbitrageFinder:
                                     sell_fee=self.fees[ex_2],
                                     sell_price=float(ob_2['top_bid']),
                                     buy_price=float(ob_1['top_ask']),
-                                    parser_max_sell_amount=float(ob_1['bid_vol']),
-                                    parser_max_buy_amount=float(ob_2['ask_vol']),
+                                    sell_max_amount_parser=float(ob_1['bid_vol']),
+                                    buy_max_amount_parser=float(ob_2['ask_vol']),
                                     deal_size_amount=deal_size,
                                     deal_size_usd=deal_size_usd,
                                     expect_profit_rel=round(profit, 5),
