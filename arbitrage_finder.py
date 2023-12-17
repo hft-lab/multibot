@@ -74,16 +74,16 @@ class ArbitrageFinder:
                             if profit > target_profit:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
-                                deal_size_usd = deal_size_amount * float(ob_2['top_bid'])
-                                profit_usd = profit * deal_size_usd
+                                deal_size_usd_max = deal_size_amount * float(ob_2['top_bid'])
+                                profit_usd_max = profit * deal_size_usd_max
                                 possibility = AP(ap_id=uuid.uuid4())
                                 possibility.set_data_from_parser(
                                     coin=coin,
                                     target_profit=target_profit,
                                     deal_max_amount_parser=deal_size_amount,
-                                    deal_max_usd_parser=deal_size_usd,
+                                    deal_max_usd_parser=deal_size_usd_max,
                                     expect_profit_rel=round(profit, 5),
-                                    expect_profit_usd=round(profit_usd, 3),
+                                    profit_usd_max=round(profit_usd_max, 3),
                                     datetime=datetime.utcnow(),
                                     timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
                                     deal_direction=deal_direction)

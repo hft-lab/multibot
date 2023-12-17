@@ -96,7 +96,6 @@ class DB:
     @try_exc_regular
     def save_arbitrage_possibilities(self, ap : AP):
 
-        expect_amount_usd = ap.client_buy.amount * (ap.sell_price + ap.buy_price) / 2
         message = {
             'id': ap.ap_id,
             'datetime': datetime.utcnow(),
@@ -112,8 +111,8 @@ class DB:
             'expect_sell_price': ap.sell_price_target,
             'expect_amount_usd': ap.deal_size_usd_target,
             'expect_amount_coin': ap.deal_size_amount_target,
-            'expect_profit_usd': ap.expect_profit_usd_target,
-            'expect_profit_relative': ap.expect_profit_rel_target,
+            'expect_profit_usd': ap.profit_usd_target,
+            'expect_profit_relative': ap.profit_rel_target,
             'expect_fee_buy': ap.buy_fee,
             'expect_fee_sell': ap.sell_fee,
             'time_parser': ap.time_parser,

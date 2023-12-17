@@ -101,9 +101,9 @@ class Telegram:
 
     def send_ap_expired_message(self, deal:AP, group: TG_Groups = None):
         message = f'ALERT NAME: AP EXPIRED AFTER OB UPDATE\n---\n' \
-              f'ACTUAL PROFIT: {round(deal.expect_profit_rel_target, 5)}\n' \
+              f'ACTUAL PROFIT: {round(deal.profit_rel_target, 5)}\n' \
               f'TARGET PROFIT: {deal.target_profit}\n' \
-              f'PARSER PROFIT : {round(deal.expect_profit_rel_parser, 5)}\n' \
+              f'PARSER PROFIT : {round(deal.profit_rel_parser, 5)}\n' \
               f'DEAL DIRECTION: {deal.deal_direction}\n' \
               f'EXCH_BUY: {deal.buy_exchange}\n' \
               f'EXCH_SELL: {deal.sell_exchange}\n---\n' \

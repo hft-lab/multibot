@@ -29,10 +29,11 @@ class AP:
         self.deal_size_amount_target = None
         self.deal_size_usd_target = None
 
-        self.expect_profit_rel_parser = None
-        self.expect_profit_usd_parser = None
-        self.expect_profit_rel_target = None
-        self.expect_profit_usd_target = None
+        self.profit_rel_parser = None
+        self.profit_rel_target = None
+        self.profit_usd_parser_max = None
+        self.profit_usd_target = None
+
 
 
         # self.buy: Side
@@ -102,7 +103,7 @@ class AP:
     #     pass
 
     def set_data_from_parser(self, coin, deal_direction, deal_max_amount_parser, deal_max_usd_parser,
-                             expect_profit_rel, expect_profit_usd,
+                             expect_profit_rel, profit_usd_max,
                              datetime, timestamp, target_profit):
         self.ts_create_ap = timestamp
         self.dt_create_ap = datetime
@@ -111,8 +112,8 @@ class AP:
         self.target_profit = target_profit
         self.deal_max_amount_parser = deal_max_amount_parser
         self.deal_max_usd_parser = deal_max_usd_parser
-        self.expect_profit_rel_parser = expect_profit_rel
-        self.expect_profit_usd_parser = expect_profit_usd
+        self.profit_rel_parser = expect_profit_rel
+        self.profit_usd_parser_max = profit_usd_max
 
     def set_side_data_from_parser(self, side, client, exchange, market, fee, price, max_amount):
         if side == 'buy':

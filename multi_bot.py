@@ -193,6 +193,7 @@ class MultiBot:
                     self.chosen_deal: AP = self.choose_deal(potential_deals)
                     if self.chosen_deal:
                         time_end_choose = time.time()
+                        self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
                         self.chosen_deal.ts_choose_end = time.time()
                         self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
                         self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
@@ -266,8 +267,8 @@ class MultiBot:
                 continue
             if self.is_in_trade_exceptions(deal.coin, deal.sell_exchange, 'sell'):
                 continue
-            if deal.expect_profit_rel_parser > max_profit:
-                max_profit = deal.expect_profit_rel_parser
+            if deal.profit_rel_parser > max_profit:
+                max_profit = deal.profit_rel_parser
                 chosen_deal = deal
         return chosen_deal
 
@@ -289,7 +290,10 @@ class MultiBot:
         self.chosen_deal.buy_price_target = buy_price
         self.chosen_deal.sell_price_target = sell_price
 
-        self.chosen_deal.expect_profit_rel_target = profit
+        self.chosen_deal.deal_max_amount_ob = min(self.chosen_deal.buy_max_amount_ob,self.chosen_deal.sell_max_amount_ob)
+        self.chosen_deal.deal_max_usd_ob = self.chosen_deal.deal_max_amount_ob*(buy_price+sell_price)/2
+
+        self.chosen_deal.profit_rel_target = profit
         self.chosen_deal.ts_check_still_good_end = time.time()
         self.chosen_deal.time_check_ob = self.chosen_deal.ts_check_still_good_end - self.chosen_deal.ts_choose_end
 
@@ -416,6 +420,7 @@ class MultiBot:
         self.chosen_deal.deal_size_amount_target = client_buy.amount
         self.chosen_deal.deal_size_usd_target = client_buy.amount * \
                 (self.chosen_deal.buy_price_target + self.chosen_deal.sell_price_target ) / 2
+        self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * self.chosen_deal.deal_size_usd_target
 
         # По логике округления, amount на клиентах изменяться в fit_sizes не должны, но контрольно проверим
         if (client_sell.amount != client_buy.amount) or abs(client_buy.amount - rounded_deal_size_amount) > 1e-9:
@@ -443,7 +448,7 @@ class MultiBot:
         self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
         cl_id_buy, cl_id_sell = f"api_deal_{id1.replace('-', '')[:20]}", f"api_deal_{id2.replace('-', '')[:20]}"
 
-        self.chosen_deal.ts_orders_sent = int(datetime.utcnow().timestamp() * 1000)
+        self.chosen_deal.ts_orders_sent = time.time()
         time_sent = self.chosen_deal.ts_orders_sent
 
         orders = []
@@ -453,7 +458,7 @@ class MultiBot:
             client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
         responses = await asyncio.gather(*orders, return_exceptions=True)
 
-        self.chosen_deal.ts_orders_responses_received = int(datetime.utcnow().timestamp() * 1000)
+        self.chosen_deal.ts_orders_responses_received = time.time()
         self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - time_sent) / 1000
         self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - time_sent) / 1000
         self.chosen_deal.buy_order_id_exchange = responses[0]['exchange_order_id']
