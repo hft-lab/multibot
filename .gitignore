@@ -1,6 +1,7 @@
 .idea/
 *.pyc
 venv
+no_git_folder
 .env
 .env*
 __pycache__
@@ -8,9 +9,4 @@ __pycache__
 *.csv
 *.ini
 config.ini
-test.py
-db_test.py
-
-arbi.txt
-rates.txt
 /clients

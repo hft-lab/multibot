@@ -2,7 +2,7 @@ import csv
 import time
 import asyncio
 from datetime import datetime
-from clients.enums import BotState
+from multibot.clients.core.enums import BotState
 from core.queries import get_last_balance_jumps, get_total_balance, get_last_deals
 
 
@@ -213,3 +213,28 @@ def check_ob_slippage(multibot, client_sell, client_buy):
     #                     price = orderbook['bids'][0][0] if side == 'buy' else orderbook['asks'][0][0]
     #                     await client.create_order(abs(res), price, side, session)
     #                     time.sleep(7)
+
+    def find_position_gap(self):
+        position_gap = 0
+        for client in self.clients:
+            if res := client.get_positions().get(client.symbol):
+                position_gap += res['amount']
+        return position_gap
+
+    def find_balancing_elements(self):
+        position_gap = self.find_position_gap()
+        amount_to_balancing = abs(position_gap) / len(self.clients)
+        return position_gap, amount_to_balancing
+
+    # @try_exc_regular
+    # def check_last_ob(self, client_buy, client_sell, ob_sell, ob_buy):
+    #     exchanges = client_buy.EXCHANGE_NAME + ' ' + client_sell.EXCHANGE_NAME
+    #     last_obs = self.last_orderbooks.get(exchanges, None)
+    #     self.last_orderbooks.update({exchanges: {'ob_buy': ob_buy['asks'][0][0], 'ob_sell': ob_sell['bids'][0][0]}})
+    #     if last_obs:
+    #         if ob_buy['asks'][0][0] == last_obs['ob_buy'] and ob_sell['bids'][0][0] == last_obs['ob_sell']:
+    #             return False
+    #         else:
+    #             return True
+    #     else:
+    #         return True

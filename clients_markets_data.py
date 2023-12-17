@@ -19,7 +19,6 @@ class Clients_markets_data:
         self.coins_clients_symbols = self.get_coins_clients_symbol()
         self.clients_data = self.get_clients_data()
 
-    #
     # {'CELO': {'DYDX': 'CELO-USD', 'BINANCE': 'CELOUSDT'},
     #  'LINK': {'DYDX': 'LINK-USD', 'BINANCE': 'LINKUSDT', 'KRAKEN': 'PF_LINKUSD'},
 
@@ -70,8 +69,6 @@ def main():
 
     setts = config['SETTINGS']
     leverage = float(config['SETTINGS']['LEVERAGE'])
-    alert_id = config['TELEGRAM']['ALERT_CHAT_ID']
-    alert_token = config['TELEGRAM']['ALERT_BOT_TOKEN']
     max_position_part = float(setts['PERCENT_PER_MARKET'])
 
     ALL_CLIENTS = {
@@ -84,8 +81,8 @@ def main():
 
     clients = []
     for exchange, client in ALL_CLIENTS.items():
-        print(config[exchange], leverage, alert_id, alert_token, max_position_part)
-        new = client(config[exchange], leverage, alert_id, alert_token, max_position_part)
+        print(config[exchange], leverage, max_position_part)
+        new = client(config[exchange], leverage, max_position_part)
         clients.append(new)
 
 

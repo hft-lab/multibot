@@ -1,6 +1,8 @@
 import traceback
 from datetime import datetime
 import requests
+from core.wrappers import try_exc_regular, try_exc_async
+from ap_class import AP
 
 from configparser import ConfigParser
 
@@ -8,7 +10,7 @@ config = ConfigParser()
 config.read('config.ini', "utf-8")
 
 
-class TG_Groups():
+class TG_Groups:
     _main_id = int(config['TELEGRAM']['CHAT_ID'])
     _main_token = config['TELEGRAM']['TOKEN']
     # self.daily_chat_id = int(config['TELEGRAM']['DAILY_CHAT_ID'])
@@ -29,6 +31,7 @@ class Telegram:
         self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
         self.env = config['SETTINGS']['ENV']
 
+    @try_exc_regular
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
             print('TG_DEBUG IS OFF')
@@ -43,9 +46,9 @@ class Telegram:
             except Exception as e:
                 return e
 
-    @staticmethod
-    def start_message(multibot):
-        message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} STARTED\n'
+    @try_exc_regular
+    def send_bot_launch_message(self, multibot, group: TG_Groups = None):
+        message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} LAUNCHED\n'
         message += f'{" | ".join(multibot.exchanges)}\n'
         message += f"ENV: {multibot.env}\n"
         message += f"MARKETS: {'|'.join(list(multibot.markets.keys()))}\n"
@@ -56,10 +59,11 @@ class Telegram:
         message += f"TARGET PROFIT: {multibot.setts['TARGET_PROFIT']}\n"
         message += f"CLOSE PROFIT: {multibot.setts['CLOSE_PROFIT']}\n"
         message += f"START BALANCE: TBD\n"
+        self.send_message(message, group)
         return message
 
-    @staticmethod
-    def start_balance_message(multibot):
+    @try_exc_regular
+    def send_start_balance_message(self, multibot, group: TG_Groups = None):
         message = f'START BALANCES AND POSITION\n'
         message += f"ENV: {multibot.setts['ENV']}\n"
         total_balance = 0
@@ -68,58 +72,81 @@ class Telegram:
 
         for client in multibot.clients:
             coins, total_pos, abs_pos = multibot.get_positions_data(client)
-            try:
-                message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-                message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
-                message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
-                message += f"TOT POS, USD: {total_pos}\n"
-                message += f"ABS POS, USD: {abs_pos}\n"
-                message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
-                message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n\n"
-                total_position += total_pos
-                abs_total_position += abs_pos
-                total_balance += client.get_balance()
-            except:
-                traceback.print_exc()
-        try:
-            message += f"   TOTAL:\n"
-            message += f"START BALANCE: {int(round(total_balance))} USD\n"
-            message += f"TOT POS: {int(round(total_position))} USD\n"
-            message += f"ABS TOT POS: {int(round(abs_total_position))} USD\n"
-        except:
-            traceback.print_exc()
+            message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
+            message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
+            message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
+            message += f"TOT POS, USD: {total_pos}\n"
+            message += f"ABS POS, USD: {abs_pos}\n"
+            message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
+            message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n\n"
+            total_position += total_pos
+            abs_total_position += abs_pos
+            total_balance += client.get_balance()
+
+        message += f"   TOTAL:\n"
+        message += f"START BALANCE: {int(round(total_balance))} USD\n"
+        message += f"TOT POS: {int(round(total_position))} USD\n"
+        message += f"ABS TOT POS: {int(round(abs_total_position))} USD\n"
+        self.send_message(message, group)
         return message
 
 
-    def send_ap_executed_message(self, ap, group: TG_Groups = None):
+    def send_ap_executed_message(self, ap:AP, group: TG_Groups = None):
         message = f"AP EXECUTED\n"
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
-        message += f"B.P.: {str(ap.buy_price)} | S.P.: {str(ap.sell_price)}\n"
+        message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
+        message += f"B.TARGET P.: {str(ap.buy_price_target)} | S.TARGET P.: {str(ap.sell_price_target)}\n"
+        message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"
+        message += f"B.Fitted P.: {str(ap.buy_price_fitted)} | S.Fitted P.: {str(ap.sell_price_fitted)}\n"
         self.send_message(message, group)
+        return message
 
-    def send_ap_expired_message(self, deal, profit, group: TG_Groups = None):
-        message = f'ALERT NAME: AP EXPIRED\n---\n' \
-              f'DEAL DIRECTION: {deal.deal_direction}\n' \
+    def send_ap_expired_message(self, deal:AP, group: TG_Groups = None):
+        message = f'ALERT NAME: AP EXPIRED AFTER OB UPDATE\n---\n' \
+              f'ACTUAL PROFIT: {round(deal.expect_profit_rel_ob, 5)}\n' \
               f'TARGET PROFIT: {deal.target_profit}\n' \
-              f'EXCH_BUY: {deal.buy_exchange}\nEXCH_SELL: {deal.sell_exchange}\n' \
-              f'---\nOLD PRICES: BUY: {deal.buy_price}, SELL: {deal.sell_price}\n' \
-              f'OLD PROFIT: {deal.expect_profit_rel}\n---\n' \
-              f'NEW PRICES: BUY: {deal.ob_buy["asks"][0][0]}, SELL: {deal.ob_sell["bids"][0][0]}\n' \
-              f'NEW PROFIT: {round(profit, 6)}\n---\n' \
-              f'TIMINGS.\n' \
-              f'CURRENT TS: {int(round(datetime.utcnow().timestamp() * 1000))}\n' \
-              f'PARSE TIME: {round(deal.time_parser, 4)}\n' \
-              f'DEFINE POT. DEALS TIME: {round(deal.time_define_potential_deals, 4)}\n' \
-              f'CHOOSE TIME: {round(deal.time_choose, 4)}\n' \
-              f'STILL GOOD CHECK TIME: {round(deal.time_check, 4)}\n'
+              f'PARSER PROFIT : {round(deal.expect_profit_rel_parser, 5)}\n' \
+              f'DEAL DIRECTION: {deal.deal_direction}\n' \
+              f'EXCH_BUY: {deal.buy_exchange}\n' \
+              f'EXCH_SELL: {deal.sell_exchange}\n---\n' \
+              f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
+              f'PARSER PRICES: BUY: {deal.buy_price_parser}, SELL: {deal.sell_price_parser}\n' \
+              f'TIMINGS:\n' \
+              f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \
+              f'DEFINE POT. DEALS DURATION {round(deal.time_define_potential_deals, 4)}\n' \
+              f'CHOOSE TIME DURATION: {round(deal.time_choose, 4)}\n' \
+              f'OB CHECK DURATION: {round(deal.time_check_ob, 4)}\n'
+
         self.send_message(message, group)
+        return message
+
+    def send_different_amounts_alert(self, chosen_deal:AP, rounded_deal_size_amount, group):
+        client_buy, client_sell = chosen_deal.client_buy, chosen_deal.client_sell
+        buy_exchange, sell_exchange = chosen_deal.buy_exchange, chosen_deal.sell_exchange
+        buy_market, sell_market = chosen_deal.buy_market, chosen_deal.sell_market
+        message = f'ALERT: Разошлись целевые объемы покупки, продажи и rounded_amount\n ' \
+              f'{client_buy.amount=}\n' \
+              f'{client_sell.amount=}\n' \
+              f'{rounded_deal_size_amount=}\n' \
+              f'{buy_exchange=}\n' \
+              f'{buy_market=}\n' \
+              f'{sell_market=}\n' \
+              f'{sell_exchange=}\n' \
+              f'ACTION: Бот поставлен на паузу'
+        self.send_message(message, group)
+        return message
+
 
     def send_order_error_message(self, env, symbol, client, order_id, group: TG_Groups = None):
-        message = f"ALERT NAME: Order Mistake\nCOIN: {symbol}\nCONTEXT: BOT\nENV: {env}\n"
-        message += f"EXCHANGE: {client.EXCHANGE_NAME}\nOrder Id:{str(order_id)}\nError:{str(client.error_info)}"
+        message = f"ALERT NAME: Order Mistake\n" \
+                  f"COIN: {symbol}\n" \
+                  f"EXCHANGE: {client.EXCHANGE_NAME}\n" \
+                  f"Order Id:{str(order_id)}\n" \
+                  f"Error:{str(client.error_info)}"
         self.send_message(message, group)
+        return message
 
     # @staticmethod
     # def coin_threshold_message(coin, exchange, direction, position, available, max_position_part):

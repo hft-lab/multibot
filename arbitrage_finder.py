@@ -2,83 +2,7 @@ import uuid
 from datetime import datetime
 from core.wrappers import try_exc_regular
 from typing import List
-
-class Side:
-    def __init__(self, client, exchange, market, fee, price_parser, max_amount_parser, ob):
-        self.client = client
-        self.exchange = exchange
-        self.market = market
-        self.fee = fee
-        self.price_parser = price_parser
-        self.max_amount_parser = max_amount_parser
-        #
-        self.ob = None  # Заполняется после обновления ордербука
-        self.max_amount_final = None  # Максимально возможный размер ордера в крипте. Заполняется после обновления ордербука
-        self.limit_px = None  # Итоговое целевое значение цены ордера
-        self.buy_size = None  # Итоговый размер ордера в крипте
-
-        self.buy_exchange_order_id = None
-        self.buy_order_id = None
-        self.buy_order_place_time = None
-class AP:
-    def __init__(self, ap_id, coin, target_profit, client_buy, client_sell, buy_exchange, sell_exchange, buy_market,
-                 sell_market, buy_fee, sell_fee, sell_price, buy_price, sell_max_amount_parser,
-                 buy_max_amount_parser, deal_size_amount, deal_size_usd, expect_profit_rel, expect_profit_abs_usd,
-                 datetime, timestamp, deal_direction):
-        # general section # Изначально из парсера, потом частично перезатирается целевыми значениями
-        self.ap_id = ap_id # Не перезатирается
-        self.coin = coin # Не перезатирается
-        self.deal_direction = deal_direction  # Не перезатирается
-        self.target_profit = target_profit # Не перезатирается
-        self.deal_size_amount = deal_size_amount # потом перезатирается целевым значением ордеров
-        self.deal_size_usd = deal_size_usd # Потом перезатирается
-        self.expect_profit_rel = expect_profit_rel # Перезатирается после обновления ордербука
-        self.expect_profit_abs_usd = expect_profit_abs_usd # В самом конце перезаписывается
-
-        # time section
-        self.datetime = datetime
-        self.timestamp = timestamp
-        self.time_end_choose = None
-        self.time_end_define_potential_deals = None
-        self.time_parser = None
-        self.time_define_potential_deals = None
-        self.time_choose = None
-        self.time_check = None
-        self.time_sent = None  # Момент отправки ордеров
-
-        # buy section
-        self.client_buy = client_buy
-        self.buy_exchange = buy_exchange
-        self.buy_market = buy_market
-        self.buy_fee = buy_fee
-        self.buy_price = buy_price
-        self.buy_max_amount_parser = buy_max_amount_parser
-        #
-        self.ob_buy = None # Заполняется после обновления ордербука
-        self.buy_max_amount_final = None  # Максимально возможный размер ордера в крипте. Заполняется после обновления ордербука
-        self.buy_price_final = None # Итоговое целевое значение цены ордера
-        self.buy_size = None # Итоговый размер ордера в крипте
-
-        self.buy_exchange_order_id = None
-        self.buy_order_id = None
-        self.buy_order_place_time = None
-
-        # sell section
-        self.client_sell = client_sell
-        self.sell_exchange = sell_exchange
-        self.sell_market = sell_market
-        self.sell_fee = sell_fee
-        self.sell_price = sell_price
-        self.sell_max_amount_parser = sell_max_amount_parser
-
-        self.ob_sell = None # Заполняется после обновления ордербука
-        self.sell_max_amount_final = None  # Заполняется после обновления ордербука
-        self.sell_price_final = None # Итоговое целевое значение цены ордера
-        self.sell_size = None  # Изначально из парсера, потом перезатирается целевым значением
-
-        self.sell_exchange_order_id = None
-        self.sell_order_id = None
-        self.sell_order_place_time = None
+from core.ap_class import AP
 
 
 class ArbitrageFinder:
@@ -91,7 +15,6 @@ class ArbitrageFinder:
         self.clients_list = clients_list
         self.fees = {x: y.taker_fee for x, y in self.clients_list.items()}
 
-
     @try_exc_regular
     def get_target_profit(self, deal_direction):
         if deal_direction == 'open':
@@ -101,6 +24,7 @@ class ArbitrageFinder:
         else:
             target_profit = (self.profit_taker + self.profit_close) / 2
         return target_profit
+
     @try_exc_regular
     def get_deal_direction(self, positions, exchange_buy, exchange_sell, buy_market, sell_market):
         buy_close = False
@@ -149,32 +73,39 @@ class ArbitrageFinder:
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             if profit > target_profit:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                                deal_size = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
-                                deal_size_usd = deal_size * float(ob_2['top_bid'])
-                                expect_profit_abs = profit * deal_size_usd
-                                possibility = AP(
-                                    ap_id=uuid.uuid4(),
+                                deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
+                                deal_size_usd = deal_size_amount * float(ob_2['top_bid'])
+                                profit_usd = profit * deal_size_usd
+                                possibility = AP(ap_id=uuid.uuid4())
+                                possibility.set_data_from_parser(
                                     coin=coin,
                                     target_profit=target_profit,
-                                    client_buy=client_1,
-                                    client_sell=client_2,
-                                    buy_exchange=ex_1,
-                                    sell_exchange=ex_2,
-                                    buy_market=buy_mrkt,
-                                    sell_market=sell_mrkt,
-                                    buy_fee=self.fees[ex_1],
-                                    sell_fee=self.fees[ex_2],
-                                    sell_price=float(ob_2['top_bid']),
-                                    buy_price=float(ob_1['top_ask']),
-                                    sell_max_amount_parser=float(ob_1['bid_vol']),
-                                    buy_max_amount_parser=float(ob_2['ask_vol']),
-                                    deal_size_amount=deal_size,
-                                    deal_size_usd=deal_size_usd,
+                                    deal_max_amount_parser=deal_size_amount,
+                                    deal_max_usd_parser=deal_size_usd,
                                     expect_profit_rel=round(profit, 5),
-                                    expect_profit_abs_usd=round(expect_profit_abs, 3),
+                                    expect_profit_usd=round(profit_usd, 3),
                                     datetime=datetime.utcnow(),
                                     timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
                                     deal_direction=deal_direction)
+
+                                possibility.set_side_data_from_parser(
+                                    side='buy',
+                                    client=client_1,
+                                    exchange=ex_1,
+                                    market=buy_mrkt,
+                                    fee=self.fees[ex_1],
+                                    price=float(ob_1['top_ask']),
+                                    max_amount=float(ob_2['ask_vol'])
+                                )
+                                possibility.set_side_data_from_parser(
+                                    side='sell',
+                                    client = client_2,
+                                    exchange = ex_2,
+                                    market = sell_mrkt,
+                                    fee = self.fees[ex_2],
+                                    max_amount = float(ob_1['bid_vol']),
+                                    price = float(ob_2['top_bid'])
+                                )
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
                                 # with open('arbi.csv', 'a', newline='') as file:
                                 #     writer = csv.writer(file)
