@@ -67,18 +67,18 @@ class Rabbit:
     async def publish_message(self, message, routing_key, exchange_name, queue_name):
         try:
             channel = await self.mq.channel()
+            exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
+            # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
+            queue = await channel.declare_queue(queue_name, durable=True)
+            await queue.bind(exchange, routing_key=routing_key)
+            message_body = orjson.dumps(message)
+            message = Message(message_body)
+            await exchange.publish(message, routing_key=routing_key)
+            await channel.close()
+            return True
         except:
             time.sleep(0.3)
-            channel = await self.mq.channel()
-        exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
-        # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
-        queue = await channel.declare_queue(queue_name, durable=True)
-        await queue.bind(exchange, routing_key=routing_key)
-        message_body = orjson.dumps(message)
-        message = Message(message_body)
-        await exchange.publish(message, routing_key=routing_key)
-        await channel.close()
-        return True
+            await self.publish_message(message, routing_key, exchange_name, queue_name)
 
 
 if __name__ == '__main__':
