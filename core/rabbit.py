@@ -3,6 +3,7 @@ import queue
 from aio_pika import connect_robust, ExchangeType, Message
 from orjson import orjson
 from core.enums import RabbitMqQueues
+import time
 
 from configparser import ConfigParser
 config = ConfigParser()
@@ -64,7 +65,11 @@ class Rabbit:
 
     @try_exc_async
     async def publish_message(self, message, routing_key, exchange_name, queue_name):
-        channel = await self.mq.channel()
+        try:
+            channel = await self.mq.channel()
+        except:
+            time.sleep(0.3)
+            channel = await self.mq.channel()
         exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
         # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
         queue = await channel.declare_queue(queue_name, durable=True)
