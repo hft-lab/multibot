@@ -228,15 +228,19 @@ class MultiBot:
         await self.db.setup_postgres()
         self.telegram.send_bot_launch_message(self, TG_Groups.MainGroup)
         self.telegram.send_start_balance_message(self, TG_Groups.MainGroup)
-
         self.update_all_av_balances()
+
+        # print('block1')
         # print('Available_balances', json.dumps(self.available_balances, indent=2))
         #
         # for client in self.clients:
         #     print(f"{client.EXCHANGE_NAME}:\n "
         #           f"Balance: {client.get_balance()}\n"
         #           f"Positions: {json.dumps(client.get_positions(), indent=2)}\n")
-
+        # print('Block3')
+        # for client in self.clients:
+        #     print(json.dumps(self.get_positions_data(client),indent=2))
+        #
         self.db.save_launch_balance(self)
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
@@ -472,7 +476,6 @@ class MultiBot:
                   f"Responses:\n{json.dumps(responses, indent=2)}"
         print(message)
         self.telegram.send_message(message, TG_Groups.DebugDima)
-
     @try_exc_async
     async def notification_and_logging(self):
 
