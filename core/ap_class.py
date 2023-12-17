@@ -26,15 +26,14 @@ class AP:
         self.deal_max_usd_parser = None
         self.deal_max_amount_ob = None
         self.deal_max_usd_ob = None
-        self.deal_size_amount_final = None
-        self.deal_size_usd_final = None
+        self.deal_size_amount_target = None
+        self.deal_size_usd_target = None
 
         self.expect_profit_rel_parser = None
         self.expect_profit_usd_parser = None
-        self.expect_profit_rel_ob = None
-        self.expect_profit_usd_ob = None
-        self.expect_profit_rel_final = None
-        self.expect_profit_usd_final = None
+        self.expect_profit_rel_target = None
+        self.expect_profit_usd_target = None
+
 
         # self.buy: Side
         # self.sell: Side
@@ -63,7 +62,7 @@ class AP:
 
         self.buy_max_amount_parser = None
         self.buy_max_amount_ob = None  # Объем в крипте первого ордера из обновленного OB
-        self.buy_amount_final = None  # Итоговый размер ордера в крипте
+        self.buy_amount_target = None  # Итоговый размер ордера в крипте
         self.buy_amount_real = None  # TBD
 
         self.buy_price_parser = None
@@ -86,7 +85,7 @@ class AP:
 
         self.sell_max_amount_parser = None
         self.sell_max_amount_ob = None
-        self.sell_amount_final = None
+        self.sell_amount_target = None
         self.sell_amount_real = None
 
         self.sell_price_parser = None
@@ -102,10 +101,9 @@ class AP:
     # def set_data_from_ob_update(self):
     #     pass
 
-    def set_data_from_parser(self, ap_id, coin, deal_direction, deal_max_amount_parser, deal_max_usd_parser,
+    def set_data_from_parser(self, coin, deal_direction, deal_max_amount_parser, deal_max_usd_parser,
                              expect_profit_rel, expect_profit_usd,
                              datetime, timestamp, target_profit):
-        self.ap_id = ap_id
         self.ts_create_ap = timestamp
         self.dt_create_ap = datetime
         self.coin = coin

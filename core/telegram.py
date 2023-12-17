@@ -1,8 +1,7 @@
 import traceback
 from datetime import datetime
 import requests
-from core.wrappers import try_exc_regular, try_exc_async
-from ap_class import AP
+from core.ap_class import AP
 
 from configparser import ConfigParser
 
@@ -31,7 +30,6 @@ class Telegram:
         self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
         self.env = config['SETTINGS']['ENV']
 
-    @try_exc_regular
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
             print('TG_DEBUG IS OFF')
@@ -46,7 +44,7 @@ class Telegram:
             except Exception as e:
                 return e
 
-    @try_exc_regular
+
     def send_bot_launch_message(self, multibot, group: TG_Groups = None):
         message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} LAUNCHED\n'
         message += f'{" | ".join(multibot.exchanges)}\n'
@@ -58,11 +56,9 @@ class Telegram:
         message += f"ORDER SIZE: {multibot.setts['ORDER_SIZE']}\n"
         message += f"TARGET PROFIT: {multibot.setts['TARGET_PROFIT']}\n"
         message += f"CLOSE PROFIT: {multibot.setts['CLOSE_PROFIT']}\n"
-        message += f"START BALANCE: TBD\n"
         self.send_message(message, group)
         return message
 
-    @try_exc_regular
     def send_start_balance_message(self, multibot, group: TG_Groups = None):
         message = f'START BALANCES AND POSITION\n'
         message += f"ENV: {multibot.setts['ENV']}\n"
@@ -105,7 +101,7 @@ class Telegram:
 
     def send_ap_expired_message(self, deal:AP, group: TG_Groups = None):
         message = f'ALERT NAME: AP EXPIRED AFTER OB UPDATE\n---\n' \
-              f'ACTUAL PROFIT: {round(deal.expect_profit_rel_ob, 5)}\n' \
+              f'ACTUAL PROFIT: {round(deal.expect_profit_rel_target, 5)}\n' \
               f'TARGET PROFIT: {deal.target_profit}\n' \
               f'PARSER PROFIT : {round(deal.expect_profit_rel_parser, 5)}\n' \
               f'DEAL DIRECTION: {deal.deal_direction}\n' \
@@ -134,7 +130,7 @@ class Telegram:
               f'{buy_market=}\n' \
               f'{sell_market=}\n' \
               f'{sell_exchange=}\n' \
-              f'ACTION: Бот поставлен на паузу'
+              f'ACTION: Проверить'
         self.send_message(message, group)
         return message
 
