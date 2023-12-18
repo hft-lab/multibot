@@ -66,18 +66,31 @@ class Telegram:
         total_position = 0
         abs_total_position = 0
 
-        for client in multibot.clients:
-            coins, total_pos, abs_pos = multibot.get_positions_data(client)
-            message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
-            message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
-            message += f"ACTIVE POSITIONS: {'|'.join(coins)}\n"
+        for exchange, available_balance in multibot.available_balances.items():
+            balance, total_pos, abs_pos,markets = multibot.positions[exchange].values()
+            message += f"   EXCHANGE: {exchange}\n"
+            message += f"TOT BAL: {int(round(balance, 0))} USD\n"
             message += f"TOT POS, USD: {total_pos}\n"
             message += f"ABS POS, USD: {abs_pos}\n"
-            message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
-            message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n\n"
+            message += f"AVL BUY:  {round(available_balance['buy'])}\n"
+            message += f"AVL SELL: {round(available_balance['sell'])}\n-\n"
+            message += f"ACTIVE POSITIONS: {'|'.join(markets)}\n\n"
             total_position += total_pos
             abs_total_position += abs_pos
-            total_balance += client.get_balance()
+            total_balance += balance
+
+        # for client in multibot.clients:
+        #     markets, total_pos, abs_pos = multibot._get_positions_aggregate_date(client)
+        #     message += f"   EXCHANGE: {client.EXCHANGE_NAME}\n"
+        #     message += f"TOT BAL: {int(round(client.get_balance(), 0))} USD\n"
+        #     message += f"ACTIVE POSITIONS: {'|'.join(markets)}\n"
+        #     message += f"TOT POS, USD: {total_pos}\n"
+        #     message += f"ABS POS, USD: {abs_pos}\n"
+        #     message += f"AVL BUY:  {round(client.get_available_balance()['buy'])}\n"
+        #     message += f"AVL SELL: {round(client.get_available_balance()['sell'])}\n\n"
+        #     total_position += total_pos
+        #     abs_total_position += abs_pos
+        #     total_balance += client.get_balance()
 
         message += f"   TOTAL:\n"
         message += f"START BALANCE: {int(round(total_balance))} USD\n"
@@ -92,10 +105,13 @@ class Telegram:
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
+        message += f"Deal_size_amount: {ap.deal_size_amount_target}\n"
+        message += f"Deal_size_usd: {ap.deal_size_usd_target}\n"
         message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
         message += f"B.TARGET P.: {str(ap.buy_price_target)} | S.TARGET P.: {str(ap.sell_price_target)}\n"
         message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"
         message += f"B.Fitted P.: {str(ap.buy_price_fitted)} | S.Fitted P.: {str(ap.sell_price_fitted)}\n"
+        message += f"B.Real P.: TBD | S.Real P.: TBD\n"
         self.send_message(message, group)
         return message
 

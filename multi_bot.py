@@ -41,7 +41,7 @@ init_time = time.time()
 class MultiBot:
     __slots__ = ['deal_pause', 'cycle_parser_delay', 'max_order_size', 'chosen_deal', 'profit_taker', 'shifts',
                  'rabbit', 'telegram', 'state', 'start_time', 'trade_exceptions', 'exchange_exceptions',
-                 'available_balances', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
+                 'available_balances', 'positions','session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
@@ -87,6 +87,7 @@ class MultiBot:
 
         self.start_time = datetime.utcnow().timestamp()
         self.available_balances = {}
+        self.positions = {}
         self.session = None
 
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
@@ -226,21 +227,20 @@ class MultiBot:
     async def launch(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
+        self.update_all_av_balances()
+        self.update_all_positions_aggregates()
+
         self.telegram.send_bot_launch_message(self, TG_Groups.MainGroup)
         self.telegram.send_start_balance_message(self, TG_Groups.MainGroup)
-        self.update_all_av_balances()
 
-        # print('block1')
+
+        # print('block1: Available_balances')
         # print('Available_balances', json.dumps(self.available_balances, indent=2))
         #
-        # for client in self.clients:
-        #     print(f"{client.EXCHANGE_NAME}:\n "
-        #           f"Balance: {client.get_balance()}\n"
-        #           f"Positions: {json.dumps(client.get_positions(), indent=2)}\n")
-        # print('Block3')
-        # for client in self.clients:
-        #     print(json.dumps(self.get_positions_data(client),indent=2))
+        # print('block2: Positions')
+        # print('Positions', json.dumps(self.positions, indent=2))
         #
+        # input('STOP')
         self.db.save_launch_balance(self)
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
@@ -253,10 +253,14 @@ class MultiBot:
             print(exchange, exchange_data['markets_amt'])
         print('PARSER STARTED')
 
+    @try_exc_async
+    async def add_exceptions_bot_launch(self):
+        # Здесь должна быть проверка, что рынки, в которых у нас есть позиции активны. Если нет, то алерт
+        pass
+
 
     @try_exc_regular
     def get_data_for_parser(self):
-
         data = dict()
         for client in self.clients:
             data.update(client.get_all_tops())
@@ -275,6 +279,23 @@ class MultiBot:
                 max_profit = deal.profit_rel_parser
                 chosen_deal = deal
         return chosen_deal
+
+    @try_exc_regular
+    def is_in_trade_exceptions(self, coin, exchange, direction):
+        filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
+                    item['exchange'] == exchange and item['direction'] == direction]
+        return len(filtered) > 0
+
+    @try_exc_regular
+    def add_trade_exception(self, coin, exchange, direction, reason) -> None:
+        exception = {'coin': coin, 'exchange': exchange, 'direction': direction,
+                     'reason': reason, 'Time added': str(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}
+        self.trade_exceptions.append(exception)
+        print(f'ALERT: Exception Added\n{json.dumps(exception, indent=2, ensure_ascii=False)}')
+        self.telegram.send_message((f'ALERT: Exception Added\n'
+                                    f'{json.dumps(exception, indent=2, ensure_ascii=False)}'), TG_Groups.Alerts)
+
+
 
     @try_exc_regular
     def check_prices_still_good(self):
@@ -308,7 +329,7 @@ class MultiBot:
             return False
 
     @try_exc_regular
-    def get_available_balance(self, exchange, market, direction):
+    def _get_available_balance(self, exchange, market, direction):
         if self.available_balances[exchange].get(market):
             avail_size = self.available_balances[exchange][market][direction]
         else:
@@ -321,8 +342,8 @@ class MultiBot:
         buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
 
-        deal_avail_size_buy_usd = self.get_available_balance(buy_exchange, buy_market, 'buy')
-        deal_avail_size_sell_usd = self.get_available_balance(sell_exchange, sell_market, 'sell')
+        deal_avail_size_buy_usd = self._get_available_balance(buy_exchange, buy_market, 'buy')
+        deal_avail_size_sell_usd = self._get_available_balance(sell_exchange, sell_market, 'sell')
 
         if deal_avail_size_buy_usd <= 0:
             message = f"Доступный баланс: {deal_avail_size_buy_usd} недостаточен для совершения сделки."
@@ -379,7 +400,14 @@ class MultiBot:
             return False
 
         return True
-
+    @try_exc_regular
+    def get_shifted_price_for_order(self, ob, direction):
+        point_price = abs(ob[direction][1][0] - ob[direction][0][0]) / ob[direction][0][0]
+        if point_price > 0.2 * self.profit_taker:
+            shifted_price = ob[direction][0][0]
+        else:
+            shifted_price = ob[direction][4][0]
+        return shifted_price
     @try_exc_regular
     def fit_sizes_and_prices(self):
         client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
@@ -497,41 +525,35 @@ class MultiBot:
                            shifted_sell_px,
                            sell_market, self.env)
 
-        if buy_exchange_order_id == 'default':
+        if buy_exchange_order_id == 'default' or not buy_exchange_order_id:
             self.telegram.send_order_error_message(self.env, buy_market, client_buy, order_id_buy, TG_Groups.Alerts)
-        if sell_exchange_order_id == 'default':
+        if sell_exchange_order_id == 'default'or not sell_exchange_order_id:
             self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell, TG_Groups.Alerts)
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
 
     @try_exc_regular
     def update_all_av_balances(self):
-        for client in self.clients:
-            self.available_balances.update({client.EXCHANGE_NAME: client.get_available_balance()})
+        for exchange, client in self.clients_with_names.items():
+            self.available_balances.update({exchange: client.get_available_balance()})
 
     @try_exc_regular
-    def add_trade_exception(self, coin, exchange, direction, reason) -> None:
-        exception = {'coin': coin, 'exchange': exchange, 'direction': direction,
-                     'reason': reason, 'Time added': str(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}
-        self.trade_exceptions.append(exception)
-        print(f'ALERT: Exception Added\n{json.dumps(exception, indent=2, ensure_ascii=False)}')
-        self.telegram.send_message((f'ALERT: Exception Added\n'
-                                    f'{json.dumps(exception, indent=2, ensure_ascii=False)}'), TG_Groups.Alerts)
+    def update_all_positions_aggregates(self):
+        for exchange, client in self.clients_with_names.items():
+            markets = []
+            total_pos = 0
+            abs_pos = 0
+            for market, position in client.get_positions().items():
+                markets.append(market)
+                total_pos += position['amount_usd']
+                abs_pos += abs(position['amount_usd'])
+            self.positions.update({exchange: {'balance': int(round(client.get_balance())),'total_pos': int(round(total_pos)),
+                                              'abs_pos': int(round(abs_pos)),'markets': markets, }})
+                
 
+    @staticmethod
     @try_exc_regular
-    def is_in_trade_exceptions(self, coin, exchange, direction):
-        filtered = [item for item in self.trade_exceptions if item['coin'] == coin and
-                    item['exchange'] == exchange and item['direction'] == direction]
-        return len(filtered) > 0
-
-    @try_exc_regular
-    def get_shifted_price_for_order(self, ob, direction):
-        point_price = abs(ob[direction][1][0] - ob[direction][0][0]) / ob[direction][0][0]
-        if point_price > 0.2 * self.profit_taker:
-            shifted_price = ob[direction][0][0]
-        else:
-            shifted_price = ob[direction][4][0]
-        return shifted_price
-
+    def _get_positions_aggregate_date(client):
+        pass
     # @try_exc_regular
     # def __rates_update(self):
     #     message = ''
@@ -555,22 +577,12 @@ class MultiBot:
     #     self.client_1.step_size = step_size
     #     self.client_2.step_size = step_size
 
-    @staticmethod
-    @try_exc_regular
-    def get_positions_data(client):
-        coins = []
-        total_pos = 0
-        abs_pos = 0
-        for market, position in client.get_positions().items():
-            coins.append(market)
-            total_pos += position['amount_usd']
-            abs_pos += abs(position['amount_usd'])
-        return coins, int(round(total_pos)), int(round(abs_pos))
+
 
     @try_exc_async
     async def __check_order_status(self):
         # Эта функция инициирует обновление данных по ордеру в базе,
-        # когда обновление приходит от биржи в клиента после создания ордера
+        # когда от биржи в клиента появляется обновление после создания ордера
         while True:
             for client in self.clients:
                 orders = client.orders.copy()
@@ -581,10 +593,7 @@ class MultiBot:
 
             await asyncio.sleep(3)
 
-    @try_exc_async
-    async def check_active_markets_status(self):
-        # Здесь должна быть проверка, что рынки, в которых у нас есть позиции активны. Если нет, то алерт
-        pass
+
 
 
 if __name__ == '__main__':
