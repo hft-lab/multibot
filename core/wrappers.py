@@ -24,7 +24,7 @@ def try_exc_regular(func):
         except Exception:
             formatted_traceback = str(traceback.format_exc())
             print(formatted_traceback)
-            telegram.send_message(formatted_traceback, TG_Groups.Alerts)
+            telegram.send_message(formatted_traceback, TG_Groups.Traces)
 
     return wrapper
 
@@ -37,6 +37,6 @@ def try_exc_async(func):
         except Exception:
             formatted_traceback = str(traceback.format_exc())
             print(formatted_traceback)
-            telegram.send_message(formatted_traceback, TG_Groups.Alerts)
+            telegram.send_message(formatted_traceback, TG_Groups.Traces)
     return wrapper
 
