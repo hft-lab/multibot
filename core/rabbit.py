@@ -3,7 +3,7 @@ import queue
 from aio_pika import connect_robust, ExchangeType, Message
 from orjson import orjson
 from core.enums import RabbitMqQueues
-import time
+import aiormq
 
 from configparser import ConfigParser
 config = ConfigParser()
@@ -65,16 +65,21 @@ class Rabbit:
 
     @try_exc_async
     async def publish_message(self, message, routing_key, exchange_name, queue_name):
-        channel = await self.mq.channel()
-        exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
-        # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
-        queue = await channel.declare_queue(queue_name, durable=True)
-        await queue.bind(exchange, routing_key=routing_key)
-        message_body = orjson.dumps(message)
-        message = Message(message_body)
-        await exchange.publish(message, routing_key=routing_key)
-        await channel.close()
-        return True
+        try:
+            channel = await self.mq.channel()
+            exchange = await channel.declare_exchange(exchange_name, type=ExchangeType.DIRECT, durable=True)
+            # Точно ли нужны следующие 2 строчки, как будто эти привязки уже прописаны и так в Rabbit MQ?
+            queue = await channel.declare_queue(queue_name, durable=True)
+            await queue.bind(exchange, routing_key=routing_key)
+            message_body = orjson.dumps(message)
+            message = Message(message_body)
+            await exchange.publish(message, routing_key=routing_key)
+            await channel.close()
+            return True
+        except aiormq.exceptions.AMQPConnectionError as e:
+            await asyncio.sleep(1)  # Wait for 5 seconds before retrying
+            await self.setup_mq(self.loop)
+            await self.publish_message(message, routing_key, exchange_name, queue_name)
 
 
 if __name__ == '__main__':
