@@ -21,7 +21,7 @@ from core.database import DB
 from core.rabbit import Rabbit
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular, try_exc_async
-from logger import Logging
+# from logger import Logging
 
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
@@ -236,8 +236,8 @@ class MultiBot:
         for exchange, exchange_data in self.clients_markets_data.items():
             print(exchange, exchange_data['markets_amt'])
         print('PARSER STARTED')
-        print(json.dumps(self.available_balances, indent=2))
-        print(json.dumps(self.positions, indent=2))
+        # print(json.dumps(self.available_balances, indent=2))
+        # print(json.dumps(self.positions, indent=2))
 
         self.add_exceptions_on_bot_launch()
         self.telegram.send_bot_launch_message(self, TG_Groups.MainGroup)
@@ -253,8 +253,8 @@ class MultiBot:
         self.db.save_launch_balance(self)
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
-        logger_custom = Logging()
-        logger_custom.log_launch_params(self.clients)
+        # logger_custom = Logging()
+        # logger_custom.log_launch_params(self.clients)
 
     @try_exc_regular
     def get_data_for_parser(self):
@@ -379,14 +379,14 @@ class MultiBot:
         profit_brutto = (sell_price - buy_price) / buy_price
         profit = profit_brutto - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
 
-        self.chosen_deal.buy_max_amount_ob = self.chosen_deal.ob_buy['asks'][0][1]
-        self.chosen_deal.sell_max_amount_ob = self.chosen_deal.ob_sell['bids'][0][1]
+        # self.chosen_deal.buy_max_amount_ob = self.chosen_deal.ob_buy['asks'][0][1]
+        # self.chosen_deal.sell_max_amount_ob = self.chosen_deal.ob_sell['bids'][0][1]
         self.chosen_deal.buy_price_target = buy_price
         self.chosen_deal.sell_price_target = sell_price
 
-        self.chosen_deal.deal_max_amount_ob = min(self.chosen_deal.buy_max_amount_ob,
-                                                  self.chosen_deal.sell_max_amount_ob)
-        self.chosen_deal.deal_max_usd_ob = self.chosen_deal.deal_max_amount_ob * (buy_price + sell_price) / 2
+        # self.chosen_deal.deal_max_amount_ob = min(self.chosen_deal.buy_max_amount_ob,
+        #                                           self.chosen_deal.sell_max_amount_ob)
+        # self.chosen_deal.deal_max_usd_ob = self.chosen_deal.deal_max_amount_ob * (buy_price + sell_price) / 2
 
         self.chosen_deal.profit_rel_target = profit
         self.chosen_deal.ts_check_still_good_end = time.time()
@@ -437,9 +437,10 @@ class MultiBot:
         max_deal_size_usd = min(deal_avail_size_buy_usd, deal_avail_size_sell_usd, self.max_order_size_usd)
         max_deal_size_amount = max_deal_size_usd / price
 
-        deal_size_amount = min(max_deal_size_amount, self.chosen_deal.buy_max_amount_ob,
-                               self.chosen_deal.sell_max_amount_ob)
-
+        # Нужно добавить корректную обработку контрактов, а пока комментирую
+        # deal_size_amount = min(max_deal_size_amount, self.chosen_deal.buy_max_amount_ob,
+        #                        self.chosen_deal.sell_max_amount_ob)
+        deal_size_amount=max_deal_size_amount
         step_size_buy = client_buy.instruments[buy_market]['step_size']
         step_size_sell = client_sell.instruments[sell_market]['step_size']
         step_size = max(step_size_buy, step_size_sell)
@@ -462,6 +463,9 @@ class MultiBot:
         self.chosen_deal.sell_price_fitted = client_sell.price
         self.chosen_deal.buy_amount_target = client_buy.amount
         self.chosen_deal.sell_amount_target = client_sell.amount
+        if client_buy.amount ==0:
+            self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
+            return False
 
         self.chosen_deal.deal_size_amount_target = client_buy.amount
         self.chosen_deal.deal_size_usd_target = client_buy.amount * \
@@ -538,21 +542,31 @@ class MultiBot:
 
         self.db.save_arbitrage_possibilities(self.chosen_deal)
         self.db.save_order(order_id_buy, buy_exchange_order_id, client_buy, 'buy', ap_id, buy_order_place_time,
-                           shifted_buy_px,
-                           buy_market, self.env)
+                           shifted_buy_px, buy_market, self.env)
         self.db.save_order(order_id_sell, sell_exchange_order_id, client_sell, 'sell', ap_id, sell_order_place_time,
-                           shifted_sell_px,
-                           sell_market, self.env)
+                           shifted_sell_px, sell_market, self.env)
 
         if self.chosen_deal.buy_order_status != 'error':
-            self.chosen_deal.buy_price_real = self.chosen_deal.client_buy.get_order_by_id(order_id_buy)['factual_price']
-            self.chosen_deal.buy_amount_real = self.chosen_deal.client_buy.get_order_by_id(order_id_buy)['factual_amount_coin']
+            message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
+            self.telegram.send_message(message)
+            order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, order_id_buy)
+            self.chosen_deal.buy_price_real = order_result['factual_price']
+            self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
+            print(f'{order_result=}')
+            input('STOP1')
+
         else:
             self.telegram.send_order_error_message(self.env, buy_market, client_buy, order_id_buy, TG_Groups.Alerts)
 
         if self.chosen_deal.sell_order_status != 'error':
-            self.chosen_deal.sell_price_real = self.chosen_deal.client_sell.get_order_by_id(order_id_sell)['factual_price']
-            self.chosen_deal.sell_amount_real = self.chosen_deal.client_sell.get_order_by_id(order_id_sell)['factual_amount_coin']
+            message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
+            self.telegram.send_message(message)
+            order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market,order_id_sell)
+            self.chosen_deal.sell_price_real = order_result['factual_price']
+            self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
+            print(f'{order_result=}')
+            input('STOP2')
+
         else:
             self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell, TG_Groups.Alerts)
 
@@ -606,7 +620,7 @@ class MultiBot:
     @try_exc_async
     async def __check_order_status(self):
         # Эта функция инициирует обновление данных по ордеру в базе,
-        # когда от биржи в клиента появляется обновление после создания ордера
+        # когда от биржи в клиенте появляется обновление после создания ордера
         while True:
             for client in self.clients:
                 orders = client.orders.copy()

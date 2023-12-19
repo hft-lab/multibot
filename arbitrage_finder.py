@@ -43,7 +43,7 @@ class ArbitrageFinder:
         return deal_direction
 
     @try_exc_regular
-    def arbitrage_possibilities(self, data) -> List[AP]:
+    def arbitrage_possibilities(self, data, ribs = None) -> List[AP]:
         # data format:
         # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
         possibilities = []
@@ -53,6 +53,9 @@ class ArbitrageFinder:
                 for ex_2, client_2 in self.clients_list.items():
                     if ex_1 == ex_2:
                         continue
+                    if ribs:
+                        if [ex_1,ex_2] not in ribs:
+                            continue
                     if ob_1 := data.get(ex_1 + '__' + coin):
                         if ob_2 := data.get(ex_2 + '__' + coin):
                             if not float(ob_2['top_bid']) or not float(ob_1['top_ask']):
