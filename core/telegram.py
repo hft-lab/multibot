@@ -69,13 +69,13 @@ class Telegram:
         abs_total_position = 0
 
         for exchange, available_balance in multibot.available_balances.items():
-            balance, total_pos, abs_pos, markets = multibot.positions[exchange].values()
+            balance, total_pos, abs_pos, markets,*_ = multibot.positions[exchange].values()
             message += f"   EXCHANGE: {exchange}\n"
             message += f"TOT BAL: {int(round(balance, 0))} USD\n"
             message += f"TOT POS, USD: {total_pos}\n"
             message += f"ABS POS, USD: {abs_pos}\n"
-            message += f"AVL BUY:  {round(available_balance['buy'])}\n"
-            message += f"AVL SELL: {round(available_balance['sell'])}\n-\n"
+            message += f"AVL BUY (NEW POS):  {round(available_balance['buy'])}\n"
+            message += f"AVL SELL (NEW POS): {round(available_balance['sell'])}\n-\n"
             message += f"ACTIVE POSITIONS: {'|'.join(markets)}\n\n"
             total_position += total_pos
             abs_total_position += abs_pos
@@ -93,13 +93,13 @@ class Telegram:
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"
-        message += f"Deal_size_amount: {ap.deal_size_amount_target}\n"
-        message += f"Deal_size_usd: {ap.deal_size_usd_target}\n"
         message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
         message += f"B.TARGET P.: {str(ap.buy_price_target)} | S.TARGET P.: {str(ap.sell_price_target)}\n"
         message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"
         message += f"B.Fitted P.: {str(ap.buy_price_fitted)} | S.Fitted P.: {str(ap.sell_price_fitted)}\n"
-        message += f"B.Real P.: TBD | S.Real P.: TBD\n"
+        message += f"B.REAL P.: {str(ap.buy_price_real)} | S.REAL P.: {str(ap.sell_price_real)}\n"
+        message += f"Target Deal Size Amount: {ap.deal_size_amount_target}\n"
+        message += f"Real DSA Buy: {ap.buy_amount_real}| Real DSA Sell: {ap.sell_amount_real}\n"
         self.send_message(message, group)
         return message
 
@@ -140,8 +140,8 @@ class Telegram:
 
     def send_order_error_message(self, env, symbol, client, order_id, group: TG_Groups = None):
         message = f"ALERT NAME: Order Mistake\n" \
-                  f"COIN: {symbol}\n" \
                   f"EXCHANGE: {client.EXCHANGE_NAME}\n" \
+                  f"SYMBOL: {symbol}\n" \
                   f"Order Id:{str(order_id)}\n" \
                   f"Error:{str(client.error_info)}"
         self.send_message(message, group)

@@ -70,12 +70,13 @@ class AP:
         self.buy_price_target = None
         self.buy_price_shifted = None
         self.buy_price_fitted = None  # Итоговое целевое значение цены ордера
-        self.buy_price_real = None #TBD
+        self.buy_price_real = None
 
 
         self.buy_order_id_exchange = None
         self.buy_order_id = None
         self.buy_order_place_time = None
+        self.buy_order_status = None
 
         # SELL side
         self.client_sell = None
@@ -98,6 +99,7 @@ class AP:
         self.sell_order_id_exchange = None
         self.sell_order_id = None
         self.sell_order_place_time = None
+        self.sell_order_status = None
 
     # def set_data_from_ob_update(self):
     #     pass
