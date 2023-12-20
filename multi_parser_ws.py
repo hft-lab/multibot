@@ -27,14 +27,14 @@ logger = logging.getLogger(__name__)
 
 
 class MultiParser:
-    __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'leverage',
+    __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'leverage','markets_data',
                  'telegram', 'state', 'start_time', 'ribs_exceptions', 'clients', 'exchanges', 'ribs', 'env',
                  'exception_pause','loop_2', 'last_orderbooks', 'time_start', 'time_parser', 'max_position_part',
                  'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder','instance_markets_amount',
                  'clients_with_names', 'exchanges_in_ribs']
 
     def __init__(self):
-
+        print('INIT PROCESS STARTED')
         self.setts = config['SETTINGS']
         self.state = self.setts['STATE']
         self.leverage = float(self.setts['LEVERAGE'])
@@ -66,8 +66,8 @@ class MultiParser:
 
         # NEW REAL MULTI BOT
         self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
-        self.markets = self.clients_markets_data.coins_clients_symbols
-        self.clients_markets_data = self.clients_markets_data.clients_data
+        self.markets = self.clients_markets_data.get_instance_markets()
+        self.markets_data = self.clients_markets_data.get_clients_data()
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker)
         self.chosen_deal: AP
 
@@ -146,8 +146,7 @@ class MultiParser:
 
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
-        for exchange, exchange_data in self.clients_markets_data.items():
-            print(exchange, exchange_data['markets_amt'])
+        print(self.markets_data)
         print('PARSER STARTED')
         print(f'{self.ribs=}')
         # with open(f'rates.txt', 'a') as file:

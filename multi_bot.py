@@ -43,7 +43,7 @@ class MultiBot:
                  'rabbit', 'telegram', 'state', 'start_time', 'trade_exceptions', 'close_only_exchanges',
                  'available_balances', 'positions', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
-                 'base_launch_config','instance_markets_amount',
+                 'base_launch_config','instance_markets_amount','markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
                  'clients_with_names', 'max_position_part', 'profit_close']
 
@@ -99,8 +99,8 @@ class MultiBot:
 
         # NEW REAL MULTI BOT
         self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
-        self.markets = self.clients_markets_data.coins_clients_symbols
-        self.clients_markets_data = self.clients_markets_data.clients_data
+        self.markets = self.clients_markets_data.get_instance_markets()
+        self.markets_data = self.clients_markets_data.get_clients_data()
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
         self.chosen_deal: AP
@@ -234,7 +234,7 @@ class MultiBot:
         self.update_all_positions_aggregates()
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
-        for exchange, exchange_data in self.clients_markets_data.items():
+        for exchange, exchange_data in self.markets_data.items():
             print(exchange, exchange_data['markets_amt'])
         print('PARSER STARTED')
         # print(json.dumps(self.available_balances, indent=2))
