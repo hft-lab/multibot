@@ -30,7 +30,7 @@ class MultiParser:
     __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'leverage',
                  'telegram', 'state', 'start_time', 'ribs_exceptions', 'clients', 'exchanges', 'ribs', 'env',
                  'exception_pause','loop_2', 'last_orderbooks', 'time_start', 'time_parser', 'max_position_part',
-                 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
+                 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder','instance_markets_amount',
                  'clients_with_names', 'exchanges_in_ribs']
 
     def __init__(self):
@@ -39,6 +39,7 @@ class MultiParser:
         self.state = self.setts['STATE']
         self.leverage = float(self.setts['LEVERAGE'])
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
+        self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
         self.env = self.setts['ENV']
         self.ribs_exceptions = []
         self.exception_pause = 60
@@ -64,7 +65,7 @@ class MultiParser:
         self.start_time = datetime.utcnow().timestamp()
 
         # NEW REAL MULTI BOT
-        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'])
+        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker)

@@ -43,7 +43,7 @@ class MultiBot:
                  'rabbit', 'telegram', 'state', 'start_time', 'trade_exceptions', 'close_only_exchanges',
                  'available_balances', 'positions', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
-                 'base_launch_config',
+                 'base_launch_config','instance_markets_amount',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
                  'clients_with_names', 'max_position_part', 'profit_close']
 
@@ -56,6 +56,7 @@ class MultiBot:
         self.env = self.setts['ENV']
         self.trade_exceptions = []
         self.close_only_exchanges = []
+        self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
 
         self.launch_fields = ['env', 'target_profit', 'fee_exchange_1', 'fee_exchange_2', 'shift', 'orders_delay',
                               'max_order_usd', 'max_leverage', 'shift_use_flag']
@@ -97,7 +98,7 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         # NEW REAL MULTI BOT
-        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'])
+        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
         self.markets = self.clients_markets_data.coins_clients_symbols
         self.clients_markets_data = self.clients_markets_data.clients_data
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
