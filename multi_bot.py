@@ -40,10 +40,10 @@ init_time = time.time()
 
 class MultiBot:
     __slots__ = ['deal_pause', 'cycle_parser_delay', 'max_order_size_usd', 'chosen_deal', 'profit_taker', 'shifts',
-                 'rabbit', 'telegram', 'state', 'start_time', 'trade_exceptions', 'close_only_exchanges',
-                 'available_balances', 'positions', 'session', 'clients', 'exchanges', 'ribs', 'env', 'db', 'tasks',
+                 'rabbit', 'telegram', 'start_time', 'trade_exceptions', 'close_only_exchanges',
+                 'available_balances', 'positions', 'session', 'clients', 'exchanges', 'env', 'db', 'tasks',
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
-                 'base_launch_config','instance_markets_amount','markets_data',
+                 'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
                  'clients_with_names', 'max_position_part', 'profit_close']
 
@@ -51,7 +51,6 @@ class MultiBot:
         self.bot_launch_id = uuid.uuid4()
         self.db = None
         self.setts = config['SETTINGS']
-        self.state = self.setts['STATE']
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
         self.trade_exceptions = []
@@ -75,7 +74,6 @@ class MultiBot:
         # self.shifts = {}
 
         # CLIENTS
-        self.state = self.setts['STATE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
 
@@ -152,20 +150,6 @@ class MultiBot:
         finally:
             loop.close()
 
-    @try_exc_regular
-    def find_ribs(self):
-        ribs = self.setts['RIBS'].split(',')
-        for rib in ribs:
-            for client_1 in self.clients:
-                for client_2 in self.clients:
-                    if client_1 == client_2:
-                        continue
-                    if client_1.EXCHANGE_NAME in rib.split('|') and client_2.EXCHANGE_NAME in rib.split('|'):
-                        if [client_1, client_2] not in self.ribs:
-                            self.ribs.append([client_1, client_2])
-                        if [client_2, client_1] not in self.ribs:
-                            self.ribs.append([client_2, client_1])
-
     @try_exc_async
     async def websocket_main_cycle(self):
         await self.launch()
@@ -206,19 +190,17 @@ class MultiBot:
                             # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                             if self.fit_sizes_and_prices():
                                 time_end_fit_sizes = time.time()
-                                if self.state == 'BOT':
-                                    # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                                    await self.execute_deal()
-                                    # Шаг 7 (Анализ, логирование, нотификация по ордерам
-                                    await self.notification_and_logging()
-                                    # Удалить обнуление Last Order ID, когда разберусь с ним
-                                    for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
-                                        client.error_info = None
-                                        client.LAST_ORDER_ID = 'default'
-                                    self.update_all_av_balances()
-                                    await asyncio.sleep(self.deal_pause)
-                                if self.state == 'PARSER':
-                                    pass
+                                # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
+                                await self.execute_deal()
+                                # Шаг 7 (Анализ, логирование, нотификация по ордерам
+                                await self.notification_and_logging()
+                                # Удалить обнуление Last Order ID, когда разберусь с ним
+                                for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
+                                    client.error_info = None
+                                    client.LAST_ORDER_ID = 'default'
+                                self.update_all_av_balances()
+                                await asyncio.sleep(self.deal_pause)
+
 
                             # with open('ap_still_active_status.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)

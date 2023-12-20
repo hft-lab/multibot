@@ -9,4 +9,5 @@ __pycache__
 *.csv
 *.ini
 config.ini
+config_parser.ini
 /clients

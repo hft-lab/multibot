@@ -7,13 +7,13 @@ from core.ap_class import AP
 
 class ArbitrageFinder:
 
-    def __init__(self, markets, clients_list, profit_taker, profit_close):
+    def __init__(self, markets, clients_with_names, profit_taker, profit_close):
         self.profit_taker = profit_taker
         self.profit_close = profit_close
         self.markets = markets
         self.coins = [x for x in markets.keys()]
-        self.clients_list = clients_list
-        self.fees = {x: y.taker_fee for x, y in self.clients_list.items()}
+        self.clients_with_names = clients_with_names
+        self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -49,10 +49,10 @@ class ArbitrageFinder:
         possibilities = []
         poses = {}
         if not ribs:
-            poses = {x: y.get_positions() for x, y in self.clients_list.items()}
+            poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
         for coin in self.coins:
-            for ex_1, client_1 in self.clients_list.items():
-                for ex_2, client_2 in self.clients_list.items():
+            for ex_1, client_1 in self.clients_with_names.items():
+                for ex_2, client_2 in self.clients_with_names.items():
                     if ex_1 == ex_2:
                         continue
                     if ribs:
