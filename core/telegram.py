@@ -109,8 +109,8 @@ class Telegram:
                   f'TARGET PROFIT: {deal.target_profit}\n' \
                   f'PARSER PROFIT : {round(deal.profit_rel_parser, 5)}\n' \
                   f'DEAL DIRECTION: {deal.deal_direction}\n' \
-                  f'EXCH_BUY: {deal.buy_exchange}, MARKET_BUY: {deal.buy_market}\n' \
-                  f'EXCH_SELL: {deal.sell_exchange}, MARKET_SELL: {deal.sell_market}\n' \
+                  f'EXCH_BUY: {deal.buy_exchange}, EXCH_SELL: {deal.sell_exchange}\n' \
+                  f'MARKET_BUY: {deal.buy_market}, MARKET_SELL: {deal.sell_market}\n' \
                   f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
                   f'PARSER PRICES: BUY: {deal.buy_price_parser}, SELL: {deal.sell_price_parser}\n' \
                   f'TIMINGS:\n' \
@@ -126,8 +126,8 @@ class Telegram:
         message = f'ALERT NAME: PARSER. AP ACTIVE AFTER CHECK\n---\n' \
                   f'ACTUAL PROFIT: {round(deal.profit_rel_target, 5)}\n' \
                   f'TARGET PROFIT: {deal.target_profit}\n' \
-                  f'BUY_E: {deal.buy_exchange}, BUY_M: {deal.buy_market}\n' \
-                  f'SELL_E: {deal.sell_exchange}, SELL_M: {deal.sell_market}\n' \
+                  f'BUY_E: {deal.buy_exchange}, SELL_E: {deal.sell_exchange}\n' \
+                  f'BUY_M: {deal.buy_market}, SELL_M: {deal.sell_market}\n' \
                   f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
                   f'TIMINGS:\n' \
                   f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \

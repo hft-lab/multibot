@@ -222,7 +222,7 @@ class MultiParser:
     def is_in_ribs_exception(self, buy_exchange, buy_market, sell_exchange, sell_market):
         filtered = [item for item in self.ribs_exceptions if item['be'] == buy_exchange and
                     item['se'] == sell_exchange and item['bm'] == buy_market and item['sm'] == sell_market
-                    and item['ts']<int(time.time())-self.exception_pause]
+                    and item['ts']>int(time.time())-self.exception_pause]
         return len(filtered) > 0
 
 
