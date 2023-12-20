@@ -6,13 +6,13 @@ from datetime import datetime
 from logging.config import dictConfig
 from typing import List
 
-
 from arbitrage_finder import ArbitrageFinder, AP
 from clients.core.all_clients import ALL_CLIENTS
 from clients_markets_data import Clients_markets_data
 
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular
+
 # from logger import Logging
 
 config = configparser.ConfigParser()
@@ -27,11 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class MultiParser:
-    __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker','leverage',
-                 'telegram', 'state', 'start_time', 'session', 'clients', 'exchanges', 'ribs', 'env', 'tasks',
-                 'loop_2', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id', 'max_position_part',
+    __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'leverage',
+                 'telegram', 'state', 'start_time', 'ribs_exceptions', 'clients', 'exchanges', 'ribs', 'env',
+                 'exception_pause','loop_2', 'last_orderbooks', 'time_start', 'time_parser', 'max_position_part',
                  'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names','exchanges_in_ribs']
+                 'clients_with_names', 'exchanges_in_ribs']
 
     def __init__(self):
 
@@ -40,7 +40,8 @@ class MultiParser:
         self.leverage = float(self.setts['LEVERAGE'])
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
-
+        self.ribs_exceptions = []
+        self.exception_pause = 60
 
         # ORDER CONFIGS
 
@@ -76,17 +77,15 @@ class MultiParser:
         self.telegram = Telegram()
         self.launch()
 
-
     @try_exc_regular
     def get_exchanges_ribs(self):
         ribs_raw = self.setts['RIBS'].split(',')
         ribs = []
         for rib in ribs_raw:
-            ex1,ex2 = rib.split('|')
+            ex1, ex2 = rib.split('|')
             ribs.append([ex1, ex2])
             ribs.append([ex2, ex1])
         return ribs
-
 
     @try_exc_regular
     def get_exchages_from_ribs(self):
@@ -107,7 +106,7 @@ class MultiParser:
             time.sleep(self.cycle_parser_delay)
             if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
                 self.start_time -= 1
-                self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
+                self.telegram.send_message(f"MULTI PARSER IS WORKING", TG_Groups.MainGroup)
                 print('PARSER IS WORKING')
             # Шаг 1 (Сбор данных с бирж по рынкам)
             time_start_parsing = time.time()
@@ -149,11 +148,11 @@ class MultiParser:
         for exchange, exchange_data in self.clients_markets_data.items():
             print(exchange, exchange_data['markets_amt'])
         print('PARSER STARTED')
-
+        print(f'{self.ribs=}')
         # with open(f'rates.txt', 'a') as file:
         #     file.write('')
 
-        self.telegram.send_message('Parser WS Started', TG_Groups.MainGroup)
+        self.telegram.send_message(f'MULTIPARSER HAS STARTED:\n{self.exchanges=}\n{self.ribs=}', TG_Groups.MainGroup)
         self.websocket_main_cycle()
         # logger_custom = Logging()
         # logger_custom.log_launch_params(self.clients)
@@ -170,6 +169,8 @@ class MultiParser:
         max_profit = 0
         chosen_deal = None
         for deal in potential_deals:
+            if self.is_in_ribs_exception(deal.buy_exchange, deal.buy_market, deal.sell_exchange, deal.sell_market):
+                continue
             if deal.profit_rel_parser > max_profit:
                 max_profit = deal.profit_rel_parser
                 chosen_deal = deal
@@ -178,6 +179,7 @@ class MultiParser:
     @try_exc_regular
     def check_prices_still_good(self):
         buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
+        buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
         ob_buy = self.chosen_deal.client_buy.get_orderbook(buy_market)
         ob_sell = self.chosen_deal.client_sell.get_orderbook(sell_market)
 
@@ -205,14 +207,24 @@ class MultiParser:
 
         if profit >= self.chosen_deal.target_profit:
             self.telegram.send_ap_still_active_parser(self.chosen_deal, TG_Groups.Alerts)
-            time.sleep(3)
+            self.add_ribs_exception(buy_exchange, buy_market, sell_exchange, sell_market)
             return True
         else:
             self.telegram.send_ap_expired_message(self.chosen_deal, TG_Groups.Alerts)
             return False
 
+    @try_exc_regular
+    def add_ribs_exception(self, buy_exchange, buy_market, sell_exchange, sell_market):
+        self.ribs_exceptions.append({'be': buy_exchange, 'se': sell_exchange,
+                                     'bm': buy_market, 'sm': sell_market, 'ts': int(time.time())})
+
+    @try_exc_regular
+    def is_in_ribs_exception(self, buy_exchange, buy_market, sell_exchange, sell_market):
+        filtered = [item for item in self.ribs_exceptions if item['be'] == buy_exchange and
+                    item['se'] == sell_exchange and item['bm'] == buy_market and item['sm'] == sell_market
+                    and item['ts']<int(time.time())-self.exception_pause]
+        return len(filtered) > 0
 
 
 if __name__ == '__main__':
     MultiParser()
-

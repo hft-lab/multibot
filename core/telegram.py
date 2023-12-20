@@ -103,21 +103,6 @@ class Telegram:
         self.send_message(message, group)
         return message
 
-    def send_ap_still_active_parser(self, deal: AP, group: TG_Groups = None):
-        message = f'ALERT NAME: PARSER. AP ACTIVE AFTER CHECK\n---\n' \
-                  f'ACTUAL PROFIT: {round(deal.profit_rel_target, 5)}\n' \
-                  f'TARGET PROFIT: {deal.target_profit}\n' \
-                  f'EXCH_BUY: {deal.buy_exchange}, MARKET_BUY: {deal.buy_market}\n' \
-                  f'EXCH_SELL: {deal.sell_exchange}, MARKET_SELL: {deal.sell_market}\n' \
-                  f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
-                  f'TIMINGS:\n' \
-                  f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \
-                  f'DEFINE POT. DEALS DURATION {round(deal.time_define_potential_deals, 4)}\n' \
-                  f'CHOOSE TIME DURATION: {round(deal.time_choose, 4)}\n' \
-                  f'OB CHECK DURATION: {round(deal.time_check_ob, 4)}\n'
-
-        self.send_message(message, group)
-        return message
     def send_ap_expired_message(self, deal: AP, group: TG_Groups = None):
         message = f'ALERT NAME: AP EXPIRED AFTER OB UPDATE\n---\n' \
                   f'ACTUAL PROFIT: {round(deal.profit_rel_target, 5)}\n' \
@@ -137,6 +122,21 @@ class Telegram:
         self.send_message(message, group)
         return message
 
+    def send_ap_still_active_parser(self, deal: AP, group: TG_Groups = None):
+        message = f'ALERT NAME: PARSER. AP ACTIVE AFTER CHECK\n---\n' \
+                  f'ACTUAL PROFIT: {round(deal.profit_rel_target, 5)}\n' \
+                  f'TARGET PROFIT: {deal.target_profit}\n' \
+                  f'BUY_E: {deal.buy_exchange}, BUY_M: {deal.buy_market}\n' \
+                  f'SELL_E: {deal.sell_exchange}, SELL_M: {deal.sell_market}\n' \
+                  f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
+                  f'TIMINGS:\n' \
+                  f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \
+                  f'DEFINE POT. DEALS DURATION {round(deal.time_define_potential_deals, 4)}\n' \
+                  f'CHOOSE TIME DURATION: {round(deal.time_choose, 4)}\n' \
+                  f'OB CHECK DURATION: {round(deal.time_check_ob, 4)}\n'
+
+        self.send_message(message, group)
+        return message
     def send_different_amounts_alert(self, chosen_deal: AP, rounded_deal_size_amount, group):
         client_buy, client_sell = chosen_deal.client_buy, chosen_deal.client_sell
         buy_exchange, sell_exchange = chosen_deal.buy_exchange, chosen_deal.sell_exchange

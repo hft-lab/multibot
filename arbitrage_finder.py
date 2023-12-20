@@ -47,7 +47,9 @@ class ArbitrageFinder:
         # data format:
         # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
         possibilities = []
-        poses = {x: y.get_positions() for x, y in self.clients_list.items()}
+        poses = {}
+        if not ribs:
+            poses = {x: y.get_positions() for x, y in self.clients_list.items()}
         for coin in self.coins:
             for ex_1, client_1 in self.clients_list.items():
                 for ex_2, client_2 in self.clients_list.items():
@@ -62,15 +64,18 @@ class ArbitrageFinder:
                                 continue
                             buy_mrkt = self.markets[coin][ex_1]
                             sell_mrkt = self.markets[coin][ex_2]
-                            buy_ticksize = client_1.instruments[buy_mrkt]['tick_size']
-                            sell_ticksize = client_2.instruments[sell_mrkt]['tick_size']
 
-                            deal_direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                            deal_direction = 'open'
                             target_profit = self.get_target_profit(deal_direction)
-                            if (buy_ticksize / ob_1['top_bid'] > self.profit_taker) or (
-                                    sell_ticksize / ob_2['top_ask'] > self.profit_taker):
-                                target_profit = 1.5 * max(
-                                    buy_ticksize / ob_1['top_bid'], sell_ticksize / ob_2['top_ask'])
+                            if not ribs:
+                                deal_direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                                target_profit = self.get_target_profit(deal_direction)
+                                buy_ticksize = client_1.instruments[buy_mrkt]['tick_size']
+                                sell_ticksize = client_2.instruments[sell_mrkt]['tick_size']
+                                if (buy_ticksize / ob_1['top_bid'] > self.profit_taker) or (
+                                        sell_ticksize / ob_2['top_ask'] > self.profit_taker):
+                                    target_profit = 1.5 * max(
+                                        buy_ticksize / ob_1['top_bid'], sell_ticksize / ob_2['top_ask'])
 
                             profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
