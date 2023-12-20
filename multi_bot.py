@@ -170,7 +170,7 @@ class MultiBot:
                 # logger_custom.log_rates(iteration, results)
 
                 # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-                potential_deals = self.finder.arbitrage_possibilities(results)
+                potential_deals = self.finder.find_arbitrage_possibilities(results)
 
                 # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()

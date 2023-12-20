@@ -1,10 +1,8 @@
 import configparser
-import logging
 import sys
 import time
 import json
 from datetime import datetime
-from logging.config import dictConfig
 from typing import List
 
 from arbitrage_finder import ArbitrageFinder, AP
@@ -13,36 +11,41 @@ from clients_markets_data import Clients_markets_data
 
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular
+import logging
 
-# from logger import Logging
+logging.basicConfig(filename='ap_logs.txt', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 config = configparser.ConfigParser()
 config.read(sys.argv[1], "utf-8")
 
-dictConfig({'version': 1, 'disable_existing_loggers': False, 'formatters': {
-    'simple': {'format': '[%(asctime)s][%(threadName)s] %(funcName)s: %(message)s'}},
-            'handlers': {'console': {'class': 'logging.StreamHandler', 'level': 'DEBUG', 'formatter': 'simple',
-                                     'stream': 'ext://sys.stdout'}},
-            'loggers': {'': {'handlers': ['console'], 'level': 'INFO', 'propagate': False}}})
-logger = logging.getLogger(__name__)
 
-class PotentialDeal:
-    def __init__(self):
-        self.buy_market = None
-        self.sell_market = None
-        self.buy_exchange = None
-        self.sell_exchange = None
+class AP_Log:
+    def __init__(self, ap: AP):
+        self.buy_market = ap.buy_market
+        self.sell_market = ap.sell_market
+        self.buy_exchange = ap.buy_exchange
+        self.sell_exchange = ap.sell_exchange
+        self.coin = ap.coin
         self.status = 'Open'
         self.ts_start = time.time()
         self.ts_end = None
-        self.iterations = None
+        self.duration = None
+
+    def __eq__(self, other):
+        if isinstance(other, AP_Log):
+            return self.buy_market == other.buy_market and \
+                self.sell_market == other.sell_market and \
+                self.buy_exchange == other.buy_exchange and \
+                self.sell_exchange == other.sell_exchange
+        return False
+
 
 class MultiParser:
-    __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'markets_data',
-                 'telegram', 'start_time', 'ribs_exceptions', 'clients', 'exchanges', 'ribs', 'env',
-                 'exception_pause', 'loop_2', 'last_orderbooks', 'time_start', 'time_parser',
-                 'setts', 'rates_file_name', 'main_exchange', 'markets', 'clients_markets_data', 'finder', 'instance_markets_amount',
-                 'clients_with_names', 'exchanges_in_ribs']
+    # __slots__ = ['cycle_parser_delay', 'chosen_deal', 'profit_taker', 'markets_data',
+    #              'telegram', 'start_time', 'ribs_exceptions', 'clients', 'exchanges', 'ribs', 'env',
+    #              'exception_pause', 'loop_2', 'last_orderbooks', 'time_start', 'time_parser',
+    #              'setts', 'rates_file_name', 'main_exchange', 'markets', 'clients_markets_data', 'finder', 'instance_markets_amount',
+    #              'clients_with_names', 'exchanges_in_ribs']
 
     def __init__(self):
         print('INIT PROCESS STARTED')
@@ -50,14 +53,15 @@ class MultiParser:
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
         self.env = self.setts['ENV']
-        self.ribs_exceptions = []
-        self.exception_pause = 60
-
+        self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.main_exchange = self.setts['MAIN_EXCHANGE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
+
+        self.exception_pause = 60
+        self.ap_logs: List[AP_Log] = []
+        self.ribs_exceptions = []
         self.ribs = self.get_exchanges_ribs()
 
-        self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.clients = []
 
         for exchange in self.exchanges:
@@ -73,7 +77,7 @@ class MultiParser:
 
         self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],
                                                          self.instance_markets_amount)
-        self.markets = self.clients_markets_data.get_instance_markets() #coin:exchange:symbol
+        self.markets = self.clients_markets_data.get_instance_markets()  # coin:exchange:symbol
         self.markets_data = self.clients_markets_data.get_clients_data()
 
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker)
@@ -87,7 +91,7 @@ class MultiParser:
         ribs = []
         if self.main_exchange:
             for exchange in self.exchanges:
-                if self.main_exchange!=exchange:
+                if self.main_exchange != exchange:
                     ribs.append([self.main_exchange, exchange])
                     ribs.append([exchange, self.main_exchange])
         else:
@@ -98,7 +102,7 @@ class MultiParser:
                 ribs.append([ex2, ex1])
         return ribs
 
-    #@try_exc_regular
+    # @try_exc_regular
     # def get_exchages_from_ribs(self):
     #     ribs = self.setts['RIBS'].split(',')
     #     exchanges = []
@@ -118,7 +122,6 @@ class MultiParser:
             client.run_updater()
         print('CLIENTS MARKET DATA:')
         print(f'PARSER STARTED\n{self.ribs=}')
-        self.telegram.send_message("STOP", TG_Groups.DebugDima)
 
         # with open(f'rates.txt', 'a') as file:
         #     file.write('')
@@ -142,12 +145,14 @@ class MultiParser:
             time_end_parsing = time.time()
 
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-            potential_deals = self.finder.arbitrage_possibilities(results, self.ribs)
+            potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
             time_end_define_potential_deals = time.time()
 
-            if len(potential_deals):
+            if len(potential_possibilities):
+                # Логирование получившихся AP
+                self.update_ap_logs_with_new_possibilities(potential_possibilities)
                 # Шаг 3 (Выбор лучшей AP, если их несколько)
-                self.chosen_deal: AP = self.choose_deal(potential_deals)
+                self.chosen_deal: AP = self.choose_deal(potential_possibilities)
                 if self.chosen_deal:
                     time_end_choose = time.time()
                     self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
@@ -170,6 +175,49 @@ class MultiParser:
         for client in self.clients:
             data.update(client.get_all_tops())
         return data
+
+    @try_exc_regular
+    def update_ap_logs_with_new_possibilities(self, ap_list: List[AP]):
+        aps_cycle = []
+        intersection_cycle = []
+        intersection_logs = []
+        for ap in ap_list:
+            ap_cycle = AP_Log(ap)
+            aps_cycle.append(ap_cycle)
+        for ap_log in self.ap_logs:
+            if ap_log.status == 'Close':
+                continue
+            for ap_cycle in aps_cycle:
+                if ap_log == ap_cycle:
+                    intersection_cycle.append(ap_cycle)
+                    intersection_logs.append(ap_log)
+
+        only_cycle = [item for item in aps_cycle if
+                      item not in intersection_cycle]  # Именно новые AP, которые появились в рамках цикла
+        ap_logs_open = []
+        for ap_log in self.ap_logs:
+            if ap_log.status == 'Open':
+                ap_logs_open.append(ap_log)
+
+        only_open_logs = [item for item in ap_logs_open if
+                          item not in intersection_logs]  # Открытые AP переставшие быть актуальным
+        # Добавляем новые AP, которые обнаружились в рамках цикла
+        self.ap_logs += only_cycle
+        # Закрываем AP переставшие быть актуальными
+        for ap_log in only_open_logs:
+            ap_log.status = 'Close'
+            ap_log.ts_end = time.time()
+            ap_log.duration = round(ap_log.ts_end - ap_log.ts_start, 4)
+        for ap in self.ap_logs:
+            if ap.status == 'Close':
+                message = f'ALERT: Ended AP\n' \
+                          f'Duration: {round(ap.duration,2)}\n' \
+                          f'Coind:{ap.coin}\n' \
+                          f'B.E.:{ap.buy_exchange}\n' \
+                          f'S.E.:{ap.sell_exchange}\n'
+                self.telegram.send_message(message,TG_Groups.Alerts)
+                # logging.info(message)
+                self.ap_logs.remove(ap)
 
     @try_exc_regular
     def choose_deal(self, potential_deals: List[AP]) -> AP:

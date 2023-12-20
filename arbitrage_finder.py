@@ -43,7 +43,7 @@ class ArbitrageFinder:
         return deal_direction
 
     @try_exc_regular
-    def arbitrage_possibilities(self, data, ribs = None) -> List[AP]:
+    def find_arbitrage_possibilities(self, data, ribs = None) -> List[AP]:
         # data format:
         # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
         possibilities = []
