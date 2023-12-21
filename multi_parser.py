@@ -56,7 +56,7 @@ class MultiParser:
         self.env = self.setts['ENV']
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.main_exchange = self.setts['MAIN_EXCHANGE']
-        self.exchanges = self.setts['EXCHANGES'].split(',')
+        self.exchanges = ['HITBTC']  # self.setts['EXCHANGES'].split(',')
         self.mode = self.setts['MODE']
 
         self.ap_active_logs: List[AP_Log] = []
@@ -135,34 +135,31 @@ class MultiParser:
         # logger_custom.log_launch_params(self.clients)
 
     @try_exc_regular
-    def ob_update_time_analize(self,exchange, data): #{EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
+    def ob_update_time_analize(self, exchange,
+                               data):  # {EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
         # HITBTC  - наше, есть много медленных стаканов
         # GLOBE - биржевое, время со сдвигом
         # BIT - биржевое, время со сдвигом
         # BITMAKE - биржевое, но поломанное, время со сдвигом
         # BIBOX - наше
-        ts_start_analisys = round(datetime.utcnow().timestamp(),2)
-        for exchange__coin in data:
-            data[exchange__coin]['ts_exchange']-= 7 * 60 * 60 * 1000
-        
+        ts_start_analisys = round(datetime.utcnow().timestamp(), 2)
+        # for exchange__coin in data:
+        #     data[exchange__coin]['ts_exchange']-= 7 * 60 * 60 * 1000
+
         ts_data = []
-        # min_record = min(data.items(), key=lambda x: x[1]['ts_exchange']*(1 if x[0].split('__')[0]=='HITBTC' else 2))
-        # print(f"Максимальное ts_exchange: {min_record[1]['ts_exchange']}, Запись: {min_record}")
-        input('STOP')
+
         for exchange__coin in data:
-            ts_data.append(data[exchange__coin]['ts_exchange'])
+            coin = exchange__coin.split('__')[1]
+            ts_data.append({'coin': coin, 'ts_exchange': data[exchange__coin]['ts_exchange']})
 
         print(f'Exchange: {exchange}')
         print(f"TS начала анализа: {round(ts_start_analisys, 2)}")
-        
-        min_ts = min(ts_data)/1000
-        max_ts = max(ts_data)/1000
-        print(f"Max Diff (сек.): {int((ts_start_analisys-min_ts)*100)/100}")
-        print(f"Min Diff (сек.): {int((ts_start_analisys-max_ts)*100)/100}")
+        min_ts = min(ts_data,key=lambda x: x['ts_exchange'])
+        max_ts = max(ts_data, key=lambda x: x['ts_exchange'])
+        print(f"Coin: {min_ts['coin']}, Max Diff (сек.): {int((ts_start_analisys - min_ts['ts_exchange']/1000) * 100) / 100}")
+        print(f"Coin: {min_ts['coin']}, Min Diff (сек.): {int((ts_start_analisys - max_ts['ts_exchange']/1000) * 100) / 100}")
         print("\n")
         time.sleep(1)
-
-
 
     @try_exc_regular
     def websocket_main_cycle(self):
@@ -173,18 +170,16 @@ class MultiParser:
                 self.start_time -= 1
                 self.telegram.send_message(f"MULTI PARSER IS WORKING", TG_Groups.MainGroup)
                 print('MULTI PARSER IS WORKING')
-                
+
             # Шаг 0. Тестирование стаканов новой бирже
             exchange = 'HITBTC'
             client = self.clients_with_names[exchange]
             results_for_test = client.get_all_tops()
-            self.ob_update_time_analize(exchange,results_for_test)
+            self.ob_update_time_analize(exchange, results_for_test)
             # Шаг 1 (Сбор данных с бирж по рынкам)
-            
-            results = self.get_data_for_parser()
-            
 
-            
+            # results = self.get_data_for_parser()
+
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
             # potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
             # time_end_define_potential_deals = time.time()
@@ -198,7 +193,8 @@ class MultiParser:
     def get_data_for_parser(self):
         data = dict()
         for client in self.clients:
-            data.update(client.get_all_tops()) #{EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
+            data.update(
+                client.get_all_tops())  # {EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
         return data
 
     @try_exc_regular
