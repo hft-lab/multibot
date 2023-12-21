@@ -61,13 +61,15 @@ class Telegram:
         self.send_message(message, group)
         return message
 
-    def send_parser_launch_message(self, multibot, group: TG_Groups = None):
-        message = f'MULTIPARSER INSTANCE #{multibot.setts["INSTANCE_NUM"]} LAUNCHED\n'
-        message += f'{" | ".join(multibot.exchanges)}\n'
-        message += f"ENV: {multibot.env}\n"
-        message += f"RIBS: {multibot.ribs}\n"
-        message += f"MARKETS: {'|'.join(list(multibot.markets.keys()))}\n"
-        message += f"TARGET PROFIT: {multibot.setts['TARGET_PROFIT']}\n"
+    def send_parser_launch_message(self, multiparser, group: TG_Groups = None):
+        message = f'MULTIPARSER INSTANCE #{multiparser.setts["INSTANCE_NUM"]} LAUNCHED\n'
+        message += f'{" | ".join(multiparser.exchanges)}\n'
+        message += f"ENV: {multiparser.env}\n"
+        message += f"MODE: {multiparser.mode}\n"
+        message += f"# Exchanges: {len(multiparser.exchanges)}\n"
+        message += f"# RIBS: {int(len(multiparser.ribs)/2)}\n"
+        message += f"# COINS: {len(list(multiparser.markets.keys()))}\n"
+        message += f"TARGET PROFIT: {multiparser.setts['TARGET_PROFIT']}\n"
         self.send_message(message, group)
         return message
 

@@ -104,7 +104,7 @@ class ArbitrageFinder:
                                     fee=self.fees[ex_1],
                                     price=float(ob_1['top_ask']),
                                     max_amount=float(ob_1['ask_vol']),
-                                    ts_ob = ob_1['timestamp']
+                                    ts_ob = ob_1['ts_exchange']
                                 )
                                 possibility.set_side_data_from_parser(
                                     side='sell',
@@ -114,7 +114,7 @@ class ArbitrageFinder:
                                     fee = self.fees[ex_2],
                                     max_amount = float(ob_2['bid_vol']),
                                     price = float(ob_2['top_bid']),
-                                    ts_ob = ob_2['timestamp']
+                                    ts_ob = ob_2['ts_exchange']
                                 )
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
                                 # with open('arbi.csv', 'a', newline='') as file:
