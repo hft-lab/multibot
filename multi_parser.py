@@ -56,7 +56,7 @@ class MultiParser:
         self.env = self.setts['ENV']
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.main_exchange = self.setts['MAIN_EXCHANGE']
-        self.exchanges = ['HITBTC']  # self.setts['EXCHANGES'].split(',')
+        self.exchanges = self.setts['EXCHANGES'].split(',')
         self.mode = self.setts['MODE']
 
         self.ap_active_logs: List[AP_Log] = []
@@ -105,18 +105,6 @@ class MultiParser:
                 ribs.append([ex2, ex1])
         return ribs
 
-    # @try_exc_regular
-    # def get_exchages_from_ribs(self):
-    #     ribs = self.setts['RIBS'].split(',')
-    #     exchanges = []
-    #     for rib in ribs:
-    #         ex1, ex2 = rib.split('|')
-    #         if ex1 not in exchanges:
-    #             exchanges.append(ex1)
-    #         if ex2 not in exchanges:
-    #             exchanges.append(ex2)
-    #     return exchanges
-
     @try_exc_regular
     def launch(self):
 
@@ -135,8 +123,8 @@ class MultiParser:
         # logger_custom.log_launch_params(self.clients)
 
     @try_exc_regular
-    def ob_update_time_analize(self, exchange,
-                               data):  # {EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
+    def ob_update_time_analize(self, exchange,data):
+        # {EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
         # HITBTC  - наше, есть много медленных стаканов
         # GLOBE - биржевое, время со сдвигом
         # BIT - биржевое, время со сдвигом
@@ -163,7 +151,7 @@ class MultiParser:
 
     @try_exc_regular
     def websocket_main_cycle(self):
-        print("")
+        print("PARSING AND LOOKING FOR AP")
         while True:
             time.sleep(self.cycle_parser_delay)
             if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
@@ -172,22 +160,22 @@ class MultiParser:
                 print('MULTI PARSER IS WORKING')
 
             # Шаг 0. Тестирование стаканов новой бирже
-            exchange = 'HITBTC'
-            client = self.clients_with_names[exchange]
-            results_for_test = client.get_all_tops()
-            self.ob_update_time_analize(exchange, results_for_test)
+            # exchange = 'HITBTC'
+            # client = self.clients_with_names[exchange]
+            # results_for_test = client.get_all_tops()
+            # self.ob_update_time_analize(exchange, results_for_test)
             # Шаг 1 (Сбор данных с бирж по рынкам)
 
-            # results = self.get_data_for_parser()
+            results = self.get_data_for_parser()
 
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-            # potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
+            potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
             # time_end_define_potential_deals = time.time()
-            #
-            # if potential_possibilities == [] and self.ap_log_filled_flag:
-            #     self.close_all_open_possibilities()
-            # if len(potential_possibilities):
-            #     self.update_ap_logs_with_new_possibilities(potential_possibilities)
+
+            if potential_possibilities == [] and self.ap_log_filled_flag:
+                self.close_all_open_possibilities()
+            if len(potential_possibilities):
+                self.update_ap_logs_with_new_possibilities(potential_possibilities)
 
     @try_exc_regular
     def get_data_for_parser(self):
@@ -222,16 +210,6 @@ class MultiParser:
         intersection_logs = []
         # ts = round(datetime.utcnow().timestamp(), 2)
         for ap_log in ap_list:
-            # print(f'{round(ts-ap_log.ts_buy_ob_parser,2)=}')
-            # print(f'{ts=}')
-            # print(f'{ap_log.ts_buy_ob_parser=}')
-            # print(f'{ap_log.buy_exchange=}')
-            # if ap_log.ts_buy_ob_parser < ts - 1:
-            #     message =f'ALERT: Проблема с обновлением OB\n' \
-            #              f'{ap_log.buy_exchange=}\n' \
-            #              f'{ap_log.buy_market=}\n' \
-            #              f'ТЕКУЩИЙ TS:\n ' \
-            #              f'TS Обновления OB: {round(ap_log.ts_buy_ob_parser,2)}'
             ap_cycle = AP_Log(ap_log)
             aps_cycle.append(ap_cycle)
         for ap_log in self.ap_active_logs:
@@ -245,7 +223,6 @@ class MultiParser:
 
         only_in_logs = [item for item in self.ap_active_logs if
                         item not in intersection_logs]  # Открытые AP переставшие быть актуальным
-
         # Исключаем AP переставшие быть актуальными
         for ap_log in only_in_logs:
             ap_log.ts_end = time.time()

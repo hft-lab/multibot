@@ -66,9 +66,9 @@ class Telegram:
         message += f'{" | ".join(multiparser.exchanges)}\n'
         message += f"ENV: {multiparser.env}\n"
         message += f"MODE: {multiparser.mode}\n"
-        message += f"# Exchanges: {len(multiparser.exchanges)}\n"
-        message += f"# RIBS: {int(len(multiparser.ribs)/2)}\n"
-        message += f"# COINS: {len(list(multiparser.markets.keys()))}\n"
+        message += f"#Exchanges: {len(multiparser.exchanges)}\n"
+        message += f"#RIBS: {int(len(multiparser.ribs)/2)}\n"
+        message += f"#COINS: {len(list(multiparser.markets.keys()))}\n"
         message += f"TARGET PROFIT: {multiparser.setts['TARGET_PROFIT']}\n"
         self.send_message(message, group)
         return message
