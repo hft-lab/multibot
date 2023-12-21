@@ -135,36 +135,32 @@ class MultiParser:
         # logger_custom.log_launch_params(self.clients)
 
     @try_exc_regular
-    def analize_time(self,data): #{EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
-        # HITBTC  - наше
-        # GLOBE - биржевое
-        # BIT - биржевое
-        # BITMAKE - биржевое
+    def ob_update_time_analize(self,exchange, data): #{EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
+        # HITBTC  - наше, есть много медленных стаканов
+        # GLOBE - биржевое, время со сдвигом
+        # BIT - биржевое, время со сдвигом
+        # BITMAKE - биржевое, но поломанное, время со сдвигом
         # BIBOX - наше
         ts_start_analisys = round(datetime.utcnow().timestamp(),2)
-        for ex__c in data:
-            ex = ex__c.split('__')[0]
-            if ex in ['BITMAKE','BIT','GLOBE']:
-                # print(f"{en=},{en__c=},{data1[en__c]['ts_exchange']=}")
-                data[ex__c]['ts_exchange']-= 7 * 60 * 60 * 1000
-                # print(f"{en=},{en__c},{data1[en__c]['ts_exchange']=}")
-        ts_data = {}
-        for ex__c in data:
+        for exchange__coin in data:
+            data[exchange__coin]['ts_exchange']-= 7 * 60 * 60 * 1000
+        
+        ts_data = []
+        # min_record = min(data.items(), key=lambda x: x[1]['ts_exchange']*(1 if x[0].split('__')[0]=='HITBTC' else 2))
+        # print(f"Максимальное ts_exchange: {min_record[1]['ts_exchange']}, Запись: {min_record}")
+        input('STOP')
+        for exchange__coin in data:
+            ts_data.append(data[exchange__coin]['ts_exchange'])
 
-            ex = ex__c.split('__')[0]
-            if ex not in ts_data:
-                ts_data[ex] = []
-            ts_data[ex].append(data[ex__c]['ts_exchange'])
-
+        print(f'Exchange: {exchange}')
         print(f"TS начала анализа: {round(ts_start_analisys, 2)}")
-        for exchange in self.exchanges:
-            print(f'Exchange: {exchange}')
-            min_ts = min(ts_data[exchange])/1000
-            max_ts = max(ts_data[exchange])/1000
-            print(f"Max Diff (сек.): {int((ts_start_analisys-min_ts)*100)/100}")
-            print(f"Min Diff (сек.): {int((ts_start_analisys-max_ts)*100)/100}")
+        
+        min_ts = min(ts_data)/1000
+        max_ts = max(ts_data)/1000
+        print(f"Max Diff (сек.): {int((ts_start_analisys-min_ts)*100)/100}")
+        print(f"Min Diff (сек.): {int((ts_start_analisys-max_ts)*100)/100}")
         print("\n")
-        pass
+        time.sleep(1)
 
 
 
@@ -177,9 +173,18 @@ class MultiParser:
                 self.start_time -= 1
                 self.telegram.send_message(f"MULTI PARSER IS WORKING", TG_Groups.MainGroup)
                 print('MULTI PARSER IS WORKING')
+                
+            # Шаг 0. Тестирование стаканов новой бирже
+            exchange = 'HITBTC'
+            client = self.clients_with_names[exchange]
+            results_for_test = client.get_all_tops()
+            self.ob_update_time_analize(exchange,results_for_test)
             # Шаг 1 (Сбор данных с бирж по рынкам)
+            
             results = self.get_data_for_parser()
-            self.analize_time(results)
+            
+
+            
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
             # potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
             # time_end_define_potential_deals = time.time()
