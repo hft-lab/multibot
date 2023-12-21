@@ -78,6 +78,8 @@ class AP:
         self.buy_order_place_time = None
         self.buy_order_status = None
 
+        self.ts_buy_ob_parser = None
+
         # SELL side
         self.client_sell = None
         self.ob_sell = None
@@ -101,6 +103,8 @@ class AP:
         self.sell_order_place_time = None
         self.sell_order_status = None
 
+        self.ts_sell_ob_parser = None
+
     # def set_data_from_ob_update(self):
     #     pass
 
@@ -117,7 +121,7 @@ class AP:
         self.profit_rel_parser = expect_profit_rel
         self.profit_usd_parser_max = profit_usd_max
 
-    def set_side_data_from_parser(self, side, client, exchange, market, fee, price, max_amount):
+    def set_side_data_from_parser(self, side, client, exchange, market, fee, price, max_amount, ts_ob):
         if side == 'buy':
             self.client_buy = client
             self.buy_exchange = exchange
@@ -125,6 +129,7 @@ class AP:
             self.buy_fee = fee
             self.buy_max_amount_parser = max_amount
             self.buy_price_parser = price
+            self.ts_buy_ob_parser = ts_ob
         if side == 'sell':
             self.client_sell = client
             self.sell_exchange = exchange
@@ -132,6 +137,7 @@ class AP:
             self.sell_fee = fee
             self.sell_max_amount_parser = max_amount
             self.sell_price_parser = price
+            self.ts_sell_ob_parser = ts_ob
 
     # def set_sell_side_parser(self):
     #     pass
