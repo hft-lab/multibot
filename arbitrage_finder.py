@@ -127,10 +127,10 @@ class ArbitrageFinder:
 if __name__ == '__main__':
     pass
     # from clients_markets_data import coins_symbols_client
-    # # from clients.kraken import KrakenClient
-    # # from clients.binance import BinanceClient
-    # # from clients.dydx import DydxClient
-    # # from clients.apollox import ApolloxClient
+    # # from clients-http.kraken import KrakenClient
+    # # from clients-http.binance import BinanceClient
+    # # from clients-http.dydx import DydxClient
+    # # from clients-http.apollox import ApolloxClient
     #
     # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
     # markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}

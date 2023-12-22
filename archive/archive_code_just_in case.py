@@ -204,7 +204,7 @@ def check_ob_slippage(multibot, client_sell, client_buy):
     #         while abs(self.client_1.get_positions().get(self.client_1.symbol, {}).get('amount_usd', 0)) > 50 \
     #                 or abs(self.client_2.get_positions().get(self.client_2.symbol, {}).get('amount_usd', 0)) > 50:
     #             print('START WHILE')
-    #             for client in self.clients:
+    #             for client in self.clients-http:
     #                 print(f'START CLIENT {client.EXCHANGE_NAME}')
     #                 client.cancel_all_orders()
     #                 if res := client.get_positions().get(client.symbol, {}).get('amount'):

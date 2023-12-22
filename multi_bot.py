@@ -204,7 +204,7 @@ class MultiBot:
 
                             # with open('ap_still_active_status.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)
-                            #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients']
+                            #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients-http']
                             #     writer.writerow(row_data)
 
     @try_exc_async
@@ -237,7 +237,7 @@ class MultiBot:
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
         # logger_custom = Logging()
-        # logger_custom.log_launch_params(self.clients)
+        # logger_custom.log_launch_params(self.clients-http)
 
     @try_exc_regular
     def get_data_for_parser(self):
@@ -581,15 +581,15 @@ class MultiBot:
     # def __rates_update(self):
     #     message = ''
     #     with open(f'rates.txt', 'a') as file:
-    #         for client in self.clients:
+    #         for client in self.clients-http:
     #             message += f"{client.EXCHANGE_NAME} | {client.get_orderbook(client.symbol)['asks'][0][0]} | {datetime.utcnow()} | {time.time()}\n"
     #         file.write(message + '\n')
     #     self.update_all_av_balances()
 
     # def get_sizes(self):
-    #     tick_size = max([x.tick_size for x in self.clients if x.tick_size], default=0.01)
-    #     step_size = max([x.step_size for x in self.clients if x.step_size], default=0.01)
-    #     quantity_precision = max([x.quantity_precision for x in self.clients if x.quantity_precision])
+    #     tick_size = max([x.tick_size for x in self.clients-http if x.tick_size], default=0.01)
+    #     step_size = max([x.step_size for x in self.clients-http if x.step_size], default=0.01)
+    #     quantity_precision = max([x.quantity_precision for x in self.clients-http if x.quantity_precision])
     #
     #     self.client_1.quantity_precision = quantity_precision
     #     self.client_2.quantity_precision = quantity_precision
