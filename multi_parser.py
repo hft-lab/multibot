@@ -58,7 +58,7 @@ class MultiParser:
         self.env = self.setts['ENV']
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.main_exchange = self.setts['MAIN_EXCHANGE']
-        self.exchanges =self.setts['EXCHANGES'].split(',')
+        self.exchanges = self.setts['EXCHANGES'].split(',')
         self.mode = self.setts['MODE']
 
         self.ap_active_logs: List[AP_Log] = []
@@ -70,7 +70,11 @@ class MultiParser:
 
         for exchange in self.exchanges:
             print(exchange)
-            client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=None, max_pos_part=None)
+            try:
+                keys = config[exchange]
+            except:
+                keys = None
+            client = ALL_CLIENTS[exchange](keys=keys, leverage=None, max_pos_part=None)
             self.clients.append(client)
         self.clients_with_names = {}
 
@@ -94,11 +98,16 @@ class MultiParser:
     @try_exc_regular
     def get_exchanges_ribs(self):
         ribs = []
-        if self.main_exchange:
+        if self.mode == "MAIN_EXCHANGE":
             for exchange in self.exchanges:
                 if self.main_exchange != exchange:
                     ribs.append([self.main_exchange, exchange])
                     ribs.append([exchange, self.main_exchange])
+        if self.mode == "ALL_RIBS":
+            for exchange1 in self.exchanges:
+                for exchange2 in self.exchanges:
+                    if exchange1 != exchange2:
+                        ribs.append([exchange1, exchange2])
         else:
             ribs_raw = self.setts['RIBS'].split(',')
             for rib in ribs_raw:
@@ -125,7 +134,7 @@ class MultiParser:
 
     @try_exc_regular
     def exchange_ob_analize(self):
-        exchange = 'BTSE'
+        exchange = 'WHITEBIT'
         client = self.clients_with_names[exchange]
         data = client.get_all_tops()
         # {EXCHANGE_NAME__coin: {'top_bid': , 'top_ask': ,'bid_vol': , 'ask_vol': ,'ts_exchange': }}
