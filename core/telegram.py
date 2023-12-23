@@ -40,8 +40,8 @@ class Telegram:
             try:
                 async with session.get(url=url, json=message_data) as resp:
                     pass
-            except:
-                pass
+            except Exception:
+                traceback.print_exc()
 
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
