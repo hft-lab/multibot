@@ -37,9 +37,11 @@ class Telegram:
     @staticmethod
     async def async_send_message(url, message_data):
         async with aiohttp.ClientSession() as session:
-            async with session.get(url=url, json=message_data) as resp:
-                res = await resp.json()
-                return res
+            try:
+                async with session.get(url=url, json=message_data) as resp:
+                    pass
+            except:
+                pass
 
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
@@ -49,16 +51,7 @@ class Telegram:
             url = self.tg_url + group['bot_token'] + "/sendMessage"
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML",
                             "text": f"<pre>ENV: {self.env}\n{str(message)}</pre>"}
-            try:
-                # r = requests.post(url, json=message_data)
-                # return r.json()
-                #OPTION 1
-                # loop = asyncio.get_event_loop()
-                # loop.create_task(self.async_send_message(url, message_data))
-                #OPTION 2
-                asyncio.run(self.async_send_message(url, message_data))
-            except Exception as e:
-                return e
+            asyncio.run(self.async_send_message(url, message_data))
 
     def send_bot_launch_message(self, multibot, group: TG_Groups = None):
         message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} LAUNCHED\n'
