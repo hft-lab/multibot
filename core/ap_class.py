@@ -54,6 +54,7 @@ class AP:
 
 
 
+
         # BUY side
         self.client_buy = None
         self.ob_buy = None  # Обновленный ордербук
@@ -104,9 +105,6 @@ class AP:
         self.sell_order_status = None
 
         self.ts_sell_ob_parser = None
-
-    # def set_data_from_ob_update(self):
-    #     pass
 
     def set_data_from_parser(self, coin, deal_direction, deal_max_amount_parser, deal_max_usd_parser,
                              expect_profit_rel, profit_usd_max,
