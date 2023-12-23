@@ -2,7 +2,8 @@ import traceback
 from datetime import datetime
 import requests
 from core.ap_class import AP
-
+import aiohttp
+import asyncio
 from configparser import ConfigParser
 
 config = ConfigParser()
@@ -33,6 +34,13 @@ class Telegram:
         self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
         self.env = config['SETTINGS']['ENV']
 
+    @staticmethod
+    async def async_send_message(url, message_data):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url, json=message_data) as resp:
+                res = await resp.json()
+                return res
+
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
             print('TG_DEBUG IS OFF')
@@ -42,8 +50,13 @@ class Telegram:
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML",
                             "text": f"<pre>ENV: {self.env}\n{str(message)}</pre>"}
             try:
-                r = requests.post(url, json=message_data)
-                return r.json()
+                # r = requests.post(url, json=message_data)
+                # return r.json()
+                #OPTION 1
+                # loop = asyncio.get_event_loop()
+                # loop.create_task(self.async_send_message(url, message_data))
+                #OPTION 2
+                asyncio.run(self.async_send_message(url, message_data))
             except Exception as e:
                 return e
 
@@ -251,4 +264,4 @@ class Telegram:
 
 if __name__ == '__main__':
     tg = Telegram()
-    tg.send_message('Hi Dima')
+    tg.send_message('Hi All', TG_Groups.MainGroup)
