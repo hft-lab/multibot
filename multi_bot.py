@@ -217,7 +217,7 @@ class MultiBot:
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
         for exchange, exchange_data in self.markets_data.items():
-            print(exchange, exchange_data['markets_amt'])
+            print(exchange, exchange_data['instance_markets_amt'])
         print('PARSER STARTED')
         # print(json.dumps(self.available_balances, indent=2))
         # print(json.dumps(self.positions, indent=2))
@@ -363,14 +363,15 @@ class MultiBot:
         profit = profit_brutto - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
 
         # Для контрактов работает не идеально, жить не мешает, но логируется скорее всего некорректно
+
         self.chosen_deal.buy_max_amount_ob = self.chosen_deal.ob_buy['asks'][0][1]
         self.chosen_deal.sell_max_amount_ob = self.chosen_deal.ob_sell['bids'][0][1]
         self.chosen_deal.buy_price_target = buy_price
         self.chosen_deal.sell_price_target = sell_price
 
-        # self.chosen_deal.deal_max_amount_ob = min(self.chosen_deal.buy_max_amount_ob,
-        #                                           self.chosen_deal.sell_max_amount_ob)
-        # self.chosen_deal.deal_max_usd_ob = self.chosen_deal.deal_max_amount_ob * (buy_price + sell_price) / 2
+        self.chosen_deal.deal_max_amount_ob = min(self.chosen_deal.buy_max_amount_ob,
+                                                  self.chosen_deal.sell_max_amount_ob)
+        self.chosen_deal.deal_max_usd_ob = self.chosen_deal.deal_max_amount_ob * (buy_price + sell_price) / 2
 
         self.chosen_deal.profit_rel_target = profit
         self.chosen_deal.ts_check_still_good_end = time.time()
@@ -401,11 +402,12 @@ class MultiBot:
 
     @try_exc_regular
     def fit_sizes_and_prices(self):
-        client_buy, client_sell = self.chosen_deal.client_buy, self.chosen_deal.client_sell
-        buy_market, sell_market = self.chosen_deal.buy_market, self.chosen_deal.sell_market
-        buy_exchange, sell_exchange = self.chosen_deal.buy_exchange, self.chosen_deal.sell_exchange
+        deal = self.chosen_deal
+        client_buy, client_sell = deal.client_buy, deal.client_sell
+        buy_market, sell_market = deal.buy_market, deal.sell_market
+        buy_exchange, sell_exchange = deal.buy_exchange, deal.sell_exchange
 
-        price = self.chosen_deal.ob_buy['asks'][0][0]
+        price = deal.ob_buy['asks'][0][0]
 
         deal_avail_size_buy_usd = self._get_available_balance(buy_exchange, buy_market, 'buy')
         deal_avail_size_sell_usd = self._get_available_balance(sell_exchange, sell_market, 'sell')
@@ -422,8 +424,8 @@ class MultiBot:
         max_deal_size_amount = max_deal_size_usd / price
 
         # Нужно добавить корректную обработку контрактов, а пока комментирую
-        # deal_size_amount = min(max_deal_size_amount, self.chosen_deal.buy_max_amount_ob,
-        #                        self.chosen_deal.sell_max_amount_ob)
+        # deal_size_amount = min(max_deal_size_amount, deal.buy_max_amount_ob,
+        #                        deal.sell_max_amount_ob)
         deal_size_amount=max_deal_size_amount
         step_size_buy = client_buy.instruments[buy_market]['step_size']
         step_size_sell = client_sell.instruments[sell_market]['step_size']
@@ -434,8 +436,8 @@ class MultiBot:
         client_buy.amount = rounded_deal_size_amount
         client_sell.amount = rounded_deal_size_amount
 
-        buy_price_shifted = self.get_shifted_price_for_order(self.chosen_deal.ob_buy, 'asks')
-        sell_price_shifted = self.get_shifted_price_for_order(self.chosen_deal.ob_sell, 'bids')
+        buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
+        sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
         self.chosen_deal.buy_price_shifted = buy_price_shifted
         self.chosen_deal.sell_price_shifted = sell_price_shifted
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
@@ -452,18 +454,14 @@ class MultiBot:
             return False
 
         self.chosen_deal.deal_size_amount_target = client_buy.amount
-        self.chosen_deal.deal_size_usd_target = client_buy.amount * \
-                                                (
-                                                        self.chosen_deal.buy_price_target + self.chosen_deal.sell_price_target) / 2
-        self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * \
-                                             self.chosen_deal.deal_size_usd_target
+        self.chosen_deal.deal_size_usd_target = client_buy.amount * (deal.buy_price_target + deal.sell_price_target) / 2
+        self.chosen_deal.profit_usd_target = deal.profit_rel_target * deal.deal_size_usd_target
 
         # По логике округления, amount на клиентах изменяться в fit_sizes не должны, но контрольно проверим
         if (client_sell.amount != client_buy.amount) or abs(client_buy.amount - rounded_deal_size_amount) > 1e-9:
             print(
                 f'{rounded_deal_size_amount=},{deal_size_amount=},{step_size=},{math.floor(deal_size_amount / step_size)=}')
-            message = self.telegram.send_different_amounts_alert(self.chosen_deal, rounded_deal_size_amount,
-                                                                 TG_Groups.Alerts)
+            message = self.telegram.send_different_amounts_alert(deal, rounded_deal_size_amount, TG_Groups.Alerts)
             print(message)
             return False
         return True
