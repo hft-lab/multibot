@@ -217,7 +217,7 @@ class MultiBot:
         # Принтим показатели клиентов - справочно
         print('CLIENTS MARKET DATA:')
         for exchange, exchange_data in self.markets_data.items():
-            print(exchange, exchange_data['markets_amt'])
+            print(exchange, exchange_data['instance_markets_amt'])
         print('PARSER STARTED')
         # print(json.dumps(self.available_balances, indent=2))
         # print(json.dumps(self.positions, indent=2))
