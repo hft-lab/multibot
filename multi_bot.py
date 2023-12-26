@@ -362,8 +362,9 @@ class MultiBot:
         profit_brutto = (sell_price - buy_price) / buy_price
         profit = profit_brutto - self.chosen_deal.buy_fee - self.chosen_deal.sell_fee
 
-        # self.chosen_deal.buy_max_amount_ob = self.chosen_deal.ob_buy['asks'][0][1]
-        # self.chosen_deal.sell_max_amount_ob = self.chosen_deal.ob_sell['bids'][0][1]
+        # Для контрактов работает не идеально, жить не мешает, но логируется скорее всего некорректно
+        self.chosen_deal.buy_max_amount_ob = self.chosen_deal.ob_buy['asks'][0][1]
+        self.chosen_deal.sell_max_amount_ob = self.chosen_deal.ob_sell['bids'][0][1]
         self.chosen_deal.buy_price_target = buy_price
         self.chosen_deal.sell_price_target = sell_price
 
