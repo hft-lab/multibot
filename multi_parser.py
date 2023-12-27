@@ -19,7 +19,7 @@ config.read('config_parser.ini', "utf-8")
 
 
 class AP_Log:
-    def __init__(self, ap: AP):
+    def __init__(self, ap: AP, target_profit):
         self.coin = ap.coin
         self.buy_market = ap.buy_market
         self.sell_market = ap.sell_market
@@ -32,7 +32,7 @@ class AP_Log:
         self.max_deal_usd = ap.deal_max_usd_parser
         self.min_deal_usd = ap.deal_max_usd_parser
         self.more_one_cycle_flag = False
-
+        self.target_profit = target_profit
         self.ts_start = ap.ts_create_ap / 1000 + 25200
         self.ts_end = None
         self.duration = None
@@ -42,7 +42,8 @@ class AP_Log:
             return self.buy_market == other.buy_market and \
                 self.sell_market == other.sell_market and \
                 self.buy_exchange == other.buy_exchange and \
-                self.sell_exchange == other.sell_exchange
+                self.sell_exchange == other.sell_exchange and \
+                self.target_profit == other.target_profit
         return False
 
 
@@ -59,11 +60,12 @@ class MultiParser:
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
         self.env = self.setts['ENV']
-        self.profit_taker = float(self.setts['TARGET_PROFIT'])
+
         self.main_exchange = self.setts['MAIN_EXCHANGE']
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.mode = self.setts['MODE']
-
+        self.profits_list = list(map(float, self.setts['TARGET_PROFITS'].split(',')))
+        self.profit_taker = self.profits_list[0]
         self.ap_active_logs: List[AP_Log] = []
         self.ap_log_filled_flag: bool = False
         self.ribs_exceptions = []
@@ -97,6 +99,9 @@ class MultiParser:
         self.telegram = Telegram()
         print('INIT PROCESS FINISHED')
         self.launch()
+
+    def get_ap_category(self):
+        pass
 
     @try_exc_regular
     def get_exchanges_ribs(self):
@@ -223,11 +228,11 @@ class MultiParser:
                       f'End: {dt_end}\n' \
                       f'More than one cycle: {ap_log.more_one_cycle_flag}\n'
             print(message)
-            self.telegram.send_message(message, TG_Groups.Alerts)
+            # self.telegram.send_message(message, TG_Groups.Alerts)
             self.ap_active_logs.remove(ap_log)
             logging.info(f'All_AP_gone,{ap_log.coin},{ap_log.buy_exchange},{ap_log.sell_exchange},'
-                         f'{round(ap_log.profit_rel_parser, 5)},{round(ap_log.min_profit_rel, 5)},'
-                         f'{round(ap_log.max_profit_rel, 5)},'
+                         f'{ap_log.target_profit},{round(ap_log.profit_rel_parser, 5)},'
+                         f'{round(ap_log.min_profit_rel, 5)},{round(ap_log.max_profit_rel, 5)},'
                          f'{round(ap_log.deal_usd_parser, 1)},{round(ap_log.min_deal_usd, 1)},'
                          f'{round(ap_log.max_deal_usd, 1)},'
                          f'{dt_start},{dt_end},{round(ap_log.duration, 2)},{ap_log.more_one_cycle_flag}')
@@ -240,7 +245,10 @@ class MultiParser:
         intersection_logs = []
 
         for ap in ap_list:
-            aps_cycle.append(AP_Log(ap))
+            profit = ap.profit_rel_parser
+            for profit_threshold in self.profits_list:
+                if profit >= profit_threshold:
+                    aps_cycle.append(AP_Log(ap, profit_threshold))
 
         for ap_log in self.ap_active_logs:
             for ap_cycle in aps_cycle:
@@ -270,6 +278,7 @@ class MultiParser:
                       f'Coin:{ap_log.coin}\n' \
                       f'B.E.:{ap_log.buy_exchange}\n' \
                       f'S.E.:{ap_log.sell_exchange}\n' \
+                      f'Profit threshold.:{ap_log.target_profit}\n' \
                       f'Initial rel. profit: {round(ap_log.profit_rel_parser, 5)}\n' \
                       f'Min rel. profit: {round(ap_log.min_profit_rel, 5)}\n' \
                       f'Max rel. profit: {round(ap_log.max_profit_rel, 5)}\n' \
@@ -280,11 +289,11 @@ class MultiParser:
                       f'End: {dt_end}\n' \
                       f'More than one cycle: {ap_log.more_one_cycle_flag}\n'
             print(message)
-            self.telegram.send_message(message, TG_Groups.Alerts)
+            # self.telegram.send_message(message, TG_Groups.Alerts)
             self.ap_active_logs.remove(ap_log)
             logging.info(f'New_AP_came,{ap_log.coin},{ap_log.buy_exchange},{ap_log.sell_exchange},'
-                         f'{round(ap_log.profit_rel_parser, 5)},{round(ap_log.min_profit_rel, 5)},'
-                         f'{round(ap_log.max_profit_rel, 5)},'
+                         f'{ap_log.target_profit},{round(ap_log.profit_rel_parser, 5)},'
+                         f'{round(ap_log.min_profit_rel, 5)},{round(ap_log.max_profit_rel, 5)},'
                          f'{round(ap_log.deal_usd_parser, 1)},{round(ap_log.min_deal_usd, 1)},'
                          f'{round(ap_log.max_deal_usd, 1)},'
                          f'{dt_start},{dt_end},{round(ap_log.duration, 2)},{ap_log.more_one_cycle_flag}')

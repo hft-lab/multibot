@@ -2,12 +2,13 @@ import traceback
 from datetime import datetime
 import requests
 from core.ap_class import AP
+import sys
 import aiohttp
 import asyncio
 from configparser import ConfigParser
 
 config = ConfigParser()
-config.read('config.ini', "utf-8")
+config.read(sys.argv[1], "utf-8")
 
 
 class TG_Groups:
@@ -81,7 +82,7 @@ class Telegram:
         message += f"#Exchanges: {len(multiparser.exchanges)}\n"
         message += f"#RIBS: {int(len(multiparser.ribs)/2)}\n"
         message += f"#COINS: {len(list(multiparser.markets.keys()))}\n"
-        message += f"TARGET PROFIT: {multiparser.setts['TARGET_PROFIT']}\n"
+        message += f"TARGET PROFIT(S): {multiparser.profits_list}\n"
         self.send_message(message, group)
         return message
 
