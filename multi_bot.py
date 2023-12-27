@@ -530,6 +530,7 @@ class MultiBot:
             order_result = self.chosen_deal.client_buy.orders.get(buy_exchange_order_id, None)
             if not order_result:
                 order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, buy_exchange_order_id)
+            print(order_result)
             self.chosen_deal.buy_price_real = order_result['factual_price']
             self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
@@ -544,6 +545,7 @@ class MultiBot:
             order_result = self.chosen_deal.client_sell.orders.get(sell_exchange_order_id, None)
             if not order_result:
                 order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, sell_exchange_order_id)
+            print(order_result)
             self.chosen_deal.sell_price_real = order_result['factual_price']
             self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
