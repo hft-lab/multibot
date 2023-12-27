@@ -527,9 +527,9 @@ class MultiBot:
         if self.chosen_deal.buy_order_status != 'error':
             message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
             self.telegram.send_message(message)
-            order_result = self.chosen_deal.client_buy.orders.get(order_id_buy, None)
+            order_result = self.chosen_deal.client_buy.orders.get(buy_exchange_order_id, None)
             if not order_result:
-                order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, order_id_buy)
+                order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, buy_exchange_order_id)
             self.chosen_deal.buy_price_real = order_result['factual_price']
             self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
@@ -541,9 +541,9 @@ class MultiBot:
         if self.chosen_deal.sell_order_status != 'error':
             message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
             self.telegram.send_message(message)
-            order_result = self.chosen_deal.client_sell.orders.get(order_id_sell, None)
+            order_result = self.chosen_deal.client_sell.orders.get(sell_exchange_order_id, None)
             if not order_result:
-                order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, order_id_sell)
+                order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, sell_exchange_order_id)
             self.chosen_deal.sell_price_real = order_result['factual_price']
             self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
