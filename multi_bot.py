@@ -201,15 +201,12 @@ class MultiBot:
                                 self.update_all_av_balances()
                                 await asyncio.sleep(self.deal_pause)
 
-
                             # with open('ap_still_active_status.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)
                             #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients-http']
                             #     writer.writerow(row_data)
-
     @try_exc_async
     async def launch(self):
-
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
         self.update_all_av_balances()
@@ -521,7 +518,6 @@ class MultiBot:
         buy_order_place_time = self.chosen_deal.buy_order_place_time
         sell_order_place_time = self.chosen_deal.sell_order_place_time
 
-
         self.db.save_arbitrage_possibilities(self.chosen_deal)
         self.db.save_order(order_id_buy, buy_exchange_order_id, client_buy, 'buy', ap_id, buy_order_place_time,
                            shifted_buy_px, buy_market, self.env)
@@ -531,7 +527,9 @@ class MultiBot:
         if self.chosen_deal.buy_order_status != 'error':
             message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
             self.telegram.send_message(message)
-            order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, order_id_buy)
+            order_result = self.chosen_deal.client_buy.orders.get(order_id_buy, None)
+            if not order_result:
+                order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, order_id_buy)
             self.chosen_deal.buy_price_real = order_result['factual_price']
             self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
@@ -543,7 +541,9 @@ class MultiBot:
         if self.chosen_deal.sell_order_status != 'error':
             message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
             self.telegram.send_message(message)
-            order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market,order_id_sell)
+            order_result = self.chosen_deal.client_sell.orders.get(order_id_sell, None)
+            if not order_result:
+                order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, order_id_sell)
             self.chosen_deal.sell_price_real = order_result['factual_price']
             self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
