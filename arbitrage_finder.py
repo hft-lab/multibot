@@ -3,6 +3,8 @@ from datetime import datetime
 from core.wrappers import try_exc_regular
 from typing import List
 from core.ap_class import AP
+import time
+import json
 
 
 class ArbitrageFinder:
@@ -10,10 +12,26 @@ class ArbitrageFinder:
     def __init__(self, markets, clients_with_names, profit_taker, profit_close):
         self.profit_taker = profit_taker
         self.profit_close = profit_close
+        self.profit_precise = 4
         self.markets = markets
         self.coins = [x for x in markets.keys()]
         self.clients_with_names = clients_with_names
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
+        self.last_record = time.time()
+        self.profit_ranges = self.unpack_ranges()
+        print(self.profit_ranges)
+
+    @staticmethod
+    def unpack_ranges() -> dict:
+        try:
+            with open('ranges.json', 'r') as file:
+                return json.load(file)
+        except:
+            with open('ranges.json', 'w') as file:
+                new = {'timestamp': time.time()}
+                json.dump(new, file)
+            return new
+
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -56,7 +74,7 @@ class ArbitrageFinder:
                     if ex_1 == ex_2:
                         continue
                     if ribs:
-                        if [ex_1,ex_2] not in ribs:
+                        if [ex_1, ex_2] not in ribs:
                             continue
                     if ob_1 := data.get(ex_1 + '__' + coin):
                         if ob_2 := data.get(ex_2 + '__' + coin):
@@ -79,6 +97,7 @@ class ArbitrageFinder:
 
                             profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
+                            self.append_profit(profit=profit, buy_ex=ex_1, sell_ex=ex_2, coin=coin)
                             if profit > target_profit:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
@@ -104,17 +123,17 @@ class ArbitrageFinder:
                                     fee=self.fees[ex_1],
                                     price=float(ob_1['top_ask']),
                                     max_amount=float(ob_1['ask_vol']),
-                                    ts_ob = ob_1['ts_exchange']
+                                    ts_ob=ob_1['ts_exchange']
                                 )
                                 possibility.set_side_data_from_parser(
                                     side='sell',
-                                    client = client_2,
-                                    exchange = ex_2,
-                                    market = sell_mrkt,
-                                    fee = self.fees[ex_2],
-                                    max_amount = float(ob_2['bid_vol']),
-                                    price = float(ob_2['top_bid']),
-                                    ts_ob = ob_2['ts_exchange']
+                                    client=client_2,
+                                    exchange=ex_2,
+                                    market=sell_mrkt,
+                                    fee=self.fees[ex_2],
+                                    max_amount=float(ob_2['bid_vol']),
+                                    price=float(ob_2['top_bid']),
+                                    ts_ob=ob_2['ts_exchange']
                                 )
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
                                 # with open('arbi.csv', 'a', newline='') as file:
@@ -122,6 +141,22 @@ class ArbitrageFinder:
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 possibilities.append(possibility)
         return possibilities
+
+    @try_exc_regular
+    def append_profit(self, profit: float, buy_ex: str, sell_ex: str, coin: str):
+        name = f"B:{buy_ex}|S:{sell_ex}|C:{coin}"
+        profit = round(profit, self.profit_precise)
+        if self.profit_ranges.get(name):
+            if self.profit_ranges[name].get(profit):
+                self.profit_ranges[name][profit] += 1
+            else:
+                self.profit_ranges[name].update({profit: 1})
+        else:
+            self.profit_ranges.update({name: {profit: 1}})
+        if time.time() - self.last_record > 3600:
+            with open('ranges.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.last_record = time.time()
 
 
 if __name__ == '__main__':

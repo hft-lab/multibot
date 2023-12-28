@@ -446,7 +446,7 @@ class MultiBot:
         self.chosen_deal.sell_price_fitted = client_sell.price
         self.chosen_deal.buy_amount_target = client_buy.amount
         self.chosen_deal.sell_amount_target = client_sell.amount
-        if client_buy.amount ==0:
+        if client_buy.amount == 0:
             self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
             return False
 
@@ -525,31 +525,29 @@ class MultiBot:
                            shifted_sell_px, sell_market, self.env)
 
         if self.chosen_deal.buy_order_status != 'error':
-            message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
-            self.telegram.send_message(message)
+            # message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
+            # self.telegram.send_message(message)
             order_result = self.chosen_deal.client_buy.orders.get(buy_exchange_order_id, None)
             if not order_result:
                 order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, buy_exchange_order_id)
-            print(order_result)
             self.chosen_deal.buy_price_real = order_result['factual_price']
             self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
-            input('STOP1')
+            print('STOP1')
 
         else:
             self.telegram.send_order_error_message(self.env, buy_market, client_buy, order_id_buy, TG_Groups.Alerts)
 
         if self.chosen_deal.sell_order_status != 'error':
-            message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
-            self.telegram.send_message(message)
+            # message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
+            # self.telegram.send_message(message)
             order_result = self.chosen_deal.client_sell.orders.get(sell_exchange_order_id, None)
             if not order_result:
                 order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, sell_exchange_order_id)
-            print(order_result)
             self.chosen_deal.sell_price_real = order_result['factual_price']
             self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
             print(f'{order_result=}')
-            input('STOP2')
+            print('STOP2')
 
         else:
             self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell, TG_Groups.Alerts)
