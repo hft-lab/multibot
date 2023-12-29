@@ -204,10 +204,16 @@ class ArbitrageFinder:
                 self.profit_ranges[name].update({profit: 1})
         else:
             self.profit_ranges.update({name: {profit: 1}})
-        if time.time() - self.last_record > 3600:
+        now = time.time()
+        if now - self.last_record > 3600:
             with open('ranges.json', 'w') as file:
                 json.dump(self.profit_ranges, file)
-            self.last_record = time.time()
+            self.last_record = now
+        if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
+            with open(f'ranges{str(datetime.utcnow())}.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
+
 
 
 if __name__ == '__main__':
