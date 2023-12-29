@@ -176,19 +176,20 @@ class ArbitrageFinder:
             sum_freq_1 = 0
             sum_freq_2 = 0
             for profit_1, freq_1 in direction_one['range']:
-                if sum_freq_1 > 300:
+                if sum_freq_1 > 3000:
                     break
                 sum_freq_1 += freq_1
             for profit_2, freq_2 in direction_two['range']:
-                if sum_freq_2 > 300:
+                if sum_freq_2 > 3000:
                     break
                 sum_freq_2 += freq_2
             if profit_1 + profit_2 > self.profit_taker:
                 target_1 = [profit_1, sum_freq_1]
                 target_2 = [profit_2, sum_freq_2]
-            print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
-            print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
-            print()
+            if target_1:
+                print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
+                print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
+                print()
             target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
                                    direction_two['direction']: target_2[0] if target_2 else target_2})
         return target_profits
