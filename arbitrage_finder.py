@@ -21,6 +21,7 @@ class ArbitrageFinder:
         self.profit_ranges = self.unpack_ranges()
         if not self.profit_ranges.get('timestamp_start'):
             self.profit_ranges.update({'timestamp_start': time.time()})
+        # print(self.profit_ranges)
         self.target_profits = self.get_target_profits()
 
     @staticmethod
@@ -100,6 +101,9 @@ class ArbitrageFinder:
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                             self.append_profit(profit=profit, name=name)
+                            target = self.target_profits[name]
+                            if not target:
+                                continue
                             if profit >= self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
@@ -148,7 +152,7 @@ class ArbitrageFinder:
     def get_coins_profit_ranges(self):
         coins = {}
         for direction in self.profit_ranges.keys():
-            if direction == 'timestamp':
+            if 'timestamp' in direction:
                 continue
             coin = direction.split('C:')[1]
             range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
@@ -187,6 +191,7 @@ class ArbitrageFinder:
             print()
             target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
                                    direction_two['direction']: target_2[0] if target_2 else target_2})
+        return target_profits
 
     @try_exc_regular
     def append_profit(self, profit: float, name: str):
