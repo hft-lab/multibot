@@ -172,7 +172,7 @@ class MultiBot:
                 # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
                 potential_deals = self.finder.find_arbitrage_possibilities(results)
 
-                # print('Potential deals:', json.dumps(self.potential_deals, indent=2))
+                print('Potential deals:', json.dumps(potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()
 
                 if len(potential_deals):
@@ -244,13 +244,16 @@ class MultiBot:
 
     @try_exc_regular
     def choose_deal(self, potential_deals: List[AP]) -> AP:
-        max_profit = 0
+        max_profit = None
         chosen_deal = None
         for deal in potential_deals:
             if self.is_in_trade_exceptions(deal.buy_market, deal.buy_exchange, 'buy'):
                 continue
             if self.is_in_trade_exceptions(deal.sell_market, deal.sell_exchange, 'sell'):
                 continue
+            if not max_profit:
+                max_profit = deal.profit_rel_parser
+                chosen_deal = deal
             if deal.profit_rel_parser > max_profit:
                 max_profit = deal.profit_rel_parser
                 chosen_deal = deal

@@ -112,7 +112,7 @@ class ArbitrageFinder:
                                 possibility = AP(ap_id=uuid.uuid4())
                                 possibility.set_data_from_parser(
                                     coin=coin,
-                                    target_profit=target_profit,
+                                    target_profit=target,
                                     deal_max_amount_parser=deal_size_amount,
                                     deal_max_usd_parser=deal_size_usd_max,
                                     expect_profit_rel=round(profit, 5),
