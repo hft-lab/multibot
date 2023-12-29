@@ -19,7 +19,9 @@ class ArbitrageFinder:
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
         self.profit_ranges = self.unpack_ranges()
-        print(self.profit_ranges)
+        if not self.profit_ranges.get('timestamp_start'):
+            self.profit_ranges.update({'timestamp_start': time.time()})
+        self.target_profits = self.get_target_profits()
 
     @staticmethod
     def unpack_ranges() -> dict:
@@ -28,10 +30,9 @@ class ArbitrageFinder:
                 return json.load(file)
         except:
             with open('ranges.json', 'w') as file:
-                new = {'timestamp': time.time()}
+                new = {'timestamp': time.time(), 'timestamp_start': time.time()}
                 json.dump(new, file)
             return new
-
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -97,8 +98,9 @@ class ArbitrageFinder:
 
                             profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
-                            self.append_profit(profit=profit, buy_ex=ex_1, sell_ex=ex_2, coin=coin)
-                            if profit > target_profit:
+                            name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                            self.append_profit(profit=profit, name=name)
+                            if profit >= self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
                                 deal_size_usd_max = deal_size_amount * float(ob_2['top_bid'])
@@ -143,8 +145,51 @@ class ArbitrageFinder:
         return possibilities
 
     @try_exc_regular
-    def append_profit(self, profit: float, buy_ex: str, sell_ex: str, coin: str):
-        name = f"B:{buy_ex}|S:{sell_ex}|C:{coin}"
+    def get_coins_profit_ranges(self):
+        coins = {}
+        for direction in self.profit_ranges.keys():
+            if direction == 'timestamp':
+                continue
+            coin = direction.split('C:')[1]
+            range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
+            if coins.get(coin):
+                coin = coin + '_reversed'
+            coins.update({coin: {'range': range,
+                                 'direction': direction}})
+        return coins
+
+    @try_exc_regular
+    def get_target_profits(self):
+        coins = self.get_coins_profit_ranges()
+        target_profits = {}
+        for coin in coins.keys():
+            if 'reversed' in coin:
+                continue
+            direction_one = coins[coin]
+            direction_two = coins[coin + '_reversed']
+            target_1 = None
+            target_2 = None
+            sum_freq_1 = 0
+            sum_freq_2 = 0
+            for profit_1, freq_1 in direction_one['range']:
+                if sum_freq_1 > 300:
+                    break
+                sum_freq_1 += freq_1
+            for profit_2, freq_2 in direction_two['range']:
+                if sum_freq_2 > 300:
+                    break
+                sum_freq_2 += freq_2
+            if profit_1 + profit_2 > self.profit_taker:
+                target_1 = [profit_1, sum_freq_1]
+                target_2 = [profit_2, sum_freq_2]
+            print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
+            print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
+            print()
+            target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
+                                   direction_two['direction']: target_2[0] if target_2 else target_2})
+
+    @try_exc_regular
+    def append_profit(self, profit: float, name: str):
         profit = round(profit, self.profit_precise)
         if self.profit_ranges.get(name):
             if self.profit_ranges[name].get(profit):

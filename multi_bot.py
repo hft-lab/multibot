@@ -229,7 +229,6 @@ class MultiBot:
         # print('block2: Positions')
         # print('Positions', json.dumps(self.positions, indent=2))
         #
-        # input('STOP')
         self.db.save_launch_balance(self)
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
@@ -465,17 +464,14 @@ class MultiBot:
 
     @try_exc_async
     async def execute_deal(self):
-
         client_buy = self.chosen_deal.client_buy
         client_sell = self.chosen_deal.client_sell
         buy_market = self.chosen_deal.buy_market
         sell_market = self.chosen_deal.sell_market
-
         # with open('ap_still_active_status.csv', 'a', newline='') as file:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
-
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
         self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
         cl_id_buy, cl_id_sell = f"api_deal_{id1.replace('-', '')[:20]}", f"api_deal_{id2.replace('-', '')[:20]}"
