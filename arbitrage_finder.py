@@ -210,10 +210,9 @@ class ArbitrageFinder:
                 json.dump(self.profit_ranges, file)
             self.last_record = now
         if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
-            with open(f'ranges{str(datetime.utcnow())}.json', 'w') as file:
+            with open(f'ranges{str(datetime.utcnow()).split(" ")[0]}.json', 'w') as file:
                 json.dump(self.profit_ranges, file)
             self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
-
 
 
 if __name__ == '__main__':
