@@ -481,7 +481,8 @@ class MultiBot:
 
         self.chosen_deal.ts_orders_sent = time.time()
         time_sent = self.chosen_deal.ts_orders_sent
-
+        client_buy.price = client_buy.price + client_buy.instruments[buy_market]['tick_size']
+        client_sell.price = client_sell.price - client_sell.instruments[sell_market]['tick_size']
         orders = []
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
