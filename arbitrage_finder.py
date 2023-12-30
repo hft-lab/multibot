@@ -24,6 +24,7 @@ class ArbitrageFinder:
         # print(self.profit_ranges)
         self.target_profits = self.get_target_profits()
 
+
     @staticmethod
     def unpack_ranges() -> dict:
         try:
@@ -101,7 +102,7 @@ class ArbitrageFinder:
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                             self.append_profit(profit=profit, name=name)
-                            target = self.target_profits[name]
+                            target = self.target_profits.get(name)
                             if not target:
                                 continue
                             if profit >= self.target_profits[name]:
@@ -171,8 +172,6 @@ class ArbitrageFinder:
                 continue
             direction_one = coins[coin]
             direction_two = coins[coin + '_reversed']
-            target_1 = None
-            target_2 = None
             sum_freq_1 = 0
             sum_freq_2 = 0
             for profit_1, freq_1 in direction_one['range']:
@@ -183,14 +182,12 @@ class ArbitrageFinder:
                 if sum_freq_2 > 3000:
                     break
                 sum_freq_2 += freq_2
-            if profit_1 + profit_2 > self.profit_taker:
+            if profit_1 + profit_2 > self.profit_taker and profit_1 > 0 and profit_2 > 0:
                 target_1 = [profit_1, sum_freq_1]
                 target_2 = [profit_2, sum_freq_2]
-            if target_1:
                 print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
                 print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
                 print()
-            if target_1[0] > 0 and target_2[0] > 0:
                 target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
                                        direction_two['direction']: target_2[0] if target_2 else target_2})
         return target_profits
