@@ -425,7 +425,7 @@ class MultiBot:
         # Нужно добавить корректную обработку контрактов, а пока комментирую
         # deal_size_amount = min(max_deal_size_amount, deal.buy_max_amount_ob,
         #                        deal.sell_max_amount_ob)
-        deal_size_amount=max_deal_size_amount
+        deal_size_amount = max_deal_size_amount
         step_size_buy = client_buy.instruments[buy_market]['step_size']
         step_size_sell = client_sell.instruments[sell_market]['step_size']
         step_size = max(step_size_buy, step_size_sell)
@@ -437,8 +437,8 @@ class MultiBot:
 
         buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
         sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
-        self.chosen_deal.buy_price_shifted = buy_price_shifted
-        self.chosen_deal.sell_price_shifted = sell_price_shifted
+        self.chosen_deal.buy_price_shifted = buy_price_shifted + client_buy.instruments[buy_market]['tick_size']
+        self.chosen_deal.sell_price_shifted = sell_price_shifted - client_sell.instruments[sell_market]['tick_size']
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
         client_buy.fit_sizes(buy_price_shifted, buy_market)
         client_sell.fit_sizes(sell_price_shifted, sell_market)
@@ -481,8 +481,6 @@ class MultiBot:
 
         self.chosen_deal.ts_orders_sent = time.time()
         time_sent = self.chosen_deal.ts_orders_sent
-        client_buy.price = client_buy.price + client_buy.instruments[buy_market]['tick_size']
-        client_sell.price = client_sell.price - client_sell.instruments[sell_market]['tick_size']
         orders = []
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
