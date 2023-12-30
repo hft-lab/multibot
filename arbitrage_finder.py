@@ -19,17 +19,27 @@ class ArbitrageFinder:
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
         self.profit_ranges = self.unpack_ranges()
+        print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
         if not self.profit_ranges.get('timestamp_start'):
             self.profit_ranges.update({'timestamp_start': time.time()})
         # print(self.profit_ranges)
         self.target_profits = self.get_target_profits()
 
-
     @staticmethod
+    @try_exc_regular
     def unpack_ranges() -> dict:
         try:
             with open('ranges.json', 'r') as file:
-                return json.load(file)
+                if time.time() - json.load(file)['timestamp_start'] < 3600 * 12:
+                    try:
+                        with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'r') as file_2:
+                            return json.load(file_2)
+                    except:
+                        last_date = str(datetime.fromtimestamp(time.time() - (3600 * 24))).split(' ')[0]
+                        with open(f'ranges{last_date}.json', 'r') as file_2:
+                            return json.load(file_2)
+                else:
+                    return json.load(file)
         except:
             with open('ranges.json', 'w') as file:
                 new = {'timestamp': time.time(), 'timestamp_start': time.time()}
@@ -87,16 +97,16 @@ class ArbitrageFinder:
                             sell_mrkt = self.markets[coin][ex_2]
 
                             deal_direction = 'open'
-                            target_profit = self.get_target_profit(deal_direction)
+                            # target_profit = self.get_target_profit(deal_direction)
                             if not ribs:
                                 deal_direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
-                                target_profit = self.get_target_profit(deal_direction)
-                                buy_ticksize = client_1.instruments[buy_mrkt]['tick_size']
-                                sell_ticksize = client_2.instruments[sell_mrkt]['tick_size']
-                                if (buy_ticksize / ob_1['top_bid'] > self.profit_taker) or (
-                                        sell_ticksize / ob_2['top_ask'] > self.profit_taker):
-                                    target_profit = 1.5 * max(
-                                        buy_ticksize / ob_1['top_bid'], sell_ticksize / ob_2['top_ask'])
+                                # target_profit = self.get_target_profit(deal_direction)
+                                # buy_ticksize = client_1.instruments[buy_mrkt]['tick_size']
+                                # sell_ticksize = client_2.instruments[sell_mrkt]['tick_size']
+                                # if (buy_ticksize / ob_1['top_bid'] > self.profit_taker) or (
+                                #         sell_ticksize / ob_2['top_ask'] > self.profit_taker):
+                                #     target_profit = 1.5 * max(
+                                #         buy_ticksize / ob_1['top_bid'], sell_ticksize / ob_2['top_ask'])
 
                             profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
@@ -157,10 +167,16 @@ class ArbitrageFinder:
                 continue
             coin = direction.split('C:')[1]
             range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
+            range_len = sum([x[1] for x in range])
             if coins.get(coin):
                 coin = coin + '_reversed'
-            coins.update({coin: {'range': range,
-                                 'direction': direction}})
+            upd_data = {coin: {'range': range,
+                               'range_len': range_len,
+                               'direction': direction}}
+            coins.update(upd_data)
+            # print(upd_data)
+            # print()
+
         return coins
 
     @try_exc_regular
@@ -175,19 +191,19 @@ class ArbitrageFinder:
             sum_freq_1 = 0
             sum_freq_2 = 0
             for profit_1, freq_1 in direction_one['range']:
-                if sum_freq_1 > 3000:
+                if sum_freq_1 > direction_one['range_len'] * 0.07:
                     break
                 sum_freq_1 += freq_1
             for profit_2, freq_2 in direction_two['range']:
-                if sum_freq_2 > 3000:
+                if sum_freq_2 > direction_two['range_len'] * 0.07:
                     break
                 sum_freq_2 += freq_2
-            if profit_1 + profit_2 > self.profit_taker and profit_1 > 0 and profit_2 > 0:
+            print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
+            print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
+            print()
+            if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
                 target_1 = [profit_1, sum_freq_1]
                 target_2 = [profit_2, sum_freq_2]
-                print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
-                print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
-                print()
                 target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
                                        direction_two['direction']: target_2[0] if target_2 else target_2})
         return target_profits
@@ -208,7 +224,8 @@ class ArbitrageFinder:
                 json.dump(self.profit_ranges, file)
             self.last_record = now
         if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
-            with open(f'ranges{str(datetime.utcnow()).split(" ")[0]}.json', 'w') as file:
+            self.target_profits = self.get_target_profits()
+            with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'w') as file:
                 json.dump(self.profit_ranges, file)
             self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
 
