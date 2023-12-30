@@ -190,8 +190,9 @@ class ArbitrageFinder:
                 print(F"TARGET PROFIT {direction_one['direction']}:", target_1)
                 print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", target_2)
                 print()
-            target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
-                                   direction_two['direction']: target_2[0] if target_2 else target_2})
+            if target_1[0] > 0 and target_2[0] > 0:
+                target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
+                                       direction_two['direction']: target_2[0] if target_2 else target_2})
         return target_profits
 
     @try_exc_regular
