@@ -17,6 +17,7 @@ class ArbitrageFinder:
         self.clients_with_names = clients_with_names
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
+        self.excepts = None
         # self.profit_precise = 4
         # self.profit_ranges = self.unpack_ranges()
         # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
@@ -74,10 +75,34 @@ class ArbitrageFinder:
         #     print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
         return deal_direction
 
+    def target_profit_exceptions(self, data):
+        targets = dict()
+        for coin in self.coins:
+            for ex_1, client_1 in self.clients_with_names.items():
+                for ex_2, client_2 in self.clients_with_names.items():
+                    if ex_1 == ex_2:
+                        continue
+                    if ob_1 := data.get(ex_1 + '__' + coin):
+                        if ob_2 := data.get(ex_2 + '__' + coin):
+                            if not ob_2['top_bid'] or not ob_1['top_ask']:
+                                continue
+                            buy_mrkt = self.markets[coin][ex_1]
+                            sell_mrkt = self.markets[coin][ex_2]
+                            buy_ticksize_rel = client_1.instruments[buy_mrkt]['tick_size'] / ob_1['top_bid']
+                            sell_ticksize_rel = client_2.instruments[sell_mrkt]['tick_size'] / ob_2['top_ask']
+                            if buy_ticksize_rel > self.profit_taker or sell_ticksize_rel > self.profit_taker:
+                                target_profit = 1.5 * max(buy_ticksize_rel, sell_ticksize_rel)
+                                targets.update({sell_mrkt + buy_mrkt: target_profit,
+                                                buy_mrkt + sell_mrkt: target_profit})
+        self.excepts = targets
+
     @try_exc_regular
     def find_arbitrage_possibilities(self, data, ribs=None) -> List[AP]:
         # data format:
         # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
+        if not isinstance(self.excepts, dict):
+            self.target_profit_exceptions(data)
+            return []
         possibilities = []
         poses = {}
         if not ribs:
@@ -92,19 +117,15 @@ class ArbitrageFinder:
                             continue
                     if ob_1 := data.get(ex_1 + '__' + coin):
                         if ob_2 := data.get(ex_2 + '__' + coin):
-                            if not float(ob_2['top_bid']) or not float(ob_1['top_ask']):
+                            if not ob_2['top_bid'] or not ob_1['top_ask']:
                                 continue
                             buy_mrkt = self.markets[coin][ex_1]
                             sell_mrkt = self.markets[coin][ex_2]
                             # target_profit = self.get_target_profit(deal_direction)
                             # if not ribs:
-                            deal_direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
-                            target_profit = self.get_target_profit(deal_direction)
-                            buy_ticksize_rel = client_1.instruments[buy_mrkt]['tick_size'] / ob_1['top_bid']
-                            sell_ticksize_rel = client_2.instruments[sell_mrkt]['tick_size'] / ob_2['top_ask']
-                            if buy_ticksize_rel > self.profit_taker or sell_ticksize_rel > self.profit_taker:
-                                target_profit = 1.5 * max(buy_ticksize_rel, sell_ticksize_rel)
-                            profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
+                            direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                            target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
+                            profit = (ob_2['top_bid'] - ob_1['top_ask']) / ob_1['top_ask']
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                             # self.append_profit(profit=profit, name=name)
@@ -113,8 +134,8 @@ class ArbitrageFinder:
                             #     continue
                             if profit >= target_profit: #self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                                deal_size_amount = min(float(ob_1['bid_vol']), float(ob_2['ask_vol']))
-                                deal_size_usd_max = deal_size_amount * float(ob_2['top_bid'])
+                                deal_size_amount = min(ob_1['bid_vol'], ob_2['ask_vol'])
+                                deal_size_usd_max = deal_size_amount * ob_2['top_bid']
                                 profit_usd_max = profit * deal_size_usd_max
                                 possibility = AP(ap_id=uuid.uuid4())
                                 possibility.set_data_from_parser(
@@ -126,7 +147,7 @@ class ArbitrageFinder:
                                     profit_usd_max=round(profit_usd_max, 3),
                                     datetime=datetime.utcnow(),
                                     timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
-                                    deal_direction=deal_direction)
+                                    deal_direction=direction)
 
                                 possibility.set_side_data_from_parser(
                                     side='buy',
@@ -134,8 +155,8 @@ class ArbitrageFinder:
                                     exchange=ex_1,
                                     market=buy_mrkt,
                                     fee=self.fees[ex_1],
-                                    price=float(ob_1['top_ask']),
-                                    max_amount=float(ob_1['ask_vol']),
+                                    price=ob_1['top_ask'],
+                                    max_amount=ob_1['ask_vol'],
                                     ts_ob=ob_1['ts_exchange']
                                 )
                                 possibility.set_side_data_from_parser(
@@ -144,8 +165,8 @@ class ArbitrageFinder:
                                     exchange=ex_2,
                                     market=sell_mrkt,
                                     fee=self.fees[ex_2],
-                                    max_amount=float(ob_2['bid_vol']),
-                                    price=float(ob_2['top_bid']),
+                                    max_amount=ob_2['bid_vol'],
+                                    price=ob_2['top_bid'],
                                     ts_ob=ob_2['ts_exchange']
                                 )
                                 # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
