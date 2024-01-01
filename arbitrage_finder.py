@@ -12,18 +12,18 @@ class ArbitrageFinder:
     def __init__(self, markets, clients_with_names, profit_taker, profit_close):
         self.profit_taker = profit_taker
         self.profit_close = profit_close
-        self.profit_precise = 4
         self.markets = markets
         self.coins = [x for x in markets.keys()]
         self.clients_with_names = clients_with_names
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
-        self.profit_ranges = self.unpack_ranges()
+        # self.profit_precise = 4
+        # self.profit_ranges = self.unpack_ranges()
         # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
-        if not self.profit_ranges.get('timestamp_start'):
-            self.profit_ranges.update({'timestamp_start': time.time()})
-        # # print(self.profit_ranges)
-        self.target_profits = self.get_all_target_profits()
+        # if not self.profit_ranges.get('timestamp_start'):
+        #     self.profit_ranges.update({'timestamp_start': time.time()})
+        # # # print(self.profit_ranges)
+        # self.target_profits = self.get_all_target_profits()
 
     @staticmethod
     @try_exc_regular
@@ -106,8 +106,8 @@ class ArbitrageFinder:
                                 target_profit = 1.5 * max(buy_ticksize_rel, sell_ticksize_rel)
                             profit = (float(ob_2['top_bid']) - float(ob_1['top_ask'])) / float(ob_1['top_ask'])
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
-                            name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                            self.append_profit(profit=profit, name=name)
+                            # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                            # self.append_profit(profit=profit, name=name)
                             # target = self.target_profits.get(name)
                             # if not target:
                             #     continue
@@ -194,9 +194,9 @@ class ArbitrageFinder:
                 if sum_freq_2 > direction_two['range_len'] * 0.07:
                     break
                 sum_freq_2 += freq_2
-            print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
-            print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
-            print()
+            # print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
+            # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
+            # print()
             if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
                 target_1 = [profit_1, sum_freq_1]
                 target_2 = [profit_2, sum_freq_2]
