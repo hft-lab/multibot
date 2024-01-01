@@ -70,6 +70,8 @@ class ArbitrageFinder:
             deal_direction = 'open'
         else:
             deal_direction = 'half_close'
+        # if deal_direction == 'half_close':
+        #     print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
         return deal_direction
 
     @try_exc_regular
@@ -117,7 +119,7 @@ class ArbitrageFinder:
                                 possibility = AP(ap_id=uuid.uuid4())
                                 possibility.set_data_from_parser(
                                     coin=coin,
-                                    target_profit=target,
+                                    target_profit=target_profit,
                                     deal_max_amount_parser=deal_size_amount,
                                     deal_max_usd_parser=deal_size_usd_max,
                                     expect_profit_rel=round(profit, 5),
