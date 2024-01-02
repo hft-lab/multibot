@@ -115,7 +115,7 @@ class DB:
             'expect_profit_relative': ap.profit_rel_target,
             'expect_fee_buy': ap.buy_fee,
             'expect_fee_sell': ap.sell_fee,
-            'time_parser': ap.time_parser,
+            'time_parser': 0,
             'time_choose': ap.time_choose,
             'chat_id': 12345678,
             'bot_token': 'Placeholder',

@@ -45,11 +45,12 @@ class MultiBot:
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names', 'max_position_part', 'profit_close']
+                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found']
 
     def __init__(self):
         self.bot_launch_id = uuid.uuid4()
         self.db = None
+        self.found = asyncio.Event()
         self.setts = config['SETTINGS']
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
@@ -89,7 +90,7 @@ class MultiBot:
         self.available_balances = {}
         self.positions = {}
         self.session = None
-
+        self.potential_deals = []
         # all_ribs = set([x.EXCHANGE_NAME + ' ' + y.EXCHANGE_NAME for x, y in self.ribs])
         # while not all_ribs <= set(self.shifts):
         #     print('Wait shifts for', all_ribs - set(self.shifts))
@@ -99,14 +100,17 @@ class MultiBot:
         self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
         self.markets = self.clients_markets_data.get_instance_markets()
         self.markets_data = self.clients_markets_data.get_clients_data()
-        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close, self)
         # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
         self.chosen_deal: AP
+
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
+            client.finder = self.finder
             # client.markets_list = close_markets
             client.run_updater()
 
+        self.finder.target_profit_exceptions(self.get_data_for_parser())
         self.base_launch_config = {
             "env": self.setts['ENV'],
             "shift_use_flag": 0,
@@ -156,50 +160,57 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             while True:
-                await asyncio.sleep(self.cycle_parser_delay)
-                if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
-                    self.start_time -= 1
-                    self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
-                    print('PARSER IS WORKING')
-                    self.update_all_av_balances()
-                # Шаг 1 (Сбор данных с бирж по рынкам)
-                time_start_parsing = time.time()
-                results = self.get_data_for_parser()
-                time_end_parsing = time.time()
-
-                # logger_custom.log_rates(iteration, results)
-
-                # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-                potential_deals = self.finder.find_arbitrage_possibilities(results)
-
-                # print('Potential deals:', json.dumps(potential_deals, indent=2))
+                if not self.found:
+                    await asyncio.sleep(0.000007)
+                    continue
+                self.found = False
+                # await asyncio.sleep(self.cycle_parser_delay)
+                # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
+                #     self.start_time -= 1
+                #     self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
+                #     print('PARSER IS WORKING')
+                #     self.update_all_av_balances()
+                # # Шаг 1 (Сбор данных с бирж по рынкам)
+                # time_start_parsing = time.time()
+                # results = self.get_data_for_parser()
+                # time_end_parsing = time.time()
+                #
+                # # logger_custom.log_rates(iteration, results)
+                #
+                # # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
+                # potential_deals = self.finder.find_arbitrage_possibilities(results)
+                #
+                # # print('Potential deals:', json.dumps(potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()
 
-                if potential_deals:
+                # if self.potential_deals:
                     # Шаг 3 (Выбор лучшей AP, если их несколько)
-                    self.chosen_deal: AP = self.choose_deal(potential_deals)
-                    if self.chosen_deal:
-                        time_end_choose = time.time()
-                        self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
-                        self.chosen_deal.ts_choose_end = time.time()
-                        self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
-                        self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
-                        self.chosen_deal.time_choose = time_end_choose - time_end_define_potential_deals
-                        # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
-                        if self.check_prices_still_good():
-                            # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
-                            if self.fit_sizes_and_prices():
-                                time_end_fit_sizes = time.time()
-                                # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                                await self.execute_deal()
-                                # Шаг 7 (Анализ, логирование, нотификация по ордерам
-                                await self.notification_and_logging()
-                                # Удалить обнуление Last Order ID, когда разберусь с ним
-                                for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
-                                    client.error_info = None
-                                    client.LAST_ORDER_ID = 'default'
-                                self.update_all_av_balances()
-                                await asyncio.sleep(self.deal_pause)
+                self.chosen_deal: AP = self.choose_deal(self.potential_deals)
+                self.potential_deals = []
+                if self.chosen_deal:
+                    # time_end_choose = time.time()
+                    # self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
+                    self.chosen_deal.ts_choose_end = time.time()
+                    # self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
+                    # self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
+                    self.chosen_deal.time_choose = self.chosen_deal.ts_choose_end - time_end_define_potential_deals
+                    # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
+                    # if self.check_prices_still_good():
+                        # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
+                    if self.fit_sizes_and_prices():
+                        time_end_fit_sizes = time.time()
+                        # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
+                        await self.execute_deal()
+                        # Шаг 7 (Анализ, логирование, нотификация по ордерам
+                        await self.notification_and_logging()
+                        # Удалить обнуление Last Order ID, когда разберусь с ним
+                        for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
+                            client.error_info = None
+                            client.LAST_ORDER_ID = 'default'
+                        self.update_all_av_balances()
+                        await asyncio.sleep(self.deal_pause)
+                        self.found = False
+                        self.potential_deals = []
 
                             # with open('ap_still_active_status.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)

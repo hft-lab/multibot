@@ -142,10 +142,10 @@ class Telegram:
                   f'ACTUAL PRICES: BUY: {deal.buy_price_target}, SELL: {deal.sell_price_target}\n' \
                   f'PARSER PRICES: BUY: {deal.buy_price_parser}, SELL: {deal.sell_price_parser}\n' \
                   f'TIMINGS:\n' \
-                  f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \
-                  f'DEFINE POT. DEALS DURATION {round(deal.time_define_potential_deals, 4)}\n' \
                   f'CHOOSE TIME DURATION: {round(deal.time_choose, 4)}\n' \
-                  f'OB CHECK DURATION: {round(deal.time_check_ob, 4)}\n'
+                  # f'PARSE DURATION: {round(deal.time_parser, 4)}\n' \
+                  # f'OB CHECK DURATION: {round(deal.time_check_ob, 4)}\n'
+                  # f'DEFINE POT. DEALS DURATION {round(deal.time_define_potential_deals, 4)}\n' \
 
         self.send_message(message, group)
         return message
@@ -165,6 +165,7 @@ class Telegram:
 
         self.send_message(message, group)
         return message
+
     def send_different_amounts_alert(self, chosen_deal: AP, rounded_deal_size_amount, group):
         client_buy, client_sell = chosen_deal.client_buy, chosen_deal.client_sell
         buy_exchange, sell_exchange = chosen_deal.buy_exchange, chosen_deal.sell_exchange

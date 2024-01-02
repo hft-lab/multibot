@@ -1,15 +1,18 @@
+import asyncio
 import uuid
 from datetime import datetime
-from core.wrappers import try_exc_regular
+from core.wrappers import try_exc_regular, try_exc_async
 from typing import List
 from core.ap_class import AP
 import time
 import json
+import threading
 
 
 class ArbitrageFinder:
 
-    def __init__(self, markets, clients_with_names, profit_taker, profit_close):
+    def __init__(self, markets, clients_with_names, profit_taker, profit_close, multibot):
+        self.multibot = multibot
         self.profit_taker = profit_taker
         self.profit_close = profit_close
         self.markets = markets
@@ -17,7 +20,13 @@ class ArbitrageFinder:
         self.clients_with_names = clients_with_names
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
-        self.excepts = None
+        self.excepts = dict()
+        self.loop = asyncio.new_event_loop()
+        self._wst = threading.Thread(target=self._run_finder_forever)
+        self.update = False
+        self.coins_to_check = []
+        self._wst.daemon = True
+        self._wst.start()
         # self.profit_precise = 4
         # self.profit_ranges = self.unpack_ranges()
         # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
@@ -25,6 +34,22 @@ class ArbitrageFinder:
         #     self.profit_ranges.update({'timestamp_start': time.time()})
         # # # print(self.profit_ranges)
         # self.target_profits = self.get_all_target_profits()
+
+    @try_exc_regular
+    def _run_finder_forever(self):
+        while True:
+            self.loop.run_until_complete(self.check_coins())
+
+    @try_exc_async
+    async def check_coins(self):
+        while True:
+            if self.update:
+                self.update = False
+                # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
+                for coin in self.coins_to_check:
+                    await self.loop.create_task(self.count_one_coin(coin))
+                self.coins_to_check = []
+            await asyncio.sleep(0.000007)
 
     @staticmethod
     @try_exc_regular
@@ -96,13 +121,86 @@ class ArbitrageFinder:
                                                 buy_mrkt + sell_mrkt: target_profit})
         self.excepts = targets
 
+    @try_exc_async
+    async def count_one_coin(self, coin):
+        possibilities = []
+        poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
+        for ex_1, client_1 in self.clients_with_names.items():
+            for ex_2, client_2 in self.clients_with_names.items():
+                if ex_1 == ex_2:
+                    continue
+                if buy_mrkt := client_1.markets.get(coin):
+                    if sell_mrkt := client_2.markets.get(coin):
+                        ob_1 = client_1.get_orderbook(buy_mrkt)
+                        ob_2 = client_2.get_orderbook(sell_mrkt)
+                        if not ob_1.get('bids') or not ob_1.get('asks'):
+                            # print(f"OB IS BROKEN {client_1.EXCHANGE_NAME}: {ob_1}")
+                            continue
+                        if not ob_2.get('bids') or not ob_2.get('asks'):
+                            # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
+                            continue
+                        direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                        target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
+                        profit = (ob_2['bids'][0][0] - ob_1['asks'][0][0]) / ob_1['asks'][0][0]
+                        profit = profit - self.fees[ex_1] - self.fees[ex_2]
+                        if profit >= target_profit:  # self.target_profits[name]:
+                            # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                            time_start = time.time()
+                            deal_size_amount = min(ob_1['asks'][0][1], ob_2['bids'][0][1])
+                            deal_size_usd_max = deal_size_amount * ob_2['bids'][0][0]
+                            profit_usd_max = profit * deal_size_usd_max
+                            possibility = AP(ap_id=uuid.uuid4())
+                            possibility.ob_buy = ob_1
+                            possibility.ob_sell = ob_2
+                            possibility.buy_max_amount_ob = ob_1['asks'][0][1]
+                            possibility.sell_max_amount_ob = ob_2['bids'][0][1]
+                            possibility.buy_price_target = ob_1['asks'][0][0]
+                            possibility.sell_price_target = ob_1['bids'][0][0]
+                            possibility.deal_max_amount_ob = deal_size_amount
+                            possibility.deal_max_usd_ob = deal_size_usd_max
+                            possibility.profit_rel_target = profit
+                            possibility.set_data_from_parser(
+                                coin=coin,
+                                target_profit=target_profit,
+                                deal_max_amount_parser=deal_size_amount,
+                                deal_max_usd_parser=deal_size_usd_max,
+                                expect_profit_rel=round(profit, 5),
+                                profit_usd_max=round(profit_usd_max, 3),
+                                datetime=datetime.utcnow(),
+                                timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
+                                deal_direction=direction)
+                            possibility.set_side_data_from_parser(
+                                side='buy',
+                                client=client_1,
+                                exchange=ex_1,
+                                market=buy_mrkt,
+                                fee=self.fees[ex_1],
+                                price=ob_1['asks'][0][0],
+                                max_amount=ob_1['asks'][0][1],
+                                ts_ob=ob_1['timestamp'])
+                            possibility.set_side_data_from_parser(
+                                side='sell',
+                                client=client_2,
+                                exchange=ex_2,
+                                market=sell_mrkt,
+                                fee=self.fees[ex_2],
+                                max_amount=ob_2['bids'][0][1],
+                                price=ob_2['bids'][0][0],
+                                ts_ob=ob_2['timestamp'])
+                            # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
+                            # with open('arbi.csv', 'a', newline='') as file:
+                            #     writer = csv.writer(file)
+                            #     writer.writerow([str(y) for y in possibility.values()])
+                            print(f"AP filling time: {time.time() - time_start} sec")
+                            possibilities.append(possibility)
+        self.multibot.potential_deals = possibilities
+        if possibilities:
+            self.multibot.found = True
+
     @try_exc_regular
     def find_arbitrage_possibilities(self, data, ribs=None) -> List[AP]:
         # data format:
         # {self.EXCHANGE_NAME + '__' + coin: {'top_bid':, 'top_ask': , 'bid_vol':, 'ask_vol': ,'ts_exchange': }}
-        if not isinstance(self.excepts, dict):
-            self.target_profit_exceptions(data)
-            return []
         possibilities = []
         poses = {}
         if not ribs:
@@ -134,7 +232,7 @@ class ArbitrageFinder:
                             #     continue
                             if profit >= target_profit: #self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                                deal_size_amount = min(ob_1['bid_vol'], ob_2['ask_vol'])
+                                deal_size_amount = min(ob_1['ask_vol'], ob_2['bid_vol'])
                                 deal_size_usd_max = deal_size_amount * ob_2['top_bid']
                                 profit_usd_max = profit * deal_size_usd_max
                                 possibility = AP(ap_id=uuid.uuid4())
