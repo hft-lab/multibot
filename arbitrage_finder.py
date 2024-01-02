@@ -134,6 +134,8 @@ class ArbitrageFinder:
                     if sell_mrkt := client_2.markets.get(coin):
                         ob_1 = client_1.get_orderbook(buy_mrkt)
                         ob_2 = client_2.get_orderbook(sell_mrkt)
+                        if not ob_1 or not ob_2:
+                            continue
                         if not ob_1.get('bids') or not ob_1.get('asks'):
                             # print(f"OB IS BROKEN {client_1.EXCHANGE_NAME}: {ob_1}")
                             continue
