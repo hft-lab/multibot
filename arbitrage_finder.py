@@ -191,7 +191,7 @@ class ArbitrageFinder:
                             # with open('arbi.csv', 'a', newline='') as file:
                             #     writer = csv.writer(file)
                             #     writer.writerow([str(y) for y in possibility.values()])
-                            print(f"AP filling time: {time.time() - time_start} sec")
+                            # print(f"AP filling time: {time.time() - time_start} sec")
                             possibilities.append(possibility)
         self.multibot.potential_deals = possibilities
         if possibilities:
