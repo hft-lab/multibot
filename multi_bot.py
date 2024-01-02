@@ -198,7 +198,7 @@ class MultiBot:
                     # if self.check_prices_still_good():
                         # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                     if self.fit_sizes_and_prices():
-                        time_end_fit_sizes = time.time()
+                        # time_end_fit_sizes = time.time()
                         # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
                         await self.execute_deal()
                         # Шаг 7 (Анализ, логирование, нотификация по ордерам
@@ -271,7 +271,7 @@ class MultiBot:
         return chosen_deal
 
     @try_exc_regular
-    def is_bigger_than_min_size_add_exception(self, exchange, market, deal_avail_size_usd,
+    def check_min_size(self, exchange, market, deal_avail_size_usd,
                                               price, direction, context, send_flag: bool = True):
         min_size_amount = self.clients_with_names[exchange].instruments[market]['min_size']
         min_size_usd = min_size_amount * price
@@ -305,9 +305,9 @@ class MultiBot:
 
                 deal_avail_size_buy_usd = self.available_balances[exchange][market]['buy']
                 deal_avail_size_sell_usd = self.available_balances[exchange][market]['sell']
-                self.is_bigger_than_min_size_add_exception(exchange, market, deal_avail_size_buy_usd,
+                self.check_min_size(exchange, market, deal_avail_size_buy_usd,
                                                            price, 'buy', context='Bot launch', send_flag=False)
-                self.is_bigger_than_min_size_add_exception(exchange, market, deal_avail_size_sell_usd,
+                self.check_min_size(exchange, market, deal_avail_size_sell_usd,
                                                            price, 'sell', context='Bot launch', send_flag=False)
                 min_size_amount = self.clients_with_names[exchange].instruments[market]['min_size']
                 min_size_usd = min_size_amount * price
@@ -411,28 +411,23 @@ class MultiBot:
         return shifted_price
 
     @try_exc_regular
+    def if_tradable(self, buy_ex, sell_ex, buy_mrkt, sell_mrkt, buy_px, sell_px):
+        avl_sz_buy_usd = self._get_available_balance(buy_ex, buy_mrkt, 'buy')
+        avl_sz_sell_usd = self._get_available_balance(sell_ex, sell_mrkt, 'sell')
+        if not self.check_min_size(buy_ex, buy_mrkt, avl_sz_buy_usd, buy_px, 'buy', 'Bot work'):
+            return False
+        if not self.check_min_size(sell_ex, sell_mrkt, avl_sz_sell_usd, sell_px, 'sell', 'Bot work'):
+            return False
+        return True
+
+    @try_exc_regular
     def fit_sizes_and_prices(self):
         deal = self.chosen_deal
         client_buy, client_sell = deal.client_buy, deal.client_sell
         buy_market, sell_market = deal.buy_market, deal.sell_market
-        buy_exchange, sell_exchange = deal.buy_exchange, deal.sell_exchange
-
         price = deal.ob_buy['asks'][0][0]
-
-        deal_avail_size_buy_usd = self._get_available_balance(buy_exchange, buy_market, 'buy')
-        deal_avail_size_sell_usd = self._get_available_balance(sell_exchange, sell_market, 'sell')
-
-        if not self.is_bigger_than_min_size_add_exception(buy_exchange, buy_market,
-                                                          deal_avail_size_buy_usd, price, 'buy', 'Bot work'):
-            return False
-
-        if not self.is_bigger_than_min_size_add_exception(sell_exchange, sell_market,
-                                                          deal_avail_size_sell_usd, price, 'sell', 'Bot work'):
-            return False
-
         max_deal_size_usd = min(deal_avail_size_buy_usd, deal_avail_size_sell_usd, self.max_order_size_usd)
         max_deal_size_amount = max_deal_size_usd / price
-
         # Нужно добавить корректную обработку контрактов, а пока комментирую
         # deal_size_amount = min(max_deal_size_amount, deal.buy_max_amount_ob,
         #                        deal.sell_max_amount_ob)
@@ -446,23 +441,22 @@ class MultiBot:
         client_buy.amount = rounded_deal_size_amount
         client_sell.amount = rounded_deal_size_amount
 
-        buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
-        sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
-        self.chosen_deal.buy_price_shifted = buy_price_shifted + client_buy.instruments[buy_market]['tick_size']
-        self.chosen_deal.sell_price_shifted = sell_price_shifted - client_sell.instruments[sell_market]['tick_size']
+        # buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
+        # sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
+        self.chosen_deal.buy_price_shifted = deal.buy_price_parser + client_buy.instruments[buy_market]['tick_size']
+        self.chosen_deal.sell_price_shifted = deal.sell_price_parser - client_sell.instruments[sell_market]['tick_size']
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
-        client_buy.fit_sizes(buy_price_shifted, buy_market)
-        client_sell.fit_sizes(sell_price_shifted, sell_market)
+        client_buy.fit_sizes(self.chosen_deal.buy_price_shifted, buy_market)
+        client_sell.fit_sizes(self.chosen_deal.sell_price_shifted, sell_market)
 
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
         self.chosen_deal.buy_price_fitted = client_buy.price
         self.chosen_deal.sell_price_fitted = client_sell.price
         self.chosen_deal.buy_amount_target = client_buy.amount
         self.chosen_deal.sell_amount_target = client_sell.amount
-        if client_buy.amount == 0:
+        if not client_buy.amount or not client_sell.amount:
             self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
             return False
-
         self.chosen_deal.deal_size_amount_target = client_buy.amount
         self.chosen_deal.deal_size_usd_target = client_buy.amount * (deal.buy_price_target + deal.sell_price_target) / 2
         self.chosen_deal.profit_usd_target = deal.profit_rel_target * deal.deal_size_usd_target
