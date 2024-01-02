@@ -144,7 +144,7 @@ class ArbitrageFinder:
                         sell_px = ob_2['bids'][0][0]
                         buy_sz = ob_1['asks'][0][1]
                         sell_sz = ob_2['bids'][0][1]
-                        if self.multibot.if_tradable(self, ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
+                        if self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                             direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                             profit = (sell_px - buy_px) / buy_px
@@ -200,9 +200,9 @@ class ArbitrageFinder:
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(f"AP filling time: {time.time() - time_start} sec")
                                 possibilities.append(possibility)
-                            else:
-                                self.tradable_profits[coin].pop(ex_1 + 'BUY', None)
-                                self.tradable_profits[coin].pop(ex_2 + 'SELL', None)
+                        else:
+                            self.tradable_profits[coin].pop(ex_1 + 'BUY', None)
+                            self.tradable_profits[coin].pop(ex_2 + 'SELL', None)
             self.multibot.potential_deals = possibilities
             if possibilities:
                 self.multibot.found = True

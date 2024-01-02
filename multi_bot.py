@@ -54,7 +54,7 @@ class MultiBot:
         self.setts = config['SETTINGS']
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
-        self.trade_exceptions = []
+        self.trade_exceptions = {}
         self.close_only_exchanges = []
         self.instance_markets_amount = int(config['SETTINGS']['INSTANCE_MARKETS_AMOUNT'])
 
@@ -103,7 +103,6 @@ class MultiBot:
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close, self)
         # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
         self.chosen_deal: AP
-
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
             client.finder = self.finder
@@ -230,7 +229,7 @@ class MultiBot:
         # print(json.dumps(self.available_balances, indent=2))
         # print(json.dumps(self.positions, indent=2))
 
-        self.add_exceptions_on_bot_launch()
+        # self.add_exceptions_on_bot_launch()
         self.telegram.send_bot_launch_message(self, TG_Groups.MainGroup)
         self.telegram.send_start_balance_message(self, TG_Groups.MainGroup)
 
@@ -258,10 +257,10 @@ class MultiBot:
         max_profit = None
         chosen_deal = None
         for deal in potential_deals:
-            if self.is_in_trade_exceptions(deal.buy_market, deal.buy_exchange, 'buy'):
-                continue
-            if self.is_in_trade_exceptions(deal.sell_market, deal.sell_exchange, 'sell'):
-                continue
+            # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
+            #     continue
+            # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):
+            #     continue
             if not max_profit:
                 max_profit = deal.profit_rel_parser
                 chosen_deal = deal
@@ -276,14 +275,14 @@ class MultiBot:
         min_size_amount = self.clients_with_names[exchange].instruments[market]['min_size']
         min_size_usd = min_size_amount * price
         if deal_avail_size_usd < min_size_usd:
-            message = f"Context: {context}. Доступный баланс: {int(round(deal_avail_size_usd))} недостаточен для совершения сделки. "
-            if deal_avail_size_usd > 0:
-                message += f"Конкретный рынок. Доступный баланс есть, но меньше минимального размера ордера {min_size_usd}"
-            if deal_avail_size_usd == 0:
-                message += "Биржа в целом. Режим Close Only"
-            if deal_avail_size_usd < 0:
-                message += "Конкретный рынок. Close Only"
-            self.add_trade_exception(exchange, market, direction, message, send_flag)
+            # message = f"Context: {context}. Доступный баланс: {int(round(deal_avail_size_usd))} недостаточен для совершения сделки. "
+            # if deal_avail_size_usd > 0:
+            #     message += f"Конкретный рынок. Доступный баланс есть, но меньше минимального размера ордера {min_size_usd}"
+            # if deal_avail_size_usd == 0:
+            #     message += "Биржа в целом. Режим Close Only"
+            # if deal_avail_size_usd < 0:
+            #     message += "Конкретный рынок. Close Only"
+            # self.add_trade_exception(exchange, market, direction, message, send_flag)
             return False
         else:
             return True
@@ -332,7 +331,7 @@ class MultiBot:
 
         exception_count = {}
         for exception in self.trade_exceptions:
-            exchange = exception['exchange']
+            exchange = self.trade_exceptions[exception]['exchange']
             exception_count[exchange] = exception_count.get(exchange, 0) + 1
 
         message = f'ALERT: Bot launch. Exception Added\n' \
@@ -343,19 +342,16 @@ class MultiBot:
 
     @try_exc_regular
     def add_trade_exception(self, exchange, market, direction, reason, send_flag: bool = True) -> None:
-        exception = {'market': market, 'exchange': exchange, 'direction': direction,
-                     'reason': reason, 'Time added': str(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}
-        self.trade_exceptions.append(exception)
+        if self.trade_exceptions.get(exchange+market+direction):
+            return
+        exception = {exchange+market+direction:
+                         {'market': market, 'exchange': exchange, 'direction': direction,
+                          'reason': reason, 'Time added': str(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}}
+        self.trade_exceptions.update(exception)
         if send_flag:
             print(f'ALERT: Exception Added\n{json.dumps(exception, indent=2, ensure_ascii=False)}')
             self.telegram.send_message((f'ALERT: Bot work. Exception Added\n'
                                         f'{json.dumps(exception, indent=2, ensure_ascii=False)}'), TG_Groups.Alerts)
-
-    @try_exc_regular
-    def is_in_trade_exceptions(self, market, exchange, direction):
-        filtered = [item for item in self.trade_exceptions if item['market'] == market and
-                    item['exchange'] == exchange and item['direction'] == direction]
-        return len(filtered) > 0
 
     @try_exc_regular
     def check_prices_still_good(self):
@@ -395,11 +391,14 @@ class MultiBot:
 
     @try_exc_regular
     def _get_available_balance(self, exchange, market, direction):
-        if self.available_balances[exchange].get(market):
-            avail_size = self.available_balances[exchange][market][direction]
+        if self.available_balances.get(exchange):
+            if self.available_balances[exchange].get(market):
+                avail_size = self.available_balances[exchange][market][direction]
+            else:
+                avail_size = self.available_balances[exchange][direction]
+            return avail_size
         else:
-            avail_size = self.available_balances[exchange][direction]
-        return avail_size
+            return 'updating'
 
     @try_exc_regular
     def get_shifted_price_for_order(self, ob, direction):
@@ -414,6 +413,8 @@ class MultiBot:
     def if_tradable(self, buy_ex, sell_ex, buy_mrkt, sell_mrkt, buy_px, sell_px):
         avl_sz_buy_usd = self._get_available_balance(buy_ex, buy_mrkt, 'buy')
         avl_sz_sell_usd = self._get_available_balance(sell_ex, sell_mrkt, 'sell')
+        if avl_sz_buy_usd == 'updating' or avl_sz_sell_usd == 'updating':
+            return False
         if not self.check_min_size(buy_ex, buy_mrkt, avl_sz_buy_usd, buy_px, 'buy', 'Bot work'):
             return False
         if not self.check_min_size(sell_ex, sell_mrkt, avl_sz_sell_usd, sell_px, 'sell', 'Bot work'):
