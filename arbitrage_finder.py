@@ -2,7 +2,6 @@ import asyncio
 import uuid
 from datetime import datetime
 from core.wrappers import try_exc_regular, try_exc_async
-from typing import List
 from core.ap_class import AP
 import time
 import json
@@ -27,7 +26,7 @@ class ArbitrageFinder:
         self.coins_to_check = []
         self._wst.daemon = True
         self._wst.start()
-        self.tradable_profits = {x: {} for x in self.coins}#{coin: {exchange+side: profit_gap}}
+        self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
         # self.profit_precise = 4
         # self.profit_ranges = self.unpack_ranges()
         # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
@@ -44,6 +43,13 @@ class ArbitrageFinder:
     @try_exc_async
     async def check_coins(self):
         while True:
+            clients = self.clients_with_names.items()
+            lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 10]
+            if len(lines):
+                print(f"ALERT WEBSOCKET LINES ARE HUGE: {lines}")
+                await asyncio.sleep(1)
+                self.coins_to_check = []
+                self.update = False
             if self.update:
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
@@ -97,8 +103,8 @@ class ArbitrageFinder:
             deal_direction = 'open'
         else:
             deal_direction = 'half_close'
-        # if deal_direction == 'half_close':
-        #     print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
+        if deal_direction == 'half_close':
+            print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
         return deal_direction
 
     def target_profit_exceptions(self, data):
@@ -151,8 +157,8 @@ class ArbitrageFinder:
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                             profit = (sell_px - buy_px) / buy_px
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
-                            self.tradable_profits[coin].update({ex_1+'BUY': target_profit - profit,
-                                                                ex_2+'SELL': target_profit - profit})
+                            self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
+                                                                ex_2+'__'+ex_1: target_profit - profit})
                             if profit >= target_profit:  # self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)
@@ -204,10 +210,10 @@ class ArbitrageFinder:
                                 # print(f"AP filling time: {time.time() - time_start} sec")
                                 possibilities.append(possibility)
                         else:
-                            self.tradable_profits[coin].pop(ex_1 + 'BUY', None)
-                            self.tradable_profits[coin].pop(ex_2 + 'SELL', None)
-            self.multibot.potential_deals = possibilities
+                            self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
+                            self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
             if possibilities:
+                self.multibot.potential_deals = possibilities
                 self.multibot.found = True
 
     # @try_exc_regular
@@ -287,54 +293,54 @@ class ArbitrageFinder:
     #                             possibilities.append(possibility)
     #     return possibilities
 
-    @try_exc_regular
-    def get_coins_profit_ranges(self):
-        coins = {}
-        for direction in self.profit_ranges.keys():
-            if 'timestamp' in direction:
-                continue
-            coin = direction.split('C:')[1]
-            range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
-            range_len = sum([x[1] for x in range])
-            if coins.get(coin):
-                coin = coin + '_reversed'
-            upd_data = {coin: {'range': range,
-                               'range_len': range_len,
-                               'direction': direction}}
-            coins.update(upd_data)
-            # print(upd_data)
-            # print()
+    # @try_exc_regular
+    # def get_coins_profit_ranges(self):
+    #     coins = {}
+    #     for direction in self.profit_ranges.keys():
+    #         if 'timestamp' in direction:
+    #             continue
+    #         coin = direction.split('C:')[1]
+    #         range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
+    #         range_len = sum([x[1] for x in range])
+    #         if coins.get(coin):
+    #             coin = coin + '_reversed'
+    #         upd_data = {coin: {'range': range,
+    #                            'range_len': range_len,
+    #                            'direction': direction}}
+    #         coins.update(upd_data)
+    #         # print(upd_data)
+    #         # print()
+    #
+    #     return coins
 
-        return coins
-
-    @try_exc_regular
-    def get_all_target_profits(self):
-        coins = self.get_coins_profit_ranges()
-        target_profits = {}
-        for coin in coins.keys():
-            if 'reversed' in coin:
-                continue
-            direction_one = coins[coin]
-            direction_two = coins[coin + '_reversed']
-            sum_freq_1 = 0
-            sum_freq_2 = 0
-            for profit_1, freq_1 in direction_one['range']:
-                if sum_freq_1 > direction_one['range_len'] * 0.07:
-                    break
-                sum_freq_1 += freq_1
-            for profit_2, freq_2 in direction_two['range']:
-                if sum_freq_2 > direction_two['range_len'] * 0.07:
-                    break
-                sum_freq_2 += freq_2
-            # print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
-            # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
-            # print()
-            if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
-                target_1 = [profit_1, sum_freq_1]
-                target_2 = [profit_2, sum_freq_2]
-                target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
-                                       direction_two['direction']: target_2[0] if target_2 else target_2})
-        return target_profits
+    # @try_exc_regular
+    # def get_all_target_profits(self):
+    #     coins = self.get_coins_profit_ranges()
+    #     target_profits = {}
+    #     for coin in coins.keys():
+    #         if 'reversed' in coin:
+    #             continue
+    #         direction_one = coins[coin]
+    #         direction_two = coins[coin + '_reversed']
+    #         sum_freq_1 = 0
+    #         sum_freq_2 = 0
+    #         for profit_1, freq_1 in direction_one['range']:
+    #             if sum_freq_1 > direction_one['range_len'] * 0.07:
+    #                 break
+    #             sum_freq_1 += freq_1
+    #         for profit_2, freq_2 in direction_two['range']:
+    #             if sum_freq_2 > direction_two['range_len'] * 0.07:
+    #                 break
+    #             sum_freq_2 += freq_2
+    #         # print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
+    #         # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
+    #         # print()
+    #         if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
+    #             target_1 = [profit_1, sum_freq_1]
+    #             target_2 = [profit_2, sum_freq_2]
+    #             target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
+    #                                    direction_two['direction']: target_2[0] if target_2 else target_2})
+    #     return target_profits
 
     # @try_exc_regular
     # def append_profit(self, profit: float, name: str):
@@ -366,7 +372,8 @@ if __name__ == '__main__':
     # # from clients-http.dydx import DydxClient
     # # from clients-http.apollox import ApolloxClient
     #
-    # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # , Bitspay(), Ascendex()]
+    # clients_list = [DydxClient(), KrakenClient(), BinanceClient(), ApolloxClient()]  # , Bitfinex()]  # ,
+    # Bitspay(), Ascendex()]
     # markets = coins_symbols_client(clients_list)  # {coin: {symbol:client(),...},...}
     # finder = ArbitrageFinder([x for x in markets.keys()], clients_list)
     # data = {}
