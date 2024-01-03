@@ -11,6 +11,7 @@ import math
 from datetime import datetime
 from logging.config import dictConfig
 from typing import List
+import random
 
 import aiohttp
 
@@ -154,13 +155,37 @@ class MultiBot:
             loop.close()
 
     @try_exc_async
+    async def create_session_keep_alive_orders(self):
+        orders = []
+        cancels = []
+        for client in self.clients:
+            market = client.markets[client.markets_list[0]]
+            client.amount = client.instruments[market]['min_size']
+            client.price = client.get_orderbook(market)['bids'][-1][0]
+            orders.append(self.loop_2.create_task(client.create_order(market, 'buy', self.session)))
+        responses = await asyncio.gather(*orders, return_exceptions=True)
+        for resp in responses:
+            client = self.clients_with_names[resp['exchange_name']]
+            market = client.markets[client.markets_list[0]]
+            cancels.append(self.loop_2.create_task(client.cancel_order(market,
+                                                                       resp['exchange_order_id'],
+                                                                       self.session)))
+        cancel_responses = await asyncio.gather(*cancels, return_exceptions=True)
+
+    @try_exc_async
     async def websocket_main_cycle(self):
         await self.launch()
         async with aiohttp.ClientSession() as session:
             self.session = session
+            self.session.headers.update({'Connection': 'keep-alive'})
+            time_start = time.time()
             while True:
                 if not self.found:
-                    await asyncio.sleep(0.000007)
+                    start = time.time()
+                    if not int(start - time_start) % 40:
+                        time_start -= 1
+                        await self.create_session_keep_alive_orders()
+                        print(f"Session keep-alive time: {time.time() - start} sec")
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
