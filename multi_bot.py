@@ -186,6 +186,7 @@ class MultiBot:
                         time_start -= 1
                         await self.create_session_keep_alive_orders()
                         print(f"Session keep-alive time: {time.time() - start} sec")
+                    await asyncio.sleep(0.000007)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
