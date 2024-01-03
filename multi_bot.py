@@ -471,11 +471,11 @@ class MultiBot:
 
         # buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
         # sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
-        self.chosen_deal.buy_price_shifted = deal.buy_price_parser + client_buy.instruments[buy_market]['tick_size']
-        self.chosen_deal.sell_price_shifted = deal.sell_price_parser - client_sell.instruments[sell_market]['tick_size']
+        self.chosen_deal.buy_price_shifted = deal.buy_price_parser
+        self.chosen_deal.sell_price_shifted = deal.sell_price_parser
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
-        client_buy.fit_sizes(self.chosen_deal.buy_price_shifted, buy_market)
-        client_sell.fit_sizes(self.chosen_deal.sell_price_shifted, sell_market)
+        client_buy.fit_sizes(deal.buy_price_parser, buy_market)
+        client_sell.fit_sizes(deal.sell_price_parser, sell_market)
 
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
         self.chosen_deal.buy_price_fitted = client_buy.price
