@@ -56,7 +56,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     await self.loop.create_task(self.count_one_coin(coin))
                 self.coins_to_check = []
-            await asyncio.sleep(0.00001)
+            await asyncio.sleep(0.0001)
 
     @staticmethod
     @try_exc_regular
@@ -103,8 +103,8 @@ class ArbitrageFinder:
             deal_direction = 'open'
         else:
             deal_direction = 'half_close'
-        if deal_direction == 'half_close':
-            print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
+        # if deal_direction == 'half_close':
+        #     print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
         return deal_direction
 
     def target_profit_exceptions(self, data):
@@ -148,10 +148,10 @@ class ArbitrageFinder:
                         if not ob_2.get('bids') or not ob_2.get('asks'):
                             # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
                             continue
-                        buy_px = ob_1['asks'][1][0]
-                        sell_px = ob_2['bids'][1][0]
-                        buy_sz = ob_1['asks'][1][1]
-                        sell_sz = ob_2['bids'][1][1]
+                        buy_px = ob_1['asks'][0][0]
+                        sell_px = ob_2['bids'][0][0]
+                        buy_sz = ob_1['asks'][0][1]
+                        sell_sz = ob_2['bids'][0][1]
                         if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                             direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))

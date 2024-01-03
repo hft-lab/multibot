@@ -182,7 +182,7 @@ class MultiBot:
             while True:
                 if not self.found:
                     start = time.time()
-                    if not int(start - time_start) % 40:
+                    if not int(start - time_start) % 25:
                         time_start -= 1
                         await self.create_session_keep_alive_orders()
                         print(f"Session keep-alive time: {time.time() - start} sec")
