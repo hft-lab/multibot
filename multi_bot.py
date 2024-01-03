@@ -514,6 +514,19 @@ class MultiBot:
         self.chosen_deal.ts_orders_sent = time.time()
         time_sent = self.chosen_deal.ts_orders_sent
         orders = []
+        print()
+        print()
+        print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
+        print(f"SELL EXCH: {self.chosen_deal.sell_exchange}")
+        print(f"BUY PRICE: {self.chosen_deal.buy_price_target}")
+        print(f"SELL PRICE: {self.chosen_deal.sell_price_target}")
+        print(f"BUY OB:\n{self.chosen_deal.ob_buy}")
+        print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
+        print(f"BUY OB AGE:\n{time.time() - self.chosen_deal.ob_buy['ts_ms']}")
+        print(f"SELL OB AGE:\n{time.time() - self.chosen_deal.ob_sell['ts_ms']}")
+
+        print()
+        print()
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
         orders.append(self.loop_2.create_task(

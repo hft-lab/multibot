@@ -148,10 +148,10 @@ class ArbitrageFinder:
                         if not ob_2.get('bids') or not ob_2.get('asks'):
                             # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
                             continue
-                        buy_px = ob_1['asks'][0][0]
-                        sell_px = ob_2['bids'][0][0]
-                        buy_sz = ob_1['asks'][0][1]
-                        sell_sz = ob_2['bids'][0][1]
+                        buy_px = ob_1['asks'][2][0]
+                        sell_px = ob_2['bids'][2][0]
+                        buy_sz = ob_1['asks'][2][1]
+                        sell_sz = ob_2['bids'][2][1]
                         if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                             direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
