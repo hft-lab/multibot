@@ -522,11 +522,28 @@ class MultiBot:
         print(f"SELL PRICE: {self.chosen_deal.sell_price_target}")
         print(f"BUY OB:\n{self.chosen_deal.ob_buy}")
         print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
-        print(f"BUY OB AGE:\n{time.time() - self.chosen_deal.ob_buy['ts_ms']}")
-        print(f"SELL OB AGE:\n{time.time() - self.chosen_deal.ob_sell['ts_ms']}")
+        print(f"TIMESTAMP NOW: {time.time()}")
+        if '.' in str(self.chosen_deal.ob_buy['timestamp']):
+            ts_buy = self.chosen_deal.ob_buy['timestamp']
+        else:
+            ts_buy = self.chosen_deal.ob_buy['timestamp'] / 1000
+        if '.' in str(self.chosen_deal.ob_sell['timestamp']):
+            ts_sell = self.chosen_deal.ob_sell['timestamp']
+        else:
+            ts_sell = self.chosen_deal.ob_sell['timestamp'] / 1000
+        print(f"BUY OB AGE (OB TS):\n{time.time() - ts_buy}")
+        print(f"SELL OB AGE (OB TS):\n{time.time() - ts_sell}")
+        print(f"BUY OB AGE (OWN TS):\n{time.time() - self.chosen_deal.ob_buy['ts_ms']}")
+        print(f"SELL OB AGE (OWN TS):\n{time.time() - self.chosen_deal.ob_sell['ts_ms']}")
+        print()
+        print()
 
-        print()
-        print()
+        if time.time() - self.chosen_deal.ob_sell['ts_ms'] > 0.04:
+            print(f'{self.chosen_deal.sell_exchange} SELL OB IS DEPRECATED!!!')
+            return
+        if time.time() - self.chosen_deal.ob_buy['ts_ms'] > 0.04:
+            print(f'{self.chosen_deal.sell_exchange} BUY OB IS DEPRECATED!!')
+            return
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
         orders.append(self.loop_2.create_task(
