@@ -146,7 +146,7 @@ class ArbitrageFinder:
                         sell_px = ob_2['bids'][0][0]
                         buy_sz = ob_1['asks'][0][1]
                         sell_sz = ob_2['bids'][0][1]
-                        if self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
+                        if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                             direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                             profit = (sell_px - buy_px) / buy_px
@@ -163,6 +163,7 @@ class ArbitrageFinder:
                                 possibility.ob_sell = ob_2
                                 possibility.buy_max_amount_ob = buy_sz
                                 possibility.sell_max_amount_ob = sell_sz
+                                possibility.deal_size_usd_target = deal_size_usd
                                 possibility.buy_price_target = buy_px
                                 possibility.sell_price_target = sell_px
                                 possibility.deal_max_amount_ob = deal_size_amount

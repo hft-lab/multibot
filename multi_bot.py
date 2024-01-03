@@ -415,11 +415,12 @@ class MultiBot:
         avl_sz_sell_usd = self._get_available_balance(sell_ex, sell_mrkt, 'sell')
         if avl_sz_buy_usd == 'updating' or avl_sz_sell_usd == 'updating':
             return False
+        max_deal_size_usd = min(avl_sz_buy_usd, avl_sz_sell_usd, self.max_order_size_usd)
         if not self.check_min_size(buy_ex, buy_mrkt, avl_sz_buy_usd, buy_px, 'buy', 'Bot work'):
             return False
         if not self.check_min_size(sell_ex, sell_mrkt, avl_sz_sell_usd, sell_px, 'sell', 'Bot work'):
             return False
-        return True
+        return max_deal_size_usd
 
     @try_exc_regular
     def fit_sizes_and_prices(self):
@@ -427,8 +428,8 @@ class MultiBot:
         client_buy, client_sell = deal.client_buy, deal.client_sell
         buy_market, sell_market = deal.buy_market, deal.sell_market
         price = deal.ob_buy['asks'][0][0]
-        max_deal_size_usd = min(deal_avail_size_buy_usd, deal_avail_size_sell_usd, self.max_order_size_usd)
-        max_deal_size_amount = max_deal_size_usd / price
+
+        max_deal_size_amount = deal.deal_size_usd_target / price
         # Нужно добавить корректную обработку контрактов, а пока комментирую
         # deal_size_amount = min(max_deal_size_amount, deal.buy_max_amount_ob,
         #                        deal.sell_max_amount_ob)
@@ -459,7 +460,6 @@ class MultiBot:
             self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
             return False
         self.chosen_deal.deal_size_amount_target = client_buy.amount
-        self.chosen_deal.deal_size_usd_target = client_buy.amount * (deal.buy_price_target + deal.sell_price_target) / 2
         self.chosen_deal.profit_usd_target = deal.profit_rel_target * deal.deal_size_usd_target
 
         # По логике округления, amount на клиентах изменяться в fit_sizes не должны, но контрольно проверим
