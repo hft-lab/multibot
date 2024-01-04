@@ -143,17 +143,11 @@ class MultiBot:
         t1.join()
         t2.join()
         t3.join()
-        self.loop_2.create_task(self.session_keep_alive())
 
     @staticmethod
     @try_exc_regular
     def run_await_in_thread(func, loop):
-        try:
-            loop.run_until_complete(func())
-        except:
-            traceback.print_exc()
-        finally:
-            loop.close()
+        loop.run_until_complete(func())
 
     @try_exc_async
     async def create_session_keep_alive_orders(self):
@@ -193,6 +187,7 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             self.session.headers.update({'Connection': 'keep-alive'})
+            await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
                     await asyncio.sleep(0.000007)
@@ -542,30 +537,33 @@ class MultiBot:
         # print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
         # print(f"TIMESTAMP NOW: {time.time()}")
         if '.' in str(self.chosen_deal.ob_buy['timestamp']):
-            ts_buy = time.time() - self.chosen_deal.ob_buy['timestamp']
+            ts_buy = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['timestamp']
         else:
-            ts_buy = time.time() - self.chosen_deal.ob_buy['timestamp'] / 1000
+            ts_buy = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['timestamp'] / 1000
         if '.' in str(self.chosen_deal.ob_sell['timestamp']):
-            ts_sell = time.time() - self.chosen_deal.ob_sell['timestamp']
+            ts_sell = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['timestamp']
         else:
-            ts_sell = time.time() - self.chosen_deal.ob_sell['timestamp'] / 1000
+            ts_sell = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['timestamp'] / 1000
         # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
         # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
-        buy_own_ts = time.time() - self.chosen_deal.ob_buy['ts_ms']
-        sell_own_ts = time.time() - self.chosen_deal.ob_sell['ts_ms']
+        buy_own_ts = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['ts_ms']
+        sell_own_ts = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['ts_ms']
         # print(f"BUY OB AGE (OWN TS):\n{buy_own_ts}")
         # print(f"SELL OB AGE (OWN TS):\n{sell_own_ts}")
         # print()
         # print()
         message = f'{self.chosen_deal.coin} DEAL TIMINGS:\n'
         message += f'{self.chosen_deal.sell_exchange} SELL OB:\n'
-        message += f"OB AGE BY OB TS: {ts_sell} sec\n"
-        message += f"OB AGE BY OWN TS: {sell_own_ts} sec\n"
+        message += f"OB AGE BY OB TS: {round(ts_sell, 5)} sec\n"
+        message += f"OB AGE BY OWN TS: {round(sell_own_ts, 5)} sec\n"
         message += f'{self.chosen_deal.buy_exchange} BUY OB:\n'
-        message += f"OB AGE BY OB TS: {ts_buy} sec\n"
-        message += f"OB AGE BY OWN TS: {buy_own_ts} sec\n"
-        message += f"TIME FROM START COUNTING: {self.chosen_deal.ts_orders_sent - self.chosen_deal.start_processing} sec"
-        self.telegram.send_message(message, TG_Groups.Alerts)
+        message += f"OB AGE BY OB TS: {round(ts_buy, 5)} sec\n"
+        message += f"OB AGE BY OWN TS: {round(buy_own_ts, 5)} sec\n"
+        countings = self.chosen_deal.ts_orders_sent - self.chosen_deal.start_processing
+        message += f"TIME FROM START COUNTING: {round(countings, 5)} sec\n"
+        orders_sendings = self.chosen_deal.ts_orders_responses_received - self.chosen_deal.ts_orders_sent
+        message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
+        self.telegram.send_message(message, TG_Groups.MainGroup)
 
     @try_exc_async
     async def notification_and_logging(self):
