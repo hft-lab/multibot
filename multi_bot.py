@@ -225,7 +225,9 @@ class MultiBot:
                     if self.fit_sizes_and_prices():
                         # time_end_fit_sizes = time.time()
                         # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                        await self.execute_deal()
+                        result = await self.execute_deal()
+                        if result == 'DEPRECATED':
+                            continue
                         # Шаг 7 (Анализ, логирование, нотификация по ордерам
                         await self.notification_and_logging()
                         # Удалить обнуление Last Order ID, когда разберусь с ним
@@ -233,7 +235,7 @@ class MultiBot:
                             client.error_info = None
                             client.LAST_ORDER_ID = 'default'
                         self.update_all_av_balances()
-                        await asyncio.sleep(self.deal_pause)
+                        # await asyncio.sleep(self.deal_pause)
                         self.found = False
                         self.potential_deals = []
 
@@ -511,39 +513,45 @@ class MultiBot:
         self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
         cl_id_buy, cl_id_sell = f"api_deal_{id1.replace('-', '')[:20]}", f"api_deal_{id2.replace('-', '')[:20]}"
 
-        self.chosen_deal.ts_orders_sent = time.time()
-        time_sent = self.chosen_deal.ts_orders_sent
-        orders = []
-        print()
-        print()
-        print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
-        print(f"SELL EXCH: {self.chosen_deal.sell_exchange}")
-        print(f"BUY PRICE: {self.chosen_deal.buy_price_target}")
-        print(f"SELL PRICE: {self.chosen_deal.sell_price_target}")
-        print(f"BUY OB:\n{self.chosen_deal.ob_buy}")
-        print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
-        print(f"TIMESTAMP NOW: {time.time()}")
+        # print()
+        # print()
+        # print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
+        # print(f"SELL EXCH: {self.chosen_deal.sell_exchange}")
+        # print(f"BUY PRICE: {self.chosen_deal.buy_price_target}")
+        # print(f"SELL PRICE: {self.chosen_deal.sell_price_target}")
+        # print(f"BUY OB:\n{self.chosen_deal.ob_buy}")
+        # print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
+        # print(f"TIMESTAMP NOW: {time.time()}")
         if '.' in str(self.chosen_deal.ob_buy['timestamp']):
-            ts_buy = self.chosen_deal.ob_buy['timestamp']
+            ts_buy = time.time() - self.chosen_deal.ob_buy['timestamp']
         else:
-            ts_buy = self.chosen_deal.ob_buy['timestamp'] / 1000
+            ts_buy = time.time() - self.chosen_deal.ob_buy['timestamp'] / 1000
         if '.' in str(self.chosen_deal.ob_sell['timestamp']):
-            ts_sell = self.chosen_deal.ob_sell['timestamp']
+            ts_sell = time.time() - self.chosen_deal.ob_sell['timestamp']
         else:
-            ts_sell = self.chosen_deal.ob_sell['timestamp'] / 1000
-        print(f"BUY OB AGE (OB TS):\n{time.time() - ts_buy}")
-        print(f"SELL OB AGE (OB TS):\n{time.time() - ts_sell}")
-        print(f"BUY OB AGE (OWN TS):\n{time.time() - self.chosen_deal.ob_buy['ts_ms']}")
-        print(f"SELL OB AGE (OWN TS):\n{time.time() - self.chosen_deal.ob_sell['ts_ms']}")
-        print()
-        print()
-
-        if time.time() - self.chosen_deal.ob_sell['ts_ms'] > 0.04:
-            print(f'{self.chosen_deal.sell_exchange} SELL OB IS DEPRECATED!!!')
-            return
-        if time.time() - self.chosen_deal.ob_buy['ts_ms'] > 0.04:
-            print(f'{self.chosen_deal.sell_exchange} BUY OB IS DEPRECATED!!')
-            return
+            ts_sell = time.time() - self.chosen_deal.ob_sell['timestamp'] / 1000
+        # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
+        # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
+        buy_own_ts = time.time() - self.chosen_deal.ob_buy['ts_ms']
+        sell_own_ts = time.time() - self.chosen_deal.ob_sell['ts_ms']
+        # print(f"BUY OB AGE (OWN TS):\n{buy_own_ts}")
+        # print(f"SELL OB AGE (OWN TS):\n{sell_own_ts}")
+        # print()
+        # print()
+        self.chosen_deal.ts_orders_sent = time.time()
+        orders = []
+        if sell_own_ts > 0.05:
+            message = f'{self.chosen_deal.sell_exchange} SELL OB IS DEPRECATED\n'
+            message += f"OB AGE BY OB TS: {ts_sell} sec\n"
+            message += f"OB AGE BY OWN TS: {sell_own_ts} sec"
+            self.telegram.send_message(message, TG_Groups.Alerts)
+            return 'DEPRECATED'
+        elif buy_own_ts > 0.05:
+            message = f'{self.chosen_deal.buy_exchange} BUY OB IS DEPRECATED\n'
+            message += f"OB AGE BY OB TS: {ts_buy} sec\n"
+            message += f"OB AGE BY OWN TS: {buy_own_ts} sec"
+            self.telegram.send_message(message, TG_Groups.Alerts)
+            return 'DEPRECATED'
         orders.append(self.loop_2.create_task(
             client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
         orders.append(self.loop_2.create_task(
@@ -551,8 +559,8 @@ class MultiBot:
         responses = await asyncio.gather(*orders, return_exceptions=True)
 
         self.chosen_deal.ts_orders_responses_received = time.time()
-        self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - time_sent) / 1000
-        self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - time_sent) / 1000
+        self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
+        self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
         self.chosen_deal.buy_order_id_exchange = responses[0]['exchange_order_id']
         self.chosen_deal.sell_order_id_exchange = responses[1]['exchange_order_id']
         self.chosen_deal.buy_order_status = responses[0]['status']

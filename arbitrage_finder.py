@@ -157,8 +157,8 @@ class ArbitrageFinder:
                             target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                             profit = (sell_px - buy_px) / buy_px
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
-                            self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
-                                                                ex_2+'__'+ex_1: target_profit - profit})
+                            # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
+                            #                                     ex_2+'__'+ex_1: target_profit - profit})
                             if profit >= target_profit:  # self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)
@@ -209,9 +209,9 @@ class ArbitrageFinder:
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(f"AP filling time: {time.time() - time_start} sec")
                                 possibilities.append(possibility)
-                        else:
-                            self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
-                            self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
+                        # else:
+                        #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
+                        #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
             if possibilities:
                 self.multibot.potential_deals = possibilities
                 self.multibot.found = True
