@@ -142,10 +142,10 @@ class ArbitrageFinder:
                         ob_2 = client_2.get_orderbook(sell_mrkt)
                         if not ob_1 or not ob_2:
                             continue
-                        if not ob_1.get('bids') or not ob_1.get('asks') or time.time() - ob_1['ts_ms'] > 0.04:
+                        if not ob_1.get('bids') or not ob_1.get('asks'):  # or time.time() - ob_1['ts_ms'] > 0.04:
                             # print(f"OB IS BROKEN {client_1.EXCHANGE_NAME}: {ob_1}")
                             continue
-                        if not ob_2.get('bids') or not ob_2.get('asks') or time.time() - ob_2['ts_ms'] > 0.04:
+                        if not ob_2.get('bids') or not ob_2.get('asks'):  # or time.time() - ob_2['ts_ms'] > 0.04:
                             # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
                             continue
                         buy_px = ob_1['asks'][0][0]
