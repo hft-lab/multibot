@@ -51,6 +51,7 @@ class AP:
         self.time_define_potential_deals = None  # Длительность анализа данных из парсера и определения потенциальных AP
         self.time_choose = None  # Длительность выбора лучшей AP
         self.time_check_ob = None  # Длительность контрольного запроса OB
+        self.start_processing = None
 
 
 

@@ -139,6 +139,11 @@ class ArbitrageFinder:
                     if sell_mrkt := client_2.markets.get(coin):
                         ob_1 = client_1.get_orderbook(buy_mrkt)
                         ob_2 = client_2.get_orderbook(sell_mrkt)
+                        now_ts = time.time()
+                        if client_1.ob_push_limit and now_ts - ob_1['ts_ms'] > client_1.ob_push_limit:
+                            continue
+                        if client_2.ob_push_limit and now_ts - ob_2['ts_ms'] > client_2.ob_push_limit:
+                            continue
                         # if not ob_1 or not ob_2:
                         #     continue
                         # if not ob_1.get('bids') or not ob_1.get('asks'):  # or time.time() - ob_1['ts_ms'] > 0.04:
@@ -164,6 +169,7 @@ class ArbitrageFinder:
                                 deal_size_usd_max = deal_size_amount * sell_px
                                 profit_usd_max = profit * deal_size_usd_max
                                 possibility = AP(ap_id=uuid.uuid4())
+                                possibility.start_processing = now_ts
                                 possibility.ob_buy = ob_1
                                 possibility.ob_sell = ob_2
                                 possibility.buy_max_amount_ob = buy_sz

@@ -563,7 +563,8 @@ class MultiBot:
         message += f"OB AGE BY OWN TS: {sell_own_ts} sec\n"
         message += f'{self.chosen_deal.buy_exchange} BUY OB:\n'
         message += f"OB AGE BY OB TS: {ts_buy} sec\n"
-        message += f"OB AGE BY OWN TS: {buy_own_ts} sec"
+        message += f"OB AGE BY OWN TS: {buy_own_ts} sec\n"
+        message += f"TIME FROM START COUNTING: {self.chosen_deal.ts_orders_sent - self.chosen_deal.start_processing} sec"
         self.telegram.send_message(message, TG_Groups.Alerts)
 
     @try_exc_async
