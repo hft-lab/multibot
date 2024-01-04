@@ -527,6 +527,7 @@ class MultiBot:
                   f"{self.chosen_deal.sell_market=}\n" \
                   f"Responses:\n{json.dumps(responses, indent=2)}"
         print(message)
+        self.send_timings()
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @try_exc_regular
@@ -556,18 +557,14 @@ class MultiBot:
         # print(f"SELL OB AGE (OWN TS):\n{sell_own_ts}")
         # print()
         # print()
-        if sell_own_ts > 0.07:
-            message = f'{self.chosen_deal.sell_exchange} SELL OB IS DEPRECATED\n'
-            message += f"OB AGE BY OB TS: {ts_sell} sec\n"
-            message += f"OB AGE BY OWN TS: {sell_own_ts} sec"
-            self.telegram.send_message(message, TG_Groups.Alerts)
-            return 'DEPRECATED'
-        if buy_own_ts > 0.07:
-            message = f'{self.chosen_deal.buy_exchange} BUY OB IS DEPRECATED\n'
-            message += f"OB AGE BY OB TS: {ts_buy} sec\n"
-            message += f"OB AGE BY OWN TS: {buy_own_ts} sec"
-            self.telegram.send_message(message, TG_Groups.Alerts)
-            return 'DEPRECATED'
+        message = f'{self.chosen_deal.coin} DEAL TIMINGS:\n'
+        message += f'{self.chosen_deal.sell_exchange} SELL OB:\n'
+        message += f"OB AGE BY OB TS: {ts_sell} sec\n"
+        message += f"OB AGE BY OWN TS: {sell_own_ts} sec\n"
+        message += f'{self.chosen_deal.buy_exchange} BUY OB:\n'
+        message += f"OB AGE BY OB TS: {ts_buy} sec\n"
+        message += f"OB AGE BY OWN TS: {buy_own_ts} sec"
+        self.telegram.send_message(message, TG_Groups.Alerts)
 
     @try_exc_async
     async def notification_and_logging(self):
