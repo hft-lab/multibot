@@ -43,20 +43,20 @@ class ArbitrageFinder:
     @try_exc_async
     async def check_coins(self):
         while True:
-            clients = self.clients_with_names.items()
-            lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 10]
-            if len(lines):
-                print(f"ALERT WEBSOCKET LINES ARE HUGE: {lines}")
-                await asyncio.sleep(1)
-                self.coins_to_check = []
-                self.update = False
+            # clients = self.clients_with_names.items()
+            # lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 10]
+            # if len(lines):
+            #     print(f"ALERT WEBSOCKET LINES ARE HUGE: {lines}")
+            #     await asyncio.sleep(1)
+            #     self.coins_to_check = []
+            #     self.update = False
             if self.update:
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
                 for coin in self.coins_to_check:
                     await self.loop.create_task(self.count_one_coin(coin))
                 self.coins_to_check = []
-            await asyncio.sleep(0.0001)
+            await asyncio.sleep(0.000007)
 
     @staticmethod
     @try_exc_regular
@@ -98,14 +98,13 @@ class ArbitrageFinder:
         if pos_sell := positions[exchange_sell].get(sell_market):
             sell_close = True if pos_sell['amount_usd'] > 0 else False
         if buy_close and sell_close:
-            deal_direction = 'close'
+            return 'close'
         elif not buy_close and not sell_close:
-            deal_direction = 'open'
+            return 'open'
         else:
-            deal_direction = 'half_close'
+            return 'half_close'
         # if deal_direction == 'half_close':
         #     print(f"ALERT. WRONG DEAL DIRECTION: {positions[exchange_buy]=}\n{positions[exchange_sell]=}")
-        return deal_direction
 
     def target_profit_exceptions(self, data):
         targets = dict()
@@ -140,14 +139,14 @@ class ArbitrageFinder:
                     if sell_mrkt := client_2.markets.get(coin):
                         ob_1 = client_1.get_orderbook(buy_mrkt)
                         ob_2 = client_2.get_orderbook(sell_mrkt)
-                        if not ob_1 or not ob_2:
-                            continue
-                        if not ob_1.get('bids') or not ob_1.get('asks'):  # or time.time() - ob_1['ts_ms'] > 0.04:
-                            # print(f"OB IS BROKEN {client_1.EXCHANGE_NAME}: {ob_1}")
-                            continue
-                        if not ob_2.get('bids') or not ob_2.get('asks'):  # or time.time() - ob_2['ts_ms'] > 0.04:
-                            # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
-                            continue
+                        # if not ob_1 or not ob_2:
+                        #     continue
+                        # if not ob_1.get('bids') or not ob_1.get('asks'):  # or time.time() - ob_1['ts_ms'] > 0.04:
+                        #     # print(f"OB IS BROKEN {client_1.EXCHANGE_NAME}: {ob_1}")
+                        #     continue
+                        # if not ob_2.get('bids') or not ob_2.get('asks'):  # or time.time() - ob_2['ts_ms'] > 0.04:
+                        #     # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
+                        #     continue
                         buy_px = ob_1['asks'][0][0]
                         sell_px = ob_2['bids'][0][0]
                         buy_sz = ob_1['asks'][0][1]

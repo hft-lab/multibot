@@ -143,6 +143,7 @@ class MultiBot:
         t1.join()
         t2.join()
         t3.join()
+        self.loop_2.create_task(self.session_keep_alive())
 
     @staticmethod
     @try_exc_regular
@@ -171,6 +172,20 @@ class MultiBot:
                                                                        resp['exchange_order_id'],
                                                                        self.session)))
         cancel_responses = await asyncio.gather(*cancels, return_exceptions=True)
+        print(cancel_responses)
+        print()
+        print()
+
+    @try_exc_async
+    async def session_keep_alive(self):
+        time_start = time.time()
+        while True:
+            await asyncio.sleep(0.001)
+            start = time.time()
+            if not int(start - time_start) % 25:
+                await self.create_session_keep_alive_orders()
+                print(f"Session keep-alive time: {time.time() - start} sec")
+                await asyncio.sleep(23.5)
 
     @try_exc_async
     async def websocket_main_cycle(self):
@@ -178,15 +193,9 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             self.session.headers.update({'Connection': 'keep-alive'})
-            time_start = time.time()
             while True:
                 if not self.found:
-                    start = time.time()
-                    if not int(start - time_start) % 25:
-                        time_start -= 1
-                        await self.create_session_keep_alive_orders()
-                        print(f"Session keep-alive time: {time.time() - start} sec")
-                    await asyncio.sleep(0.0001)
+                    await asyncio.sleep(0.000007)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
@@ -225,9 +234,10 @@ class MultiBot:
                     if self.fit_sizes_and_prices():
                         # time_end_fit_sizes = time.time()
                         # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                        result = await self.execute_deal()
-                        if result == 'DEPRECATED':
-                            continue
+                        await self.execute_deal()
+                        # result = await self.execute_deal()
+                        # if result == 'DEPRECATED':
+                        #     continue
                         # Шаг 7 (Анализ, логирование, нотификация по ордерам
                         await self.notification_and_logging()
                         # Удалить обнуление Last Order ID, когда разберусь с ним
@@ -452,67 +462,75 @@ class MultiBot:
 
     @try_exc_regular
     def fit_sizes_and_prices(self):
-        deal = self.chosen_deal
-        client_buy, client_sell = deal.client_buy, deal.client_sell
-        buy_market, sell_market = deal.buy_market, deal.sell_market
-        price = deal.ob_buy['asks'][0][0]
-
-        max_deal_size_amount = deal.deal_size_usd_target / price
-        # Нужно добавить корректную обработку контрактов, а пока комментирую
-        # deal_size_amount = min(max_deal_size_amount, deal.buy_max_amount_ob,
-        #                        deal.sell_max_amount_ob)
-        deal_size_amount = max_deal_size_amount
-        step_size_buy = client_buy.instruments[buy_market]['step_size']
-        step_size_sell = client_sell.instruments[sell_market]['step_size']
-        step_size = max(step_size_buy, step_size_sell)
+        deal_size_amount = self.chosen_deal.deal_size_usd_target / self.chosen_deal.ob_buy['asks'][0][0]
+        step_size = max(self.chosen_deal.client_buy.instruments[self.chosen_deal.buy_market]['step_size'],
+                        self.chosen_deal.client_sell.instruments[self.chosen_deal.sell_market]['step_size'])
         rounded_deal_size_amount = math.floor(deal_size_amount / step_size) * step_size
         # Округления до нуля произойти не может, потому, что deal_size_amount заведомо >= step_size
-
-        client_buy.amount = rounded_deal_size_amount
-        client_sell.amount = rounded_deal_size_amount
-
+        self.chosen_deal.client_buy.amount = rounded_deal_size_amount
+        self.chosen_deal.client_sell.amount = rounded_deal_size_amount
         # buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
         # sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
-        self.chosen_deal.buy_price_shifted = deal.buy_price_parser
-        self.chosen_deal.sell_price_shifted = deal.sell_price_parser
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
-        client_buy.fit_sizes(deal.buy_price_parser, buy_market)
-        client_sell.fit_sizes(deal.sell_price_parser, sell_market)
-
+        self.chosen_deal.client_buy.fit_sizes(self.chosen_deal.buy_price_parser, self.chosen_deal.buy_market)
+        self.chosen_deal.client_sell.fit_sizes(self.chosen_deal.sell_price_parser, self.chosen_deal.sell_market)
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
-        self.chosen_deal.buy_price_fitted = client_buy.price
-        self.chosen_deal.sell_price_fitted = client_sell.price
-        self.chosen_deal.buy_amount_target = client_buy.amount
-        self.chosen_deal.sell_amount_target = client_sell.amount
-        if not client_buy.amount or not client_sell.amount:
+        if not self.chosen_deal.client_buy.amount or not self.chosen_deal.client_sell.amount:
             self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
             return False
-        self.chosen_deal.deal_size_amount_target = client_buy.amount
-        self.chosen_deal.profit_usd_target = deal.profit_rel_target * deal.deal_size_usd_target
-
         # По логике округления, amount на клиентах изменяться в fit_sizes не должны, но контрольно проверим
-        if (client_sell.amount != client_buy.amount) or abs(client_buy.amount - rounded_deal_size_amount) > 1e-9:
-            print(
-                f'{rounded_deal_size_amount=},{deal_size_amount=},{step_size=},{math.floor(deal_size_amount / step_size)=}')
-            message = self.telegram.send_different_amounts_alert(deal, rounded_deal_size_amount, TG_Groups.Alerts)
-            print(message)
-            return False
+        # if (client_sell.amount != client_buy.amount) or abs(client_buy.amount - rounded_deal_size_amount) > 1e-9:
+        #     print(
+        #         f'{rounded_deal_size_amount=},{deal_size_amount=},{step_size=},{math.floor(deal_size_amount / step_size)=}')
+        #     message = self.telegram.send_different_amounts_alert(deal, rounded_deal_size_amount, TG_Groups.Alerts)
+        #     print(message)
+        #     return False
         return True
 
     @try_exc_async
     async def execute_deal(self):
-        client_buy = self.chosen_deal.client_buy
-        client_sell = self.chosen_deal.client_sell
-        buy_market = self.chosen_deal.buy_market
-        sell_market = self.chosen_deal.sell_market
         # with open('ap_still_active_status.csv', 'a', newline='') as file:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
+        cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
+                                 f"api_deal_{id2.replace('-', '')[:20]}")
+        self.chosen_deal.ts_orders_sent = time.time()
+        orders = [self.loop_2.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
+                                                                                   'buy', self.session,
+                                                                                   client_id=cl_id_buy)),
+                  self.loop_2.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
+                                                                                    'sell', self.session,
+                                                                                    client_id=cl_id_sell))]
+        responses = await asyncio.gather(*orders, return_exceptions=True)
+        self.chosen_deal.deal_size_amount_target = self.chosen_deal.client_buy.amount
+        self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * self.chosen_deal.deal_size_usd_target
+        self.chosen_deal.buy_price_fitted = self.chosen_deal.client_buy.price
+        self.chosen_deal.sell_price_fitted = self.chosen_deal.client_sell.price
+        self.chosen_deal.buy_amount_target = self.chosen_deal.client_buy.amount
+        self.chosen_deal.sell_amount_target = self.chosen_deal.client_sell.amount
+        self.chosen_deal.buy_price_shifted = self.chosen_deal.buy_price_parser
+        self.chosen_deal.sell_price_shifted = self.chosen_deal.sell_price_parser
         self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
-        cl_id_buy, cl_id_sell = f"api_deal_{id1.replace('-', '')[:20]}", f"api_deal_{id2.replace('-', '')[:20]}"
+        self.chosen_deal.ts_orders_responses_received = time.time()
+        self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
+        self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
+        self.chosen_deal.buy_order_id_exchange = responses[0]['exchange_order_id']
+        self.chosen_deal.sell_order_id_exchange = responses[1]['exchange_order_id']
+        self.chosen_deal.buy_order_status = responses[0]['status']
+        self.chosen_deal.sell_order_status = responses[1]['status']
+        message = f"Results of create_order requests:\n" \
+                  f"{self.chosen_deal.buy_exchange=}\n" \
+                  f"{self.chosen_deal.buy_market=}\n" \
+                  f"{self.chosen_deal.sell_exchange=}\n" \
+                  f"{self.chosen_deal.sell_market=}\n" \
+                  f"Responses:\n{json.dumps(responses, indent=2)}"
+        print(message)
+        self.telegram.send_message(message, TG_Groups.DebugDima)
 
+    @try_exc_regular
+    def send_timings(self):
         # print()
         # print()
         # print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
@@ -538,41 +556,18 @@ class MultiBot:
         # print(f"SELL OB AGE (OWN TS):\n{sell_own_ts}")
         # print()
         # print()
-        self.chosen_deal.ts_orders_sent = time.time()
-        orders = []
-        if sell_own_ts > 0.05:
+        if sell_own_ts > 0.07:
             message = f'{self.chosen_deal.sell_exchange} SELL OB IS DEPRECATED\n'
             message += f"OB AGE BY OB TS: {ts_sell} sec\n"
             message += f"OB AGE BY OWN TS: {sell_own_ts} sec"
             self.telegram.send_message(message, TG_Groups.Alerts)
             return 'DEPRECATED'
-        elif buy_own_ts > 0.05:
+        if buy_own_ts > 0.07:
             message = f'{self.chosen_deal.buy_exchange} BUY OB IS DEPRECATED\n'
             message += f"OB AGE BY OB TS: {ts_buy} sec\n"
             message += f"OB AGE BY OWN TS: {buy_own_ts} sec"
             self.telegram.send_message(message, TG_Groups.Alerts)
             return 'DEPRECATED'
-        orders.append(self.loop_2.create_task(
-            client_buy.create_order(buy_market, 'buy', self.session, client_id=cl_id_buy)))
-        orders.append(self.loop_2.create_task(
-            client_sell.create_order(sell_market, 'sell', self.session, client_id=cl_id_sell)))
-        responses = await asyncio.gather(*orders, return_exceptions=True)
-
-        self.chosen_deal.ts_orders_responses_received = time.time()
-        self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
-        self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
-        self.chosen_deal.buy_order_id_exchange = responses[0]['exchange_order_id']
-        self.chosen_deal.sell_order_id_exchange = responses[1]['exchange_order_id']
-        self.chosen_deal.buy_order_status = responses[0]['status']
-        self.chosen_deal.sell_order_status = responses[1]['status']
-        message = f"Results of create_order requests:\n" \
-                  f"{self.chosen_deal.buy_exchange=}\n" \
-                  f"{self.chosen_deal.buy_market=}\n" \
-                  f"{self.chosen_deal.sell_exchange=}\n" \
-                  f"{self.chosen_deal.sell_market=}\n" \
-                  f"Responses:\n{json.dumps(responses, indent=2)}"
-        print(message)
-        self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @try_exc_async
     async def notification_and_logging(self):
