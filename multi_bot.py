@@ -215,7 +215,7 @@ class MultiBot:
 
                 # if self.potential_deals:
                     # Шаг 3 (Выбор лучшей AP, если их несколько)
-                self.chosen_deal: AP = self.choose_deal(self.potential_deals, time_end_define_potential_deals)
+                self.chosen_deal: AP = self.choose_deal(self.potential_deals)
                 self.potential_deals = []
                 if self.chosen_deal:
                     # time_end_choose = time.time()
@@ -287,11 +287,10 @@ class MultiBot:
         return data
 
     @try_exc_regular
-    def choose_deal(self, potential_deals: List[AP], ts: float) -> AP:
+    def choose_deal(self, potential_deals: List[AP]) -> AP:
         max_profit = None
         chosen_deal = None
         for deal in potential_deals:
-            deal.ts_orders_sent = ts
             # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
             #     continue
             # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):

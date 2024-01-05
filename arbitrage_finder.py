@@ -164,92 +164,89 @@ class ArbitrageFinder:
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
                             # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
-                            # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
-                        ping_sell = ts_sell - sell_own_ts_ping
-                        ping_buy = ts_buy - buy_own_ts_ping
-                        if not ping_sell < ping_buy or not sell_own_ts_ping < buy_own_ts_ping:
-                            continue
-                        elif not ping_sell > ping_buy or not sell_own_ts_ping > buy_own_ts_ping:
-                            continue
-                        buy_px = ob_1['asks'][0][0]
-                        sell_px = ob_2['bids'][0][0]
-                        buy_sz = ob_1['asks'][0][1]
-                        sell_sz = ob_2['bids'][0][1]
-                        # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                        # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                        # self.append_profit(profit=raw_profit, name=name)
-                        if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
-                            direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
-                            # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
-                            target_profit = self.get_target_profit(direction)
-                            raw_profit = (sell_px - buy_px) / buy_px
-                            profit = raw_profit - self.fees[ex_1] - self.fees[ex_2]
-                            # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
-                            #                                     ex_2+'__'+ex_1: target_profit - profit})
+                            # print(f"SELL OBs AGE (OB TS):\n{ts_sell}")
+                        is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping
+                        is_buy_last_ob_update = sell_own_ts_ping > buy_own_ts_ping
+                        if is_buy_ping_faster == is_buy_last_ob_update:
+                            buy_px = ob_1['asks'][0][0]
+                            sell_px = ob_2['bids'][0][0]
+                            buy_sz = ob_1['asks'][0][1]
+                            sell_sz = ob_2['bids'][0][1]
+                            # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                             # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                            # self.append_profit(profit=profit, name=name)
-                        # target = self.target_profits.get(name)
-                        # if not target:
-                        #     continue
-                        # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                            # self.append_profit(profit=raw_profit, name=name)
+                            if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
+                                direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                                # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
+                                target_profit = self.get_target_profit(direction)
+                                raw_profit = (sell_px - buy_px) / buy_px
+                                profit = raw_profit - self.fees[ex_1] - self.fees[ex_2]
+                                # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
+                                #                                     ex_2+'__'+ex_1: target_profit - profit})
+                                # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                                # self.append_profit(profit=profit, name=name)
+                            # target = self.target_profits.get(name)
+                            # if not target:
+                            #     continue
+                            #     print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
 
-                            if profit >= target_profit:  # self.target_profits[name]:
-                                print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                                deal_size_amount = min(buy_sz, sell_sz)
-                                deal_size_usd_max = deal_size_amount * sell_px
-                                profit_usd_max = profit * deal_size_usd_max
-                                possibility = AP(ap_id=uuid.uuid4())
-                                possibility.start_processing = now_ts
-                                possibility.ob_buy = ob_1
-                                possibility.ob_sell = ob_2
-                                possibility.buy_max_amount_ob = buy_sz
-                                possibility.sell_max_amount_ob = sell_sz
-                                possibility.deal_size_usd_target = deal_size_usd
-                                possibility.buy_price_target = buy_px
-                                possibility.sell_price_target = sell_px
-                                possibility.deal_max_amount_ob = deal_size_amount
-                                possibility.deal_max_usd_ob = deal_size_usd_max
-                                possibility.profit_rel_target = profit
-                                possibility.set_data_from_parser(
-                                    coin=coin,
-                                    target_profit=target_profit,
-                                    deal_max_amount_parser=deal_size_amount,
-                                    deal_max_usd_parser=deal_size_usd_max,
-                                    expect_profit_rel=round(profit, 5),
-                                    profit_usd_max=round(profit_usd_max, 3),
-                                    datetime=datetime.utcnow(),
-                                    timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
-                                    deal_direction=direction)
-                                possibility.set_side_data_from_parser(
-                                    side='buy',
-                                    client=client_1,
-                                    exchange=ex_1,
-                                    market=buy_mrkt,
-                                    fee=self.fees[ex_1],
-                                    price=buy_px,
-                                    max_amount=buy_sz,
-                                    ts_ob=ob_1['timestamp'])
-                                possibility.set_side_data_from_parser(
-                                    side='sell',
-                                    client=client_2,
-                                    exchange=ex_2,
-                                    market=sell_mrkt,
-                                    fee=self.fees[ex_2],
-                                    max_amount=sell_sz,
-                                    price=sell_px,
-                                    ts_ob=ob_2['timestamp'])
-                                # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
-                                # with open('arbi.csv', 'a', newline='') as file:
-                                #     writer = csv.writer(file)
-                                #     writer.writerow([str(y) for y in possibility.values()])
-                                # print(f"AP filling time: {time.time() - time_start} sec")
-                                possibilities.append(possibility)
-                        # else:
-                        #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
-                        #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
-            if possibilities:
-                self.multibot.potential_deals = possibilities
-                self.multibot.found = True
+                                if profit >= target_profit:  # self.target_profits[name]:
+                                    print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                                    deal_size_amount = min(buy_sz, sell_sz)
+                                    deal_size_usd_max = deal_size_amount * sell_px
+                                    profit_usd_max = profit * deal_size_usd_max
+                                    possibility = AP(ap_id=uuid.uuid4())
+                                    possibility.start_processing = now_ts
+                                    possibility.ob_buy = ob_1
+                                    possibility.ob_sell = ob_2
+                                    possibility.buy_max_amount_ob = buy_sz
+                                    possibility.sell_max_amount_ob = sell_sz
+                                    possibility.deal_size_usd_target = deal_size_usd
+                                    possibility.buy_price_target = buy_px
+                                    possibility.sell_price_target = sell_px
+                                    possibility.deal_max_amount_ob = deal_size_amount
+                                    possibility.deal_max_usd_ob = deal_size_usd_max
+                                    possibility.profit_rel_target = profit
+                                    possibility.set_data_from_parser(
+                                        coin=coin,
+                                        target_profit=target_profit,
+                                        deal_max_amount_parser=deal_size_amount,
+                                        deal_max_usd_parser=deal_size_usd_max,
+                                        expect_profit_rel=round(profit, 5),
+                                        profit_usd_max=round(profit_usd_max, 3),
+                                        datetime=datetime.utcnow(),
+                                        timestamp=int(round(datetime.utcnow().timestamp() * 1000)),
+                                        deal_direction=direction)
+                                    possibility.set_side_data_from_parser(
+                                        side='buy',
+                                        client=client_1,
+                                        exchange=ex_1,
+                                        market=buy_mrkt,
+                                        fee=self.fees[ex_1],
+                                        price=buy_px,
+                                        max_amount=buy_sz,
+                                        ts_ob=ob_1['timestamp'])
+                                    possibility.set_side_data_from_parser(
+                                        side='sell',
+                                        client=client_2,
+                                        exchange=ex_2,
+                                        market=sell_mrkt,
+                                        fee=self.fees[ex_2],
+                                        max_amount=sell_sz,
+                                        price=sell_px,
+                                        ts_ob=ob_2['timestamp'])
+                                    # message = '\n'.join([x + ': ' + str(y) for x, y in possibility.items()])
+                                    # with open('arbi.csv', 'a', newline='') as file:
+                                    #     writer = csv.writer(file)
+                                    #     writer.writerow([str(y) for y in possibility.values()])
+                                    # print(f"AP filling time: {time.time() - time_start} sec")
+                                    possibilities.append(possibility)
+                            # else:
+                            #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
+                            #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
+                if possibilities:
+                    self.multibot.potential_deals = possibilities
+                    self.multibot.found = True
 
     # @try_exc_regular
     # def find_arbitrage_possibilities(self, data, ribs=None) -> List[AP]:
