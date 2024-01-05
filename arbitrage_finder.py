@@ -26,14 +26,15 @@ class ArbitrageFinder:
         self.coins_to_check = []
         self._wst.daemon = True
         self._wst.start()
-        self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
-        self.profit_precise = 4
-        self.profit_ranges = self.unpack_ranges()
-        print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
-        if not self.profit_ranges.get('timestamp_start'):
-            self.profit_ranges.update({'timestamp_start': time.time()})
-        # print(self.profit_ranges)
-        self.target_profits = self.get_all_target_profits()
+        # PROFIT RANGES FE
+        # self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
+        # self.profit_precise = 4
+        # self.profit_ranges = self.unpack_ranges()
+        # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
+        # if not self.profit_ranges.get('timestamp_start'):
+        #     self.profit_ranges.update({'timestamp_start': time.time()})
+        # # print(self.profit_ranges)
+        # self.target_profits = self.get_all_target_profits()
 
     @try_exc_regular
     def _run_finder_forever(self):
@@ -148,19 +149,41 @@ class ArbitrageFinder:
                         if not ob_2.get('bids') or not ob_2.get('asks'):
                             # print(f"OB IS BROKEN {client_2.EXCHANGE_NAME}: {ob_2}")
                             continue
-                        if client_1.ob_push_limit and now_ts - ob_1['ts_ms'] > client_1.ob_push_limit:
+                        buy_own_ts_ping = now_ts - ob_1['ts_ms']
+                        sell_own_ts_ping = now_ts - ob_2['ts_ms']
+                        if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
                             continue
-                        if client_2.ob_push_limit and now_ts - ob_2['ts_ms'] > client_2.ob_push_limit:
+                        elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
+                            continue
+                        if isinstance(ob_1['timestamp'], float):
+                            ts_buy = now_ts - ob_1['timestamp']
+                        else:
+                            ts_buy = now_ts - ob_1['timestamp'] / 1000
+                        if isinstance(ob_2['timestamp'], float):
+                            ts_sell = now_ts - ob_2['timestamp']
+                        else:
+                            ts_sell = now_ts - ob_2['timestamp'] / 1000
+                            # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
+                            # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
+                        ping_sell = ts_sell - sell_own_ts_ping
+                        ping_buy = ts_buy - buy_own_ts_ping
+                        if not ping_sell < ping_buy or not sell_own_ts_ping < buy_own_ts_ping:
+                            continue
+                        elif not ping_sell > ping_buy or not sell_own_ts_ping > buy_own_ts_ping:
                             continue
                         buy_px = ob_1['asks'][0][0]
                         sell_px = ob_2['bids'][0][0]
                         buy_sz = ob_1['asks'][0][1]
                         sell_sz = ob_2['bids'][0][1]
+                        # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                        # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                        # self.append_profit(profit=raw_profit, name=name)
                         if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                             direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
-                            target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
-                            profit = (sell_px - buy_px) / buy_px
-                            profit = profit - self.fees[ex_1] - self.fees[ex_2]
+                            # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
+                            target_profit = self.get_target_profit(direction)
+                            raw_profit = (sell_px - buy_px) / buy_px
+                            profit = raw_profit - self.fees[ex_1] - self.fees[ex_2]
                             # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
                             #                                     ex_2+'__'+ex_1: target_profit - profit})
                             # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
@@ -171,7 +194,7 @@ class ArbitrageFinder:
                         # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
 
                             if profit >= target_profit:  # self.target_profits[name]:
-                                # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                                print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)
                                 deal_size_usd_max = deal_size_amount * sell_px
                                 profit_usd_max = profit * deal_size_usd_max

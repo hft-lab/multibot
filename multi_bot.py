@@ -212,9 +212,10 @@ class MultiBot:
                 # # print('Potential deals:', json.dumps(potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()
 
+
                 # if self.potential_deals:
                     # Шаг 3 (Выбор лучшей AP, если их несколько)
-                self.chosen_deal: AP = self.choose_deal(self.potential_deals)
+                self.chosen_deal: AP = self.choose_deal(self.potential_deals, time_end_define_potential_deals)
                 self.potential_deals = []
                 if self.chosen_deal:
                     # time_end_choose = time.time()
@@ -286,10 +287,11 @@ class MultiBot:
         return data
 
     @try_exc_regular
-    def choose_deal(self, potential_deals: List[AP]) -> AP:
+    def choose_deal(self, potential_deals: List[AP], ts: float) -> AP:
         max_profit = None
         chosen_deal = None
         for deal in potential_deals:
+            deal.ts_orders_sent = ts
             # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
             #     continue
             # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):
@@ -488,6 +490,7 @@ class MultiBot:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
+
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
         cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
                                  f"api_deal_{id2.replace('-', '')[:20]}")
@@ -525,6 +528,23 @@ class MultiBot:
         self.send_timings()
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
+    @staticmethod
+    @try_exc_regular
+    def count_pings(deal):
+        if '.' in str(deal.ob_buy['timestamp']):
+            ts_buy = deal.ts_orders_sent - deal.ob_buy['timestamp']
+        else:
+            ts_buy = deal.ts_orders_sent - deal.ob_buy['timestamp'] / 1000
+        if '.' in str(deal.ob_sell['timestamp']):
+            ts_sell = deal.ts_orders_sent - deal.ob_sell['timestamp']
+        else:
+            ts_sell = deal.ts_orders_sent - deal.ob_sell['timestamp'] / 1000
+        # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
+        # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
+        buy_own_ts = deal.ts_orders_sent - deal.ob_buy['ts_ms']
+        sell_own_ts = deal.ts_orders_sent - deal.ob_sell['ts_ms']
+        return ts_buy, ts_sell, buy_own_ts, sell_own_ts
+
     @try_exc_regular
     def send_timings(self):
         # print()
@@ -536,18 +556,7 @@ class MultiBot:
         # print(f"BUY OB:\n{self.chosen_deal.ob_buy}")
         # print(f"SELL OB:\n{self.chosen_deal.ob_sell}")
         # print(f"TIMESTAMP NOW: {time.time()}")
-        if '.' in str(self.chosen_deal.ob_buy['timestamp']):
-            ts_buy = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['timestamp']
-        else:
-            ts_buy = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['timestamp'] / 1000
-        if '.' in str(self.chosen_deal.ob_sell['timestamp']):
-            ts_sell = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['timestamp']
-        else:
-            ts_sell = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['timestamp'] / 1000
-        # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
-        # print(f"SELL OB AGE (OB TS):\n{ts_sell}")
-        buy_own_ts = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_buy['ts_ms']
-        sell_own_ts = self.chosen_deal.ts_orders_sent - self.chosen_deal.ob_sell['ts_ms']
+        ts_buy, ts_sell, buy_own_ts, sell_own_ts = self.count_pings(self.chosen_deal)
         # print(f"BUY OB AGE (OWN TS):\n{buy_own_ts}")
         # print(f"SELL OB AGE (OWN TS):\n{sell_own_ts}")
         # print()
