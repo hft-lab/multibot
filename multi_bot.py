@@ -465,11 +465,13 @@ class MultiBot:
         # Округления до нуля произойти не может, потому, что deal_size_amount заведомо >= step_size
         self.chosen_deal.client_buy.amount = rounded_deal_size_amount
         self.chosen_deal.client_sell.amount = rounded_deal_size_amount
-        # buy_price_shifted = self.get_shifted_price_for_order(deal.ob_buy, 'asks')
-        # sell_price_shifted = self.get_shifted_price_for_order(deal.ob_sell, 'bids')
+        buy_price_shifted = self.chosen_deal.ob_buy['asks'][1][0]
+        sell_price_shifted = self.chosen_deal.ob_sell['bids'][1][0]
+        self.chosen_deal.sell_price_shifted = sell_price_shifted
+        self.chosen_deal.buy_price_shifted = buy_price_shifted
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
-        self.chosen_deal.client_buy.fit_sizes(self.chosen_deal.buy_price_parser, self.chosen_deal.buy_market)
-        self.chosen_deal.client_sell.fit_sizes(self.chosen_deal.sell_price_parser, self.chosen_deal.sell_market)
+        self.chosen_deal.client_buy.fit_sizes(buy_price_shifted, self.chosen_deal.buy_market)
+        self.chosen_deal.client_sell.fit_sizes(sell_price_shifted, self.chosen_deal.sell_market)
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
         if not self.chosen_deal.client_buy.amount or not self.chosen_deal.client_sell.amount:
             self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')

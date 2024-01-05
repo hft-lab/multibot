@@ -191,7 +191,7 @@ class ArbitrageFinder:
                             #     print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
 
                                 if profit >= target_profit:  # self.target_profits[name]:
-                                    print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                                    # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                     deal_size_amount = min(buy_sz, sell_sz)
                                     deal_size_usd_max = deal_size_amount * sell_px
                                     profit_usd_max = profit * deal_size_usd_max
