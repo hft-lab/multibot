@@ -187,7 +187,7 @@ class MultiBot:
         async with aiohttp.ClientSession() as session:
             self.session = session
             self.session.headers.update({'Connection': 'keep-alive'})
-            await self.loop_2.create_task(self.session_keep_alive())
+            # await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
                     await asyncio.sleep(0.000007)

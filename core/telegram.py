@@ -1,10 +1,7 @@
-import traceback
 from datetime import datetime
 import requests
 from core.ap_class import AP
 import sys
-import aiohttp
-import asyncio
 from configparser import ConfigParser
 
 config = ConfigParser()
@@ -34,12 +31,16 @@ class Telegram:
         self.tg_url = "https://api.telegram.org/bot"
         self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
         self.env = config['SETTINGS']['ENV']
+        self.session = requests.session()
+        self.session.headers.update({"Accept": "application/json;charset=UTF-8",
+                                     "Content-Type": "application/json",
+                                     'Connection': 'keep-alive'})
 
-    @staticmethod
-    async def async_send_message(url, message_data):
-        async with aiohttp.ClientSession() as session:
-            await session.get(url=url, json=message_data)
-            await session.close()
+    # @staticmethod
+    # async def async_send_message(url, message_data):
+    #     async with aiohttp.ClientSession() as session:
+    #         await session.get(url=url, json=message_data)
+    #         await session.close()
 
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
@@ -50,11 +51,11 @@ class Telegram:
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML",
                             "text": f"<pre>ENV: {self.env}\n{str(message)}</pre>"}
             try:
-                # r = requests.post(url, json=message_data)
-                # return r.json()
+                r = self.session.post(url, json=message_data)
+                return r.json()
                 #OPTION 1
-                loop = asyncio.get_event_loop()
-                loop.create_task(self.async_send_message(url, message_data))
+                # loop = asyncio.get_event_loop()
+                # loop.create_task(self.async_send_message(url, message_data))
                 #OPTION 2
                 # asyncio.run(self.async_send_message(url, message_data))
             except Exception as e:

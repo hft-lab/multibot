@@ -27,13 +27,13 @@ class ArbitrageFinder:
         self._wst.daemon = True
         self._wst.start()
         self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
-        # self.profit_precise = 4
-        # self.profit_ranges = self.unpack_ranges()
-        # print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
-        # if not self.profit_ranges.get('timestamp_start'):
-        #     self.profit_ranges.update({'timestamp_start': time.time()})
-        # # # print(self.profit_ranges)
-        # self.target_profits = self.get_all_target_profits()
+        self.profit_precise = 4
+        self.profit_ranges = self.unpack_ranges()
+        print(f"RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
+        if not self.profit_ranges.get('timestamp_start'):
+            self.profit_ranges.update({'timestamp_start': time.time()})
+        # print(self.profit_ranges)
+        self.target_profits = self.get_all_target_profits()
 
     @try_exc_regular
     def _run_finder_forever(self):
@@ -163,6 +163,12 @@ class ArbitrageFinder:
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
                             #                                     ex_2+'__'+ex_1: target_profit - profit})
+                            name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                            self.append_profit(profit=profit, name=name)
+                            # target = self.target_profits.get(name)
+                            # if not target:
+                            #     continue
+                            # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                             if profit >= target_profit:  # self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)
@@ -298,75 +304,75 @@ class ArbitrageFinder:
     #                             possibilities.append(possibility)
     #     return possibilities
 
-    # @try_exc_regular
-    # def get_coins_profit_ranges(self):
-    #     coins = {}
-    #     for direction in self.profit_ranges.keys():
-    #         if 'timestamp' in direction:
-    #             continue
-    #         coin = direction.split('C:')[1]
-    #         range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
-    #         range_len = sum([x[1] for x in range])
-    #         if coins.get(coin):
-    #             coin = coin + '_reversed'
-    #         upd_data = {coin: {'range': range,
-    #                            'range_len': range_len,
-    #                            'direction': direction}}
-    #         coins.update(upd_data)
-    #         # print(upd_data)
-    #         # print()
-    #
-    #     return coins
+    @try_exc_regular
+    def get_coins_profit_ranges(self):
+        coins = {}
+        for direction in self.profit_ranges.keys():
+            if 'timestamp' in direction:
+                continue
+            coin = direction.split('C:')[1]
+            range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
+            range_len = sum([x[1] for x in range])
+            if coins.get(coin):
+                coin = coin + '_reversed'
+            upd_data = {coin: {'range': range,
+                               'range_len': range_len,
+                               'direction': direction}}
+            coins.update(upd_data)
+            # print(upd_data)
+            # print()
 
-    # @try_exc_regular
-    # def get_all_target_profits(self):
-    #     coins = self.get_coins_profit_ranges()
-    #     target_profits = {}
-    #     for coin in coins.keys():
-    #         if 'reversed' in coin:
-    #             continue
-    #         direction_one = coins[coin]
-    #         direction_two = coins[coin + '_reversed']
-    #         sum_freq_1 = 0
-    #         sum_freq_2 = 0
-    #         for profit_1, freq_1 in direction_one['range']:
-    #             if sum_freq_1 > direction_one['range_len'] * 0.07:
-    #                 break
-    #             sum_freq_1 += freq_1
-    #         for profit_2, freq_2 in direction_two['range']:
-    #             if sum_freq_2 > direction_two['range_len'] * 0.07:
-    #                 break
-    #             sum_freq_2 += freq_2
-    #         # print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
-    #         # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
-    #         # print()
-    #         if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
-    #             target_1 = [profit_1, sum_freq_1]
-    #             target_2 = [profit_2, sum_freq_2]
-    #             target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
-    #                                    direction_two['direction']: target_2[0] if target_2 else target_2})
-    #     return target_profits
+        return coins
 
-    # @try_exc_regular
-    # def append_profit(self, profit: float, name: str):
-    #     profit = round(profit, self.profit_precise)
-    #     if self.profit_ranges.get(name):
-    #         if self.profit_ranges[name].get(profit):
-    #             self.profit_ranges[name][profit] += 1
-    #         else:
-    #             self.profit_ranges[name].update({profit: 1})
-    #     else:
-    #         self.profit_ranges.update({name: {profit: 1}})
-    #     now = time.time()
-    #     if now - self.last_record > 3600:
-    #         with open('ranges.json', 'w') as file:
-    #             json.dump(self.profit_ranges, file)
-    #         self.last_record = now
-    #     if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
-    #         self.target_profits = self.get_all_target_profits()
-    #         with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'w') as file:
-    #             json.dump(self.profit_ranges, file)
-    #         self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
+    @try_exc_regular
+    def get_all_target_profits(self):
+        coins = self.get_coins_profit_ranges()
+        target_profits = {}
+        for coin in coins.keys():
+            if 'reversed' in coin:
+                continue
+            direction_one = coins[coin]
+            direction_two = coins[coin + '_reversed']
+            sum_freq_1 = 0
+            sum_freq_2 = 0
+            for profit_1, freq_1 in direction_one['range']:
+                if sum_freq_1 > direction_one['range_len'] * 0.07:
+                    break
+                sum_freq_1 += freq_1
+            for profit_2, freq_2 in direction_two['range']:
+                if sum_freq_2 > direction_two['range_len'] * 0.07:
+                    break
+                sum_freq_2 += freq_2
+            # print(F"TARGET PROFIT {direction_one['direction']}:", [profit_1, sum_freq_1])
+            # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [profit_2, sum_freq_2])
+            # print()
+            if profit_1 + profit_2 > self.profit_taker:# and profit_1 > 0 and profit_2 > 0:
+                target_1 = [profit_1, sum_freq_1]
+                target_2 = [profit_2, sum_freq_2]
+                target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
+                                       direction_two['direction']: target_2[0] if target_2 else target_2})
+        return target_profits
+
+    @try_exc_regular
+    def append_profit(self, profit: float, name: str):
+        profit = round(profit, self.profit_precise)
+        if self.profit_ranges.get(name):
+            if self.profit_ranges[name].get(profit):
+                self.profit_ranges[name][profit] += 1
+            else:
+                self.profit_ranges[name].update({profit: 1})
+        else:
+            self.profit_ranges.update({name: {profit: 1}})
+        now = time.time()
+        if now - self.last_record > 3600:
+            with open('ranges.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.last_record = now
+        if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
+            self.target_profits = self.get_all_target_profits()
+            with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
 
 
 if __name__ == '__main__':
