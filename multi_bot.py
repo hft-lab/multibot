@@ -509,8 +509,6 @@ class MultiBot:
         self.chosen_deal.sell_price_fitted = self.chosen_deal.client_sell.price
         self.chosen_deal.buy_amount_target = self.chosen_deal.client_buy.amount
         self.chosen_deal.sell_amount_target = self.chosen_deal.client_sell.amount
-        self.chosen_deal.buy_price_shifted = self.chosen_deal.buy_price_parser
-        self.chosen_deal.sell_price_shifted = self.chosen_deal.sell_price_parser
         self.chosen_deal.buy_order_id, self.chosen_deal.sell_order_id = id1, id2
         self.chosen_deal.ts_orders_responses_received = time.time()
         self.chosen_deal.buy_order_place_time = (responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
