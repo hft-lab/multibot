@@ -68,7 +68,7 @@ class MultiBot:
         # self.last_orderbooks = {}
 
         # ORDER CONFIGS
-        self.deal_pause = int(self.setts['DEALS_PAUSE'])
+        self.deal_pause = float(self.setts['DEALS_PAUSE'])
         self.max_order_size_usd = int(self.setts['ORDER_SIZE'])
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.profit_close = float(self.setts['CLOSE_PROFIT'])
