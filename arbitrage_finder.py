@@ -56,7 +56,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     await self.loop.create_task(self.count_one_coin(coin))
                 self.coins_to_check = []
-            await asyncio.sleep(0.000007)
+            await asyncio.sleep(0.00001)
 
     @staticmethod
     @try_exc_regular
@@ -163,12 +163,13 @@ class ArbitrageFinder:
                             profit = profit - self.fees[ex_1] - self.fees[ex_2]
                             # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
                             #                                     ex_2+'__'+ex_1: target_profit - profit})
-                            name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                            self.append_profit(profit=profit, name=name)
-                            # target = self.target_profits.get(name)
-                            # if not target:
-                            #     continue
-                            # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+                            # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                            # self.append_profit(profit=profit, name=name)
+                        # target = self.target_profits.get(name)
+                        # if not target:
+                        #     continue
+                        # print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
+
                             if profit >= target_profit:  # self.target_profits[name]:
                                 # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)

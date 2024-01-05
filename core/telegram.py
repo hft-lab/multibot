@@ -1,7 +1,10 @@
+import traceback
 from datetime import datetime
 import requests
 from core.ap_class import AP
 import sys
+import aiohttp
+import asyncio
 from configparser import ConfigParser
 
 config = ConfigParser()
@@ -31,16 +34,12 @@ class Telegram:
         self.tg_url = "https://api.telegram.org/bot"
         self.TG_DEBUG = bool(int(config['TELEGRAM']['TG_DEBUG']))
         self.env = config['SETTINGS']['ENV']
-        self.session = requests.session()
-        self.session.headers.update({"Accept": "application/json;charset=UTF-8",
-                                     "Content-Type": "application/json",
-                                     'Connection': 'keep-alive'})
 
-    # @staticmethod
-    # async def async_send_message(url, message_data):
-    #     async with aiohttp.ClientSession() as session:
-    #         await session.get(url=url, json=message_data)
-    #         await session.close()
+    @staticmethod
+    async def async_send_message(url, message_data):
+        async with aiohttp.ClientSession() as session:
+            await session.get(url=url, json=message_data)
+            await session.close()
 
     def send_message(self, message: str, tg_group_obj: TG_Groups = None):
         if (not self.TG_DEBUG) and ((tg_group_obj is None) or (tg_group_obj == TG_Groups.DebugDima)):
@@ -51,15 +50,16 @@ class Telegram:
             message_data = {"chat_id": group['chat_id'], "parse_mode": "HTML",
                             "text": f"<pre>ENV: {self.env}\n{str(message)}</pre>"}
             try:
-                r = self.session.post(url, json=message_data)
-                return r.json()
+                # r = requests.post(url, json=message_data)
+                # return r.json()
                 #OPTION 1
-                # loop = asyncio.get_event_loop()
-                # loop.create_task(self.async_send_message(url, message_data))
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.async_send_message(url, message_data))
                 #OPTION 2
                 # asyncio.run(self.async_send_message(url, message_data))
             except Exception as e:
-                return e
+                print(f'TELEGRAM MESSAGE NOT SENT:')
+                traceback.print_exc()
 
     def send_bot_launch_message(self, multibot, group: TG_Groups = None):
         message = f'MULTIBOT INSTANCE #{multibot.setts["INSTANCE_NUM"]} LAUNCHED\n'
@@ -122,9 +122,9 @@ class Telegram:
         message += f"Deal direction: {ap.deal_direction}\n"
         message += f"Target profit: {ap.target_profit}\n"
         message += f"Expect profit: {ap.profit_rel_parser}\n"
-        message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
-        message += f"B.TARGET P.: {str(ap.buy_price_target)} | S.TARGET P.: {str(ap.sell_price_target)}\n"
-        message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"
+        # message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
+        # message += f"B.TARGET P.: {str(ap.buy_price_target)} | S.TARGET P.: {str(ap.sell_price_target)}\n"
+        # message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"
         message += f"B.Fitted P.: {str(ap.buy_price_fitted)} | S.Fitted P.: {str(ap.sell_price_fitted)}\n"
         message += f"B.REAL P.: {str(ap.buy_price_real)} | S.REAL P.: {str(ap.sell_price_real)}\n"
         message += f"Target Deal Size Amount: {ap.deal_size_amount_target}\n"

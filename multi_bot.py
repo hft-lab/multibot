@@ -239,8 +239,8 @@ class MultiBot:
                         for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
                             client.error_info = None
                             client.LAST_ORDER_ID = 'default'
+                        await asyncio.sleep(self.deal_pause)
                         self.update_all_av_balances()
-                        await asyncio.sleep(0.5)
                         self.found = False
                         self.potential_deals = []
 
