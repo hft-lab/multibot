@@ -151,6 +151,8 @@ class ArbitrageFinder:
                             continue
                         buy_own_ts_ping = now_ts - ob_1['ts_ms']
                         sell_own_ts_ping = now_ts - ob_2['ts_ms']
+                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040:
+                            continue
                         if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
                             continue
                         elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
