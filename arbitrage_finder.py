@@ -57,7 +57,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     await self.loop.create_task(self.count_one_coin(coin))
                 self.coins_to_check = []
-            await asyncio.sleep(0.00001)
+            await asyncio.sleep(0.0001)
 
     @staticmethod
     @try_exc_regular
@@ -151,12 +151,7 @@ class ArbitrageFinder:
                             continue
                         buy_own_ts_ping = now_ts - ob_1['ts_ms']
                         sell_own_ts_ping = now_ts - ob_2['ts_ms']
-                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040:
-                            continue
-                        if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
-                            continue
-                        elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
-                            continue
+
                         if isinstance(ob_1['timestamp'], float):
                             ts_buy = now_ts - ob_1['timestamp']
                         else:
@@ -165,6 +160,18 @@ class ArbitrageFinder:
                             ts_sell = now_ts - ob_2['timestamp']
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
+                        if ts_sell > 2 or ts_buy > 2:
+                            message = f"ORDERBOOK IS OLDER THAN 2s! TS NOW: {now_ts}\n"
+                            message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
+                            message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
+                            self.multibot.telegram.send_message(message, self.multibot.TG_Groups.Alerts)
+                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
+                            continue
+                        if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
+                            continue
+                        elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
+                            continue
+
                             # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
                             # print(f"SELL OBs AGE (OB TS):\n{ts_sell}")
                         is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping

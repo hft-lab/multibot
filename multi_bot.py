@@ -98,7 +98,7 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         # NEW REAL MULTI BOT
-        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],self.instance_markets_amount)
+        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'], self.instance_markets_amount)
         self.markets = self.clients_markets_data.get_instance_markets()
         self.markets_data = self.clients_markets_data.get_clients_data()
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close, self)
@@ -190,7 +190,7 @@ class MultiBot:
             # await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
-                    await asyncio.sleep(0.000007)
+                    await asyncio.sleep(0.0001)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
