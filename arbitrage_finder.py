@@ -6,6 +6,7 @@ from core.ap_class import AP
 import time
 import json
 import threading
+from core.telegram import TG_Groups
 
 
 class ArbitrageFinder:
@@ -160,11 +161,11 @@ class ArbitrageFinder:
                             ts_sell = now_ts - ob_2['timestamp']
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
-                        if ts_sell > 2 or ts_buy > 2:
-                            message = f"ORDERBOOK IS OLDER THAN 2s! TS NOW: {now_ts}\n"
+                        if ts_sell > 10 or ts_buy > 10:
+                            message = f"ORDERBOOK IS OLDER THAN 10s! TS NOW: {now_ts}\n"
                             message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
                             message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
-                            self.multibot.telegram.send_message(message, self.multibot.TG_Groups.Alerts)
+                            self.multibot.telegram.send_message(message, TG_Groups.Alerts)
                         if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
                             continue
                         if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
