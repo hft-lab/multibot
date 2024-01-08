@@ -190,7 +190,7 @@ class MultiBot:
             # await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
-                    await asyncio.sleep(0.0001)
+                    await asyncio.sleep(0.00001)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
