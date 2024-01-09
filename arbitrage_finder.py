@@ -174,8 +174,12 @@ class ArbitrageFinder:
                             message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
                             message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
                             self.multibot.telegram.send_message(message, TG_Groups.Alerts)
-                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
-                            continue
+                        if coin == 'BTC':
+                            if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
+                                continue
+                        else:
+                            if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
+                                continue
                         if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
                             continue
                         elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
@@ -299,8 +303,6 @@ class ArbitrageFinder:
             direction_two = coins[coin + '_reversed']
             sum_freq_1 = 0
             sum_freq_2 = 0
-            target_raw_profit_1 = 0
-            target_raw_profit_2 = 0
             exchange_1 = direction_one['direction'].split(':')[1].split('|')[0]
             exchange_2 = direction_two['direction'].split(':')[1].split('|')[0]
 
@@ -357,11 +359,10 @@ class ArbitrageFinder:
                 # print()
                 ### Defining of target profit including exchange fees
 
-                if target_raw_profit_1 + target_raw_profit_2 - 2 * fees > 0:  # and profit_1 > 0 and profit_2 > 0:
-                    target_1 = [profit_1 - fees, sum_freq_1]
-                    target_2 = [profit_2 - fees, sum_freq_2]
-                    target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
-                                           direction_two['direction']: target_2[0] if target_2 else target_2})
+                target_1 = profit_1 - fees
+                target_2 = profit_2 - fees
+                target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
+                                       direction_two['direction']: target_2[0] if target_2 else target_2})
         return target_profits
 
     @try_exc_regular
