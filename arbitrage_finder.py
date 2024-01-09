@@ -178,16 +178,16 @@ class ArbitrageFinder:
                         #     if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
                         #         continue
                         # else:
-                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
+                        # if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
+                        #     continue
+                        # if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
+                        #     continue
+                        # elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
+                        #     continue
+                        if ts_sell > 1 or ts_buy > 1:
                             continue
-                        if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
-                            continue
-                        elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
-                            continue
-
                             # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
                             # print(f"SELL OBs AGE (OB TS):\n{ts_sell}")
-
                         is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping
                         is_buy_last_ob_update = sell_own_ts_ping > buy_own_ts_ping
                         if is_buy_ping_faster == is_buy_last_ob_update:
