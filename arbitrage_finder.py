@@ -343,7 +343,7 @@ class ArbitrageFinder:
                 ### Defining of target profit including exchange fees
                 target_profits.update({direction_one['direction']: profit_1 - fees,
                                        direction_two['direction']: profit_2 - fees})
-            return target_profits
+        return target_profits
 
                 # for profit_1, freq_1 in direction_one['range']:
                 #     if sum_freq_1 > direction_one['range_len'] * 0.07:
