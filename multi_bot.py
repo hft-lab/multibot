@@ -573,14 +573,8 @@ class MultiBot:
         message += f"TIME FROM START COUNTING: {round(countings, 5)} sec\n"
         orders_sendings = self.chosen_deal.ts_orders_responses_received - self.chosen_deal.ts_orders_sent
         message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
-        if isinstance(responses[0]['exchange_name'], float):
-            ts_1 = responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent
-        else:
-            ts_1 = responses[0]['timestamp'] / 1000 - self.chosen_deal.ts_orders_sent
-        if isinstance(responses[1]['exchange_name'], float):
-            ts_2 = responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent
-        else:
-            ts_2 = responses[1]['timestamp'] / 1000 - self.chosen_deal.ts_orders_sent
+        ts_1 = responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent
+        ts_2 = responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent
         message += f"{responses[0]['exchange_name']} ORDER TS: {ts_1} sec\n"
         message += f"{responses[1]['exchange_name']} ORDER TS: {ts_2} sec"
         self.telegram.send_message(message, TG_Groups.MainGroup)
