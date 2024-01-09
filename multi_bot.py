@@ -46,7 +46,8 @@ class MultiBot:
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found']
+                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found',
+                 'limit_order_shift']
 
     def __init__(self):
         self.bot_launch_id = uuid.uuid4()
@@ -73,6 +74,7 @@ class MultiBot:
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.profit_close = float(self.setts['CLOSE_PROFIT'])
         self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
+        self.limit_order_shift = int(self.setts['LIMIT_SHIFTS'])
         # self.shifts = {}
 
         # CLIENTS
@@ -465,8 +467,8 @@ class MultiBot:
         # Округления до нуля произойти не может, потому, что deal_size_amount заведомо >= step_size
         self.chosen_deal.client_buy.amount = rounded_deal_size_amount
         self.chosen_deal.client_sell.amount = rounded_deal_size_amount
-        buy_price_shifted = self.chosen_deal.ob_buy['asks'][1][0]
-        sell_price_shifted = self.chosen_deal.ob_sell['bids'][1][0]
+        buy_price_shifted = self.chosen_deal.ob_buy['asks'][self.limit_order_shift][0]
+        sell_price_shifted = self.chosen_deal.ob_sell['bids'][self.limit_order_shift][0]
         self.chosen_deal.sell_price_shifted = sell_price_shifted
         self.chosen_deal.buy_price_shifted = buy_price_shifted
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
