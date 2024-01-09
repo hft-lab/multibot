@@ -316,7 +316,7 @@ class ArbitrageFinder:
             # print(direction_one['direction'], direction_two['direction'])
             # print(sum_profit - fees)
             # print(sum_profit - fees_1)
-            while (direction_one['range'][i][0] + direction_two['range'][i][0]) - fees >= 0:
+            while (direction_one['range'][i][0] + direction_two['range'][i][0]) - 2 * fees >= 0:
                 profit_1 = direction_one['range'][i][0]
                 profit_2 = direction_two['range'][i][0]
                 sum_freq_1 += direction_one['range'][i][1]
