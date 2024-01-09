@@ -60,7 +60,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     await self.loop.create_task(self.count_one_coin(coin))
                 self.coins_to_check = []
-            await asyncio.sleep(0.00001)
+            await asyncio.sleep(0.0001)
 
     @staticmethod
     @try_exc_regular

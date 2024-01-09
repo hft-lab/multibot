@@ -192,7 +192,7 @@ class MultiBot:
             # await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
-                    await asyncio.sleep(0.00001)
+                    await asyncio.sleep(0.0001)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
@@ -526,7 +526,7 @@ class MultiBot:
                   f"{self.chosen_deal.sell_market=}\n" \
                   f"Responses:\n{json.dumps(responses, indent=2)}"
         print(message)
-        self.send_timings()
+        self.send_timings(responses)
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @staticmethod
@@ -547,7 +547,7 @@ class MultiBot:
         return ts_buy, ts_sell, buy_own_ts, sell_own_ts
 
     @try_exc_regular
-    def send_timings(self):
+    def send_timings(self, responses):
         # print()
         # print()
         # print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
@@ -573,6 +573,16 @@ class MultiBot:
         message += f"TIME FROM START COUNTING: {round(countings, 5)} sec\n"
         orders_sendings = self.chosen_deal.ts_orders_responses_received - self.chosen_deal.ts_orders_sent
         message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
+        if isinstance(responses[0]['exchange_name'], float):
+            ts_1 = responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent
+        else:
+            ts_1 = responses[0]['timestamp'] / 1000 - self.chosen_deal.ts_orders_sent
+        if isinstance(responses[1]['exchange_name'], float):
+            ts_2 = responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent
+        else:
+            ts_2 = responses[1]['timestamp'] / 1000 - self.chosen_deal.ts_orders_sent
+        message += f"{responses[0]['exchange_name']} ORDER TS: {ts_1} sec\n"
+        message += f"{responses[1]['exchange_name']} ORDER TS: {ts_2} sec"
         self.telegram.send_message(message, TG_Groups.MainGroup)
 
     @try_exc_async
