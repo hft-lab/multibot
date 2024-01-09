@@ -340,7 +340,10 @@ class ArbitrageFinder:
                 print(F"TARGET PROFIT {direction_one['direction']}:", profit_1, sum_freq_1, f"{freq_relative_1} %")
                 print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", profit_2, sum_freq_2, f"{freq_relative_2} %")
                 print()
-
+                ### Defining of target profit including exchange fees
+                target_profits.update({direction_one['direction']: profit_1 - fees,
+                                       direction_two['direction']: profit_2 - fees})
+            return target_profits
 
                 # for profit_1, freq_1 in direction_one['range']:
                 #     if sum_freq_1 > direction_one['range_len'] * 0.07:
@@ -357,13 +360,6 @@ class ArbitrageFinder:
                 # print(F"TARGET PROFIT {direction_one['direction']}:", [target_raw_profit_1, profit_1, sum_freq_1])
                 # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [target_raw_profit_2, profit_2, sum_freq_2])
                 # print()
-                ### Defining of target profit including exchange fees
-
-                target_1 = profit_1 - fees
-                target_2 = profit_2 - fees
-                target_profits.update({direction_one['direction']: target_1[0] if target_1 else target_1,
-                                       direction_two['direction']: target_2[0] if target_2 else target_2})
-        return target_profits
 
     @try_exc_regular
     def append_profit(self, profit: float, name: str):
