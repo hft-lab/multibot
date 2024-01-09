@@ -174,12 +174,12 @@ class ArbitrageFinder:
                             message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
                             message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
                             self.multibot.telegram.send_message(message, TG_Groups.Alerts)
-                        if coin == 'BTC':
-                            if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
-                                continue
-                        else:
-                            if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
-                                continue
+                        # if coin == 'BTC':
+                        #     if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
+                        #         continue
+                        # else:
+                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
+                            continue
                         if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
                             continue
                         elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
