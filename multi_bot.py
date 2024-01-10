@@ -49,7 +49,8 @@ class MultiBot:
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found']
+                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found',
+                 'limit_order_shift']
 
     def __init__(self):
         self.bot_launch_id = uuid.uuid4()
@@ -76,6 +77,7 @@ class MultiBot:
         self.profit_taker = float(self.setts['TARGET_PROFIT'])
         self.profit_close = float(self.setts['CLOSE_PROFIT'])
         self.max_position_part = float(self.setts['PERCENT_PER_MARKET'])
+        self.limit_order_shift = int(self.setts['LIMIT_SHIFTS'])
         # self.shifts = {}
 
         # CLIENTS
@@ -194,7 +196,7 @@ class MultiBot:
             # await self.loop_2.create_task(self.session_keep_alive())
             while True:
                 if not self.found:
-                    await asyncio.sleep(0.00001)
+                    await asyncio.sleep(0.0001)
                     continue
                 self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
@@ -469,8 +471,8 @@ class MultiBot:
         # Округления до нуля произойти не может, потому, что deal_size_amount заведомо >= step_size
         self.chosen_deal.client_buy.amount = rounded_deal_size_amount
         self.chosen_deal.client_sell.amount = rounded_deal_size_amount
-        buy_price_shifted = self.chosen_deal.ob_buy['asks'][1][0]
-        sell_price_shifted = self.chosen_deal.ob_sell['bids'][1][0]
+        buy_price_shifted = self.chosen_deal.ob_buy['asks'][self.limit_order_shift][0]
+        sell_price_shifted = self.chosen_deal.ob_sell['bids'][self.limit_order_shift][0]
         self.chosen_deal.sell_price_shifted = sell_price_shifted
         self.chosen_deal.buy_price_shifted = buy_price_shifted
         # Здесь происходит уточнение и финализации размеров ордеров и их цен на клиентах
@@ -528,7 +530,7 @@ class MultiBot:
                   f"{self.chosen_deal.sell_market=}\n" \
                   f"Responses:\n{json.dumps(responses, indent=2)}"
         print(message)
-        self.send_timings()
+        self.send_timings(responses)
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @staticmethod
@@ -549,7 +551,7 @@ class MultiBot:
         return ts_buy, ts_sell, buy_own_ts, sell_own_ts
 
     @try_exc_regular
-    def send_timings(self):
+    def send_timings(self, responses):
         # print()
         # print()
         # print(f"BUY EXCH: {self.chosen_deal.buy_exchange}")
@@ -575,6 +577,10 @@ class MultiBot:
         message += f"TIME FROM START COUNTING: {round(countings, 5)} sec\n"
         orders_sendings = self.chosen_deal.ts_orders_responses_received - self.chosen_deal.ts_orders_sent
         message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
+        ts_1 = responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent
+        ts_2 = responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent
+        message += f"{responses[0]['exchange_name']} ORDER TS: {ts_1} sec\n"
+        message += f"{responses[1]['exchange_name']} ORDER TS: {ts_2} sec"
         self.telegram.send_message(message, TG_Groups.MainGroup)
 
     @try_exc_regular
