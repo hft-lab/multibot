@@ -1,19 +1,20 @@
-import configparser
+
 import time
 import json
 from datetime import datetime
 from typing import List
 
-from arbitrage_finder import ArbitrageFinder, AP
+from arbitrage_finder import ArbitrageFinder
 from clients.core.all_clients_parser import ALL_CLIENTS
 from clients_markets_data import Clients_markets_data
 
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular
+from core.ap_class import AP
 import logging
 
 logging.basicConfig(filename='ap_logs.txt', level=logging.INFO, format='%(asctime)s,%(message)s')
-
+import configparser
 config = configparser.ConfigParser()
 config.read('config_parser.ini', "utf-8")
 
@@ -98,10 +99,6 @@ class MultiParser:
 
         self.telegram = Telegram()
         print('INIT PROCESS FINISHED')
-        self.launch()
-
-    def get_ap_category(self):
-        pass
 
     @try_exc_regular
     def get_exchanges_ribs(self):
@@ -218,6 +215,7 @@ class MultiParser:
                       f'Coin:{ap_log.coin}\n' \
                       f'B.E.:{ap_log.buy_exchange}\n' \
                       f'S.E.:{ap_log.sell_exchange}\n' \
+                      f'Profit threshold.:{ap_log.target_profit}\n' \
                       f'Initial rel. profit: {round(ap_log.profit_rel_parser, 5)}\n' \
                       f'Min rel. profit: {round(ap_log.min_profit_rel, 5)}\n' \
                       f'Max rel. profit: {round(ap_log.max_profit_rel, 5)}\n' \
@@ -305,4 +303,5 @@ class MultiParser:
 
 
 if __name__ == '__main__':
-    MultiParser()
+    mp = MultiParser()
+    mp.launch()

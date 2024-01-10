@@ -20,8 +20,11 @@ from clients.core.all_clients import ALL_CLIENTS
 from clients_markets_data import Clients_markets_data
 from core.database import DB
 from core.rabbit import Rabbit
+from core.enums import AP_Status
+from clients.core.enums import OrderStatus, ResponseStatus
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular, try_exc_async
+
 # from logger import Logging
 
 config = configparser.ConfigParser()
@@ -98,7 +101,8 @@ class MultiBot:
         #     self.__prepare_shifts()
 
         # NEW REAL MULTI BOT
-        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'], self.instance_markets_amount)
+        self.clients_markets_data = Clients_markets_data(self.clients, self.setts['INSTANCE_NUM'],
+                                                         self.instance_markets_amount)
         self.markets = self.clients_markets_data.get_instance_markets()
         self.markets_data = self.clients_markets_data.get_clients_data()
         self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close, self)
@@ -212,9 +216,8 @@ class MultiBot:
                 # # print('Potential deals:', json.dumps(potential_deals, indent=2))
                 time_end_define_potential_deals = time.time()
 
-
                 # if self.potential_deals:
-                    # Шаг 3 (Выбор лучшей AP, если их несколько)
+                # Шаг 3 (Выбор лучшей AP, если их несколько)
                 self.chosen_deal: AP = self.choose_deal(self.potential_deals)
                 self.potential_deals = []
                 if self.chosen_deal:
@@ -226,7 +229,7 @@ class MultiBot:
                     self.chosen_deal.time_choose = self.chosen_deal.ts_choose_end - time_end_define_potential_deals
                     # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
                     # if self.check_prices_still_good():
-                        # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
+                    # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
                     if self.fit_sizes_and_prices():
                         # time_end_fit_sizes = time.time()
                         # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
@@ -245,10 +248,11 @@ class MultiBot:
                         self.found = False
                         self.potential_deals = []
 
-                            # with open('ap_still_active_status.csv', 'a', newline='') as file:
-                            #     writer = csv.writer(file)
-                            #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients-http']
-                            #     writer.writerow(row_data)
+                        # with open('ap_still_active_status.csv', 'a', newline='') as file:
+                        #     writer = csv.writer(file)
+                        #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients-http']
+                        #     writer.writerow(row_data)
+
     @try_exc_async
     async def launch(self):
         self.db = DB(self.rabbit)
@@ -305,7 +309,7 @@ class MultiBot:
 
     @try_exc_regular
     def check_min_size(self, exchange, market, deal_avail_size_usd,
-                                              price, direction, context, send_flag: bool = True):
+                       price, direction, context, send_flag: bool = True):
         min_size_amount = self.clients_with_names[exchange].instruments[market]['min_size']
         min_size_usd = min_size_amount * price
         if deal_avail_size_usd < min_size_usd:
@@ -339,9 +343,9 @@ class MultiBot:
                 deal_avail_size_buy_usd = self.available_balances[exchange][market]['buy']
                 deal_avail_size_sell_usd = self.available_balances[exchange][market]['sell']
                 self.check_min_size(exchange, market, deal_avail_size_buy_usd,
-                                                           price, 'buy', context='Bot launch', send_flag=False)
+                                    price, 'buy', context='Bot launch', send_flag=False)
                 self.check_min_size(exchange, market, deal_avail_size_sell_usd,
-                                                           price, 'sell', context='Bot launch', send_flag=False)
+                                    price, 'sell', context='Bot launch', send_flag=False)
                 min_size_amount = self.clients_with_names[exchange].instruments[market]['min_size']
                 min_size_usd = min_size_amount * price
 
@@ -371,14 +375,14 @@ class MultiBot:
         message = f'ALERT: Bot launch. Exception Added\n' \
                   f'Биржи торгующиеся только на закрытие позиций: {self.close_only_exchanges}\n ' \
                   f'Количество добавленных рынков исключений:\n' \
-                  f'{json.dumps(exception_count,indent=2)}'
+                  f'{json.dumps(exception_count, indent=2)}'
         self.telegram.send_message(message, TG_Groups.Alerts)
 
     @try_exc_regular
     def add_trade_exception(self, exchange, market, direction, reason, send_flag: bool = True) -> None:
-        if self.trade_exceptions.get(exchange+market+direction):
+        if self.trade_exceptions.get(exchange + market + direction):
             return
-        exception = {exchange+market+direction:
+        exception = {exchange + market + direction:
                          {'market': market, 'exchange': exchange, 'direction': direction,
                           'reason': reason, 'Time added': str(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))}}
         self.trade_exceptions.update(exception)
@@ -515,8 +519,8 @@ class MultiBot:
         self.chosen_deal.sell_order_place_time = (responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent) / 1000
         self.chosen_deal.buy_order_id_exchange = responses[0]['exchange_order_id']
         self.chosen_deal.sell_order_id_exchange = responses[1]['exchange_order_id']
-        self.chosen_deal.buy_order_status = responses[0]['status']
-        self.chosen_deal.sell_order_status = responses[1]['status']
+        self.chosen_deal.buy_order_place_status = responses[0]['status']
+        self.chosen_deal.sell_order_place_status = responses[1]['status']
         message = f"Results of create_order requests:\n" \
                   f"{self.chosen_deal.buy_exchange=}\n" \
                   f"{self.chosen_deal.buy_market=}\n" \
@@ -573,6 +577,22 @@ class MultiBot:
         message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
         self.telegram.send_message(message, TG_Groups.MainGroup)
 
+    @try_exc_regular
+    def get_ap_status(self):
+        if self.chosen_deal.buy_order_execution_status in (OrderStatus.NEW, OrderStatus.PROCESSING):
+            return AP_Status.UNDEFINED
+        if self.chosen_deal.sell_order_execution_status in (OrderStatus.NEW, OrderStatus.PROCESSING):
+            return AP_Status.UNDEFINED
+
+        if self.chosen_deal.buy_order_execution_status == OrderStatus.FULLY_EXECUTED:
+            if self.chosen_deal.sell_order_execution_status == OrderStatus.FULLY_EXECUTED:
+                return AP_Status.SUCCESS
+
+        if self.chosen_deal.buy_order_execution_status in (OrderStatus.NOT_PLACED, OrderStatus.NOT_EXECUTED):
+            if self.chosen_deal.sell_order_execution_status in (OrderStatus.NOT_PLACED, OrderStatus.NOT_EXECUTED):
+                return AP_Status.FULL_FAIL
+
+        return AP_Status.DISBALANCE
     @try_exc_async
     async def notification_and_logging(self):
 
@@ -591,21 +611,23 @@ class MultiBot:
         self.db.save_order(order_id_sell, sell_exchange_order_id, client_sell, 'sell', ap_id, sell_order_place_time,
                            shifted_sell_px, sell_market, self.env)
 
-        if self.chosen_deal.buy_order_status != 'error':
-            # message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
+        if self.chosen_deal.buy_order_place_status == ResponseStatus.SUCCESS:
+            # message = f'запрос инфы по ордеру, см. логи {self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
             # self.telegram.send_message(message)
             order_result = self.chosen_deal.client_buy.orders.get(buy_exchange_order_id, None)
             if not order_result:
                 order_result = self.chosen_deal.client_buy.get_order_by_id(buy_market, buy_exchange_order_id)
             self.chosen_deal.buy_price_real = order_result['factual_price']
             self.chosen_deal.buy_amount_real = order_result['factual_amount_coin']
+            self.chosen_deal.buy_order_execution_status = order_result['status']
             print(f'{order_result=}')
-            print('STOP1')
+            print('LABEL1')
 
         else:
+            self.chosen_deal.buy_order_execution_status = OrderStatus.NOT_PLACED
             self.telegram.send_order_error_message(self.env, buy_market, client_buy, order_id_buy, TG_Groups.Alerts)
 
-        if self.chosen_deal.sell_order_status != 'error':
+        if self.chosen_deal.sell_order_place_status == ResponseStatus.SUCCESS:
             # message = f'запрос инфы по ордеру, см. логи{self.chosen_deal.client_sell.EXCHANGE_NAME=}{sell_market=}{order_id_buy=}'
             # self.telegram.send_message(message)
             order_result = self.chosen_deal.client_sell.orders.get(sell_exchange_order_id, None)
@@ -613,12 +635,15 @@ class MultiBot:
                 order_result = self.chosen_deal.client_sell.get_order_by_id(sell_market, sell_exchange_order_id)
             self.chosen_deal.sell_price_real = order_result['factual_price']
             self.chosen_deal.sell_amount_real = order_result['factual_amount_coin']
+            self.chosen_deal.sell_order_execution_status = order_result['status']
             print(f'{order_result=}')
-            print('STOP2')
+            print('LABEL2')
 
         else:
+            self.chosen_deal.sell_order_execution_status = OrderStatus.NOT_PLACED
             self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell, TG_Groups.Alerts)
 
+        self.chosen_deal.status = self.get_ap_status()
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
         self.telegram.send_ap_executed_message(self.chosen_deal, TG_Groups.MainGroup)
 

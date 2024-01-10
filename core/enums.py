@@ -1,3 +1,10 @@
+class AP_Status:
+    SUCCESS = 'Success'
+    FULL_FAIL = 'Full Fail'
+    DISBALANCE = 'Disbalance'
+    NEW = 'New'
+    UNDEFINED = 'Undefined' #temp status
+
 
 class RabbitMqQueues:
     TELEGRAM = 'logger.event.send_to_telegram'

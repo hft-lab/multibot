@@ -116,6 +116,7 @@ class Telegram:
 
     def send_ap_executed_message(self, ap: AP, group: TG_Groups = None):
         message = f"AP EXECUTED\n"
+        message += f"STATUS: {ap.status}\n"
         message += f"SYMBOL: {ap.coin}\n"
         message += f"DT: {datetime.utcnow()}\n"
         message += f"B.E.: {ap.buy_exchange} | S.E.: {ap.sell_exchange}\n"

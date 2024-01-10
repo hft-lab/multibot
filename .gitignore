@@ -10,5 +10,7 @@ __pycache__
 *.ini
 config.ini
 config_parser.ini
+mp_emulation.py
+mp_log_analizer.py
 /clients
 /Logs

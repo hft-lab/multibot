@@ -1,3 +1,6 @@
+from enums import AP_Status
+from ..clients.core.enums import OrderStatus,ResponseStatus
+
 # class Side:
 #     def __init__(self, client, exchange, market, fee, price_parser, max_amount_parser, ob):
 #         self.client = client
@@ -28,6 +31,7 @@ class AP:
         self.deal_max_usd_ob = None
         self.deal_size_amount_target = None
         self.deal_size_usd_target = None
+        self.status: AP_Status = AP_Status.NEW
 
         self.profit_rel_parser = None
         self.profit_rel_target = None
@@ -78,7 +82,8 @@ class AP:
         self.buy_order_id_exchange = None
         self.buy_order_id = None
         self.buy_order_place_time = None
-        self.buy_order_status = None
+        self.buy_order_place_status: ResponseStatus = ResponseStatus.NEW
+        self.buy_order_execution_status = OrderStatus.NEW
 
         self.ts_buy_ob_parser = None
 
@@ -103,7 +108,8 @@ class AP:
         self.sell_order_id_exchange = None
         self.sell_order_id = None
         self.sell_order_place_time = None
-        self.sell_order_status = None
+        self.sell_order_place_status: ResponseStatus = ResponseStatus.NEW
+        self.sell_order_execution_status: OrderStatus = OrderStatus.NEW
 
         self.ts_sell_ob_parser = None
 
