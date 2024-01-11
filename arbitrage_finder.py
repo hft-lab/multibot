@@ -304,13 +304,14 @@ class ArbitrageFinder:
                 continue
             direction_one = coins[coin]
             direction_two = coins[coin + '_reversed']
-            sum_freq_1 = 0
-            sum_freq_2 = 0
             exchange_1 = direction_one['direction'].split(':')[1].split('|')[0]
             exchange_2 = direction_two['direction'].split(':')[1].split('|')[0]
-
+            if exchange_1 not in (self.clients_with_names.keys()) or exchange_2 not in (self.clients_with_names.keys()):
+                continue
             # fees = 0.00021 + 0.000375
             # print(fees)
+            sum_freq_1 = 0
+            sum_freq_2 = 0
             fees = self.fees[exchange_1] + self.fees[exchange_2]
             # print(fees)
             ### Choosing target profit as particular rate of frequency appearing in whole range of profits
