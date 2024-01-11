@@ -86,7 +86,8 @@ class MultiBot:
 
         for exchange in self.exchanges:
             client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage,
-                                           max_pos_part=self.max_position_part)
+                                           max_pos_part=self.max_position_part,
+                                           ob_len=self.limit_order_shift)
             self.clients.append(client)
         self.clients_with_names = {}
         for client in self.clients:

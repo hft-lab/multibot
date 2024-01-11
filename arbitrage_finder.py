@@ -47,13 +47,13 @@ class ArbitrageFinder:
     @try_exc_async
     async def check_coins(self):
         while True:
-            # clients = self.clients_with_names.items()
-            # lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 10]
-            # if len(lines):
-            #     print(f"ALERT WEBSOCKET LINES ARE HUGE: {lines}")
-            #     await asyncio.sleep(1)
-            #     self.coins_to_check = []
-            #     self.update = False
+            clients = self.clients_with_names.items()
+            lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 50]
+            if len(lines):
+                self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
+                await asyncio.sleep(1)
+                self.coins_to_check = []
+                self.update = False
             if self.update:
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
@@ -170,10 +170,11 @@ class ArbitrageFinder:
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
                         if ts_sell > 100 or ts_buy > 100:
-                            message = f"ORDERBOOK IS OLDER THAN 10s! TS NOW: {now_ts}\n"
+                            message = f"ORDERBOOK IS OLDER THAN 100s! TS NOW: {now_ts}\n"
                             message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
                             message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
                             self.multibot.telegram.send_message(message, TG_Groups.Alerts)
+                            return
                         # if coin == 'BTC':
                         #     if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
                         #         continue
@@ -191,28 +192,30 @@ class ArbitrageFinder:
                         is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping
                         is_buy_last_ob_update = sell_own_ts_ping > buy_own_ts_ping
                         if is_buy_ping_faster == is_buy_last_ob_update:
-                            buy_sz = ob_1['asks'][0][1]
-                            sell_sz = ob_2['bids'][0][1]
                             buy_px = ob_1['asks'][0][0]
                             sell_px = ob_2['bids'][0][0]
                             raw_profit = (sell_px - buy_px) / buy_px
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                             self.append_profit(profit=raw_profit, name=name)
-                            if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
-                                print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
+                            # if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
+                            #     print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
                             if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                                 direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+
                                 # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                                 profit = raw_profit - self.fees[ex_1] - self.fees[ex_2]
                                 # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,
                                 #                                     ex_2+'__'+ex_1: target_profit - profit})
                                 # name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                                 # self.append_profit(profit=profit, name=name)
-                                target_profit = self.target_profits.get(name)
-                                if not target_profit:
-                                    target_profit = self.get_target_profit(direction)
+                                # target_profit = self.target_profits.get(name)
+                                # if not target_profit:
+                                target_profit = self.get_target_profit(direction)
                                 #     print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
-                                if profit >= target_profit:  # self.target_profits[name]:
+                                if profit >= target_profit:
+                                    buy_sz = ob_1['asks'][0][1]
+                                    sell_sz = ob_2['bids'][0][1]
+                                    # self.target_profits[name]:
                                     # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                     deal_size_amount = min(buy_sz, sell_sz)
                                     deal_size_usd_max = deal_size_amount * sell_px
