@@ -169,16 +169,16 @@ class ArbitrageFinder:
 
                         if isinstance(ob_1['timestamp'], float):
                             ts_buy = now_ts - ob_1['timestamp']
-                            ts_buy_top = now_ts - ob_1['timestamp_top_ask']
+                            ts_buy_top = now_ts - ob_1['top_ask_timestamp']
                         else:
                             ts_buy = now_ts - ob_1['timestamp'] / 1000
-                            ts_buy_top = now_ts - ob_1['timestamp_top_ask'] / 1000
+                            ts_buy_top = now_ts - ob_1['top_ask_timestamp'] / 1000
                         if isinstance(ob_2['timestamp'], float):
                             ts_sell = now_ts - ob_2['timestamp']
-                            ts_sell_top = now_ts - ob_2['timestamp_top_bid']
+                            ts_sell_top = now_ts - ob_2['top_bid_timestamp']
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
-                            ts_sell_top = now_ts - ob_2['timestamp_top_bid'] / 1000
+                            ts_sell_top = now_ts - ob_2['top_bid_timestamp'] / 1000
                         if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell_top > 0.2 or ts_buy_top > 0.2:
                             continue
                         # if ts_sell > 100 or ts_buy > 100:
