@@ -5,13 +5,11 @@ import logging
 import sys
 import threading
 import time
-import traceback
 import uuid
 import math
 from datetime import datetime
 from logging.config import dictConfig
 from typing import List
-import random
 
 import aiohttp
 
@@ -88,7 +86,7 @@ class MultiBot:
         for exchange in self.exchanges:
             client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage,
                                            max_pos_part=self.max_position_part,
-                                           ob_len=self.limit_order_shift)
+                                           ob_len=self.limit_order_shift + 1)
             self.clients.append(client)
         self.clients_with_names = {}
         for client in self.clients:
@@ -601,6 +599,7 @@ class MultiBot:
                 return AP_Status.FULL_FAIL
 
         return AP_Status.DISBALANCE
+
     @try_exc_async
     async def notification_and_logging(self):
 
