@@ -1,5 +1,5 @@
-from enums import AP_Status
-from ..clients.core.enums import OrderStatus,ResponseStatus
+from core.enums import AP_Status
+from clients.core.enums import OrderStatus, ResponseStatus
 
 # class Side:
 #     def __init__(self, client, exchange, market, fee, price_parser, max_amount_parser, ob):
@@ -18,6 +18,8 @@ from ..clients.core.enums import OrderStatus,ResponseStatus
 #         self.buy_exchange_order_id = None
 #         self.buy_order_id = None
 #         self.buy_order_place_time = None
+
+
 class AP:
     def __init__(self, ap_id):
         # general data section
