@@ -81,6 +81,8 @@ class MultiBot:
         # CLIENTS
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
+        self.telegram = Telegram()
+
         # print(self.exchanges)
 
         for exchange in self.exchanges:
@@ -132,7 +134,6 @@ class MultiBot:
             'datetime_update': str(datetime.utcnow()),
             'ts_update': int(time.time() * 1000)
         }
-        self.telegram = Telegram()
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
         self.loop_3 = asyncio.new_event_loop()
