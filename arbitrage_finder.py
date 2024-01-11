@@ -7,7 +7,7 @@ from core.ap_class import AP
 import time
 import json
 import threading
-from core.telegram import TG_Groups
+# from core.telegram import TG_Groups
 
 
 class ArbitrageFinder:
@@ -58,7 +58,8 @@ class ArbitrageFinder:
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
                 for coin in self.coins_to_check:
-                    await self.loop.create_task(self.count_one_coin(coin))
+                    # await self.loop.create_task(self.count_one_coin(coin))
+                    asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
                 self.coins_to_check = []
             await asyncio.sleep(0.0001)
 
@@ -169,18 +170,19 @@ class ArbitrageFinder:
                             ts_sell = now_ts - ob_2['timestamp']
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
-                        if ts_sell > 100 or ts_buy > 100:
-                            message = f"ORDERBOOK IS OLDER THAN 100s! TS NOW: {now_ts}\n"
-                            message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
-                            message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
-                            self.multibot.telegram.send_message(message, TG_Groups.Alerts)
-                            return
+                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.2 or ts_buy > 0.2:
+                            continue
+                        # if ts_sell > 100 or ts_buy > 100:
+                        #     message = f"ORDERBOOK IS OLDER THAN 100s! TS NOW: {now_ts}\n"
+                        #     message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
+                        #     message += f"{client_2.EXCHANGE_NAME} OB: {ob_2}\n"
+                        #     self.multibot.telegram.send_message(message, TG_Groups.Alerts)
+                        #     return
                         # if coin == 'BTC':
                         #     if buy_own_ts_ping > 0.010 or sell_own_ts_ping > 0.010:
                         #         continue
                         # else:
-                        # if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell > 0.3 or ts_buy > 0.3:
-                        #     continue
+
                         # if client_1.ob_push_limit and buy_own_ts_ping > client_1.ob_push_limit:
                         #     continue
                         # elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
@@ -197,8 +199,8 @@ class ArbitrageFinder:
                             raw_profit = (sell_px - buy_px) / buy_px
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
                             self.append_profit(profit=raw_profit, name=name)
-                            # if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
-                            #     print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
+                            if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
+                                print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
                             if deal_size_usd := self.multibot.if_tradable(ex_1, ex_2, buy_mrkt, sell_mrkt, buy_px, sell_px):
                                 direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
 

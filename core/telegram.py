@@ -54,7 +54,7 @@ class Telegram:
                 # return r.json()
                 #OPTION 1
                 loop = asyncio.get_event_loop()
-                loop.create_task(self.async_send_message(url, message_data))
+                asyncio.run_coroutine_threadsafe(self.async_send_message(url, message_data), loop)
                 #OPTION 2
                 # asyncio.run(self.async_send_message(url, message_data))
             except Exception as e:
