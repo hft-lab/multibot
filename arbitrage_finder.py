@@ -28,6 +28,7 @@ class ArbitrageFinder:
         self.coins_to_check = []
         self._wst.daemon = True
         self._wst.start()
+        self.deal_found = False
         # PROFIT RANGES FE
         # self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
         self.profit_precise = 4
@@ -55,6 +56,10 @@ class ArbitrageFinder:
                 self.coins_to_check = []
                 self.update = False
             if self.update:
+                if self.deal_found:
+                    self.deal_found = False
+                    await asyncio.sleep(0.5)
+                    continue
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
                 for coin in self.coins_to_check:
@@ -274,6 +279,7 @@ class ArbitrageFinder:
                 if possibilities:
                     self.multibot.potential_deals = possibilities
                     self.multibot.found = True
+                    self.deal_found = True
 
     @try_exc_regular
     def get_coins_profit_ranges(self):

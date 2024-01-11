@@ -22,6 +22,7 @@ from core.enums import AP_Status
 from clients.core.enums import OrderStatus, ResponseStatus
 from core.telegram import Telegram, TG_Groups
 from core.wrappers import try_exc_regular, try_exc_async
+import os
 
 # from logger import Logging
 
@@ -132,8 +133,8 @@ class MultiBot:
             'exchange_2': self.clients[1].EXCHANGE_NAME,
             'updated_flag': 1,
             'datetime_update': str(datetime.utcnow()),
-            'ts_update': int(time.time() * 1000)
-        }
+            'ts_update': int(time.time() * 1000)}
+        os.nice(-10)
         self.loop_1 = asyncio.new_event_loop()
         self.loop_2 = asyncio.new_event_loop()
         self.loop_3 = asyncio.new_event_loop()
@@ -498,7 +499,6 @@ class MultiBot:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
-
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
         cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
                                  f"api_deal_{id2.replace('-', '')[:20]}")
