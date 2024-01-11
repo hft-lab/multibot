@@ -7,7 +7,7 @@ from core.ap_class import AP
 import time
 import json
 import threading
-# from core.telegram import TG_Groups
+from core.telegram import TG_Groups
 
 
 class ArbitrageFinder:
