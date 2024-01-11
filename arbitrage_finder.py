@@ -29,15 +29,15 @@ class ArbitrageFinder:
         self._wst.daemon = True
         self._wst.start()
         # PROFIT RANGES FE
-        self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
+        # self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
         self.profit_precise = 4
         self.profit_ranges = self.unpack_ranges()
-        if not self.profit_ranges.get('timestamp_start'):
-            self.profit_ranges.update({'timestamp_start': time.time()})
+        # if not self.profit_ranges.get('timestamp_start'):
+        #     self.profit_ranges.update({'timestamp_start': time.time()})
         # print(self.profit_ranges)
-        self.target_profits = self.get_all_target_profits()
-        print(f"TARGET PROFIT RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
-        print(self.target_profits)
+        # self.target_profits = self.get_all_target_profits()
+        # print(f"TARGET PROFIT RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
+        # print(self.target_profits)
 
     @try_exc_regular
     def _run_finder_forever(self):

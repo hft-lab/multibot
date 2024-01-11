@@ -83,6 +83,7 @@ class MultiBot:
         # CLIENTS
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.clients = []
+        # print(self.exchanges)
 
         for exchange in self.exchanges:
             client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage,
