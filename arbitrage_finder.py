@@ -181,6 +181,8 @@ class ArbitrageFinder:
                             ts_sell_top = now_ts - ob_2['top_bid_timestamp'] / 1000
                         if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040 or ts_sell_top > 0.2 or ts_buy_top > 0.2:
                             continue
+                        elif ts_sell > 0.2 or ts_buy > 0.2:
+                            continue
                         # if ts_sell > 100 or ts_buy > 100:
                         #     message = f"ORDERBOOK IS OLDER THAN 100s! TS NOW: {now_ts}\n"
                         #     message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
@@ -196,8 +198,7 @@ class ArbitrageFinder:
                         #     continue
                         # elif client_2.ob_push_limit and sell_own_ts_ping > client_2.ob_push_limit:
                         #     continue
-                        if ts_sell_top > 1 or ts_buy_top > 1:
-                            continue
+
                             # print(f"BUY OB AGE (OB TS):\n{ts_buy}")
                             # print(f"SELL OBs AGE (OB TS):\n{ts_sell}")
                         is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping
