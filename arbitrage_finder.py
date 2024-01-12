@@ -12,8 +12,9 @@ from core.telegram import TG_Groups
 
 class ArbitrageFinder:
 
-    def __init__(self, markets, clients_with_names, profit_taker, profit_close):
+    def __init__(self, markets, clients_with_names, profit_taker, profit_close,state='Bot'):
         # self.multibot = multibot
+        self.state = state
         self.profit_taker = profit_taker
         self.profit_close = profit_close
         self.markets = markets
@@ -144,8 +145,6 @@ class ArbitrageFinder:
 
     @try_exc_async
     async def count_one_coin(self, coin):
-        possibilities = []
-        poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
         for ex_1, client_1 in self.clients_with_names.items():
             for ex_2, client_2 in self.clients_with_names.items():
                 if ex_1 == ex_2:
@@ -209,7 +208,11 @@ class ArbitrageFinder:
                             self.append_profit(profit=raw_profit, name=name)
                             if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
                                 print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
-                            direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                            if self.state == 'Bot':
+                                poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
+                                direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
+                            else:
+                                direction = 'open'
                             # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                             profit = raw_profit - self.fees[ex_1] - self.fees[ex_2]
                             # self.tradable_profits[coin].update({ex_1+'__'+ex_2: target_profit - profit,

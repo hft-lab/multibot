@@ -1,4 +1,3 @@
-
 import time
 import json
 from datetime import datetime
@@ -15,6 +14,7 @@ import logging
 
 logging.basicConfig(filename='ap_logs.txt', level=logging.INFO, format='%(asctime)s,%(message)s')
 import configparser
+
 config = configparser.ConfigParser()
 config.read('config_parser.ini', "utf-8")
 
@@ -80,7 +80,7 @@ class MultiParser:
                 keys = config[exchange]
             except:
                 keys = None
-            client = ALL_CLIENTS[exchange](keys=keys, leverage=None, max_pos_part=None)
+            client = ALL_CLIENTS[exchange](keys=keys, leverage=None, state='Parser', max_pos_part=None)
             self.clients.append(client)
         self.clients_with_names = {}
 
@@ -94,7 +94,8 @@ class MultiParser:
         self.markets = self.clients_markets_data.get_instance_markets()  # coin:exchange:symbol
         self.markets_data = self.clients_markets_data.get_clients_data()
 
-        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker)
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker,
+                                      state='Parser')
         self.chosen_deal: AP
 
         self.telegram = Telegram()
@@ -127,6 +128,7 @@ class MultiParser:
         print('STARTING RUN CLIENTS')
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
+            client.finder = self.finder
             client.run_updater()
             time.sleep(1)  # Нужно, чтобы клиенты успели завестись
         print(f'CLIENTS HAVE STARTED. MARKET DATA:\n RIBS: {self.ribs}\n{json.dumps(self.markets_data, indent=2)}')
@@ -186,7 +188,7 @@ class MultiParser:
             results = self.get_data_for_parser()
             #
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-            potential_possibilities = self.finder.find_arbitrage_possibilities(results, self.ribs)
+            potential_possibilities = self.finder.potential_deals
 
             if potential_possibilities == [] and self.ap_log_filled_flag:
                 dt = time.time()
