@@ -1,13 +1,10 @@
 import asyncio
-import traceback
 import uuid
 from datetime import datetime
 from core.wrappers import try_exc_regular, try_exc_async
 from core.ap_class import AP
 import time
-import json
 import threading
-from core.telegram import TG_Groups
 
 
 class ArbitrageFinder:
@@ -61,12 +58,11 @@ class ArbitrageFinder:
                     continue
                 self.update = False
                 # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
-                for coin in self.coins_to_check:
+                for coin in self.coins_to_check.copy():
                     # await self.loop.create_task(self.count_one_coin(coin))
                     asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
                 self.coins_to_check = {}
             await asyncio.sleep(0.0001)
-
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
