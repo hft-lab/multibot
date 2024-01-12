@@ -224,7 +224,6 @@ class ArbitrageFinder:
                                 buy_sz = ob_1['asks'][0][1]
                                 sell_sz = ob_2['bids'][0][1]
                                 # self.target_profits[name]:
-                                # print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 deal_size_amount = min(buy_sz, sell_sz)
                                 deal_size_usd_max = deal_size_amount * sell_px
                                 profit_usd_max = profit * deal_size_usd_max

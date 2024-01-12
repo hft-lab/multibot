@@ -48,13 +48,11 @@ class MultiBot:
                  'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'found',
-                 'limit_order_shift']
+                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'limit_order_shift']
 
     def __init__(self):
         self.bot_launch_id = uuid.uuid4()
         self.db = None
-        self.found = asyncio.Event()
         self.setts = config['SETTINGS']
         self.cycle_parser_delay = float(self.setts['CYCLE_PARSER_DELAY'])
         self.env = self.setts['ENV']
@@ -248,8 +246,7 @@ class MultiBot:
                             client.LAST_ORDER_ID = 'default'
                         await asyncio.sleep(self.deal_pause)
                         self.update_all_av_balances()
-                        self.found = False
-                        self.potential_deals = []
+                        self.finder.potential_deals = []
 
                         # with open('ap_still_active_status.csv', 'a', newline='') as file:
                         #     writer = csv.writer(file)
