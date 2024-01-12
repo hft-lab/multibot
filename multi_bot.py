@@ -198,6 +198,8 @@ class MultiBot:
                 if not self.finder.potential_deals:
                     await asyncio.sleep(0.0001)
                     continue
+                print(f"AP! {len(self.finder.potential_deals)}")
+
                 # await asyncio.sleep(self.cycle_parser_delay)
                 # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
                 #     self.start_time -= 1

@@ -23,7 +23,7 @@ class ArbitrageFinder:
         self.loop = asyncio.new_event_loop()
         self._wst = threading.Thread(target=self._run_finder_forever)
         self.update = False
-        self.coins_to_check = {}
+        self.coins_to_check = set()
         self._wst.daemon = True
         self._wst.start()
         # PROFIT RANGES FE
@@ -50,7 +50,7 @@ class ArbitrageFinder:
             if len(lines):
                 # self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
                 await asyncio.sleep(1)
-                self.coins_to_check = {}
+                self.coins_to_check = set()
                 self.update = False
             if self.update:
                 if self.potential_deals:
@@ -61,7 +61,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check.copy():
                     # await self.loop.create_task(self.count_one_coin(coin))
                     asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
-                self.coins_to_check = {}
+                self.coins_to_check = set()
             await asyncio.sleep(0.0001)
 
     @try_exc_regular
@@ -190,8 +190,8 @@ class ArbitrageFinder:
                             # target_profit = self.target_profits.get(name)
                             # if not target_profit:
                             target_profit = self.get_target_profit(direction)
-                            #     print(f"{coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                             if profit >= target_profit:
+                                print(f"AP! {coin}: S.E: {ex_2} | B.E: {ex_1} | Profit: {profit}")
                                 buy_sz = ob_1['asks'][0][1]
                                 sell_sz = ob_2['bids'][0][1]
                                 # self.target_profits[name]:
