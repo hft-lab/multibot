@@ -222,7 +222,7 @@ class MultiBot:
                 # if self.potential_deals:
                 # Шаг 3 (Выбор лучшей AP, если их несколько)
                 self.chosen_deal: AP = self.choose_deal(self.finder.potential_deals)
-                self.finder.potential_deals = []
+                # self.finder.potential_deals = []
                 if self.chosen_deal:
                     # time_end_choose = time.time()
                     # self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
@@ -298,6 +298,7 @@ class MultiBot:
         max_profit = None
         chosen_deal = None
         for deal in potential_deals:
+            self.finder.potential_deals.remove(deal)
             if deal_size_usd := self.if_tradable(deal.buy_exchange,
                                                  deal.sell_exchange,
                                                  deal.buy_market,
