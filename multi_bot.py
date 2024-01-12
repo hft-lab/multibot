@@ -110,7 +110,7 @@ class MultiBot:
                                                          self.instance_markets_amount)
         self.markets = self.clients_markets_data.get_instance_markets()
         self.markets_data = self.clients_markets_data.get_clients_data()
-        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close, self)
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
         # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
         self.chosen_deal: AP
         for client in self.clients:
@@ -197,10 +197,9 @@ class MultiBot:
             self.session.headers.update({'Connection': 'keep-alive'})
             # await self.loop_2.create_task(self.session_keep_alive())
             while True:
-                if not self.found:
+                if not self.finder.potential_deals:
                     await asyncio.sleep(0.0001)
                     continue
-                self.found = False
                 # await asyncio.sleep(self.cycle_parser_delay)
                 # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
                 #     self.start_time -= 1
@@ -299,16 +298,24 @@ class MultiBot:
         max_profit = None
         chosen_deal = None
         for deal in potential_deals:
+            if deal_size_usd := self.if_tradable(deal.buy_exchange,
+                                                 deal.sell_exchange,
+                                                 deal.buy_market,
+                                                 deal.sell_market,
+                                                 deal.buy_price_parser,
+                                                 deal.sell_price_parser):
+                deal.deal_size_usd_target = deal_size_usd
+
             # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
             #     continue
             # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):
             #     continue
-            if not max_profit:
-                max_profit = deal.profit_rel_parser
-                chosen_deal = deal
-            if deal.profit_rel_parser > max_profit:
-                max_profit = deal.profit_rel_parser
-                chosen_deal = deal
+                if not max_profit:
+                    max_profit = deal.profit_rel_parser
+                    chosen_deal = deal
+                if deal.profit_rel_parser > max_profit:
+                    max_profit = deal.profit_rel_parser
+                    chosen_deal = deal
         return chosen_deal
 
     @try_exc_regular
