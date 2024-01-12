@@ -178,10 +178,9 @@ class ArbitrageFinder:
                         else:
                             ts_sell = now_ts - ob_2['timestamp'] / 1000
                             # ts_sell_top = now_ts - ob_2['top_bid_timestamp'] / 1000
-                        if buy_own_ts_ping > 0.040 or sell_own_ts_ping > 0.040:
+                        if buy_own_ts_ping > 0.060 or sell_own_ts_ping > 0.060 or ts_sell > 0.3 or ts_buy > 0.3:
                             continue
-                        elif ts_sell > 0.2 or ts_buy > 0.2:
-                            continue
+
                         # if ts_sell > 100 or ts_buy > 100:
                         #     message = f"ORDERBOOK IS OLDER THAN 100s! TS NOW: {now_ts}\n"
                         #     message += f"{client_1.EXCHANGE_NAME} OB: {ob_1}\n"
