@@ -26,12 +26,13 @@ class ArbitrageFinder:
         self.loop = asyncio.new_event_loop()
         self._wst = threading.Thread(target=self._run_finder_forever)
         self.update = False
-        self.coins_to_check = ()
+        self.coins_to_check = []
         self._wst.daemon = True
         self._wst.start()
         # PROFIT RANGES FE
         # self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
         self.profit_precise = 4
+        self.profit_ranges = self.unpack_ranges()
         self.potential_deals = []
         # if not self.profit_ranges.get('timestamp_start'):
         #     self.profit_ranges.update({'timestamp_start': time.time()})
@@ -53,7 +54,7 @@ class ArbitrageFinder:
             if len(lines):
                 # self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
                 await asyncio.sleep(1)
-                self.coins_to_check = ()
+                self.coins_to_check = []
                 self.update = False
             if self.update:
                 if self.potential_deals:
@@ -64,9 +65,35 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     # await self.loop.create_task(self.count_one_coin(coin))
                     asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
-                self.coins_to_check = ()
+                self.coins_to_check = []
             await asyncio.sleep(0.0001)
 
+    @staticmethod
+    @try_exc_regular
+    def unpack_ranges() -> dict:
+        try:
+            with open('ranges.json', 'r') as file:
+                ranges = json.load(file)
+                # print(json.load(file))
+            if time.time() - ranges['timestamp_start'] < 3600 * 12:
+                try:
+                    with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'r') as file:
+                        return json.load(file)
+                except:
+                    try:
+                        last_date = str(datetime.fromtimestamp(time.time() - (3600 * 24))).split(' ')[0]
+                        with open(f'ranges{last_date}.json', 'r') as file:
+                            return json.load(file)
+                    except:
+                        pass
+            else:
+                return ranges
+        except Exception:
+            traceback.print_exc()
+            with open('ranges.json', 'w') as file:
+                new = {'timestamp': time.time(), 'timestamp_start': time.time()}
+                json.dump(new, file)
+            return new
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -178,6 +205,7 @@ class ArbitrageFinder:
                             sell_px = ob_2['bids'][0][0]
                             raw_profit = (sell_px - buy_px) / buy_px
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
+                            self.append_profit(profit=raw_profit, name=name)
                             if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
                                 print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
                             if self.state == 'Bot':
@@ -250,6 +278,120 @@ class ArbitrageFinder:
                         # else:
                         #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
                         #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
+
+    @try_exc_regular
+    def get_coins_profit_ranges(self):
+        coins = {}
+        for direction in self.profit_ranges.keys():
+            if 'timestamp' in direction:
+                # Passing the timestamp key in profit_ranges dict
+                continue
+            coin = direction.split('C:')[1]
+            range = sorted([[float(x), y] for x, y in self.profit_ranges[direction].items()], reverse=True)
+            range_len = sum([x[1] for x in range])
+            if coins.get(coin):
+                # Filling reversed direction of trades if one direction for this coin already filled
+                coin = coin + '_reversed'
+            upd_data = {coin: {'range': range,  # profits dictionary in format key = profit, value = frequency
+                               'range_len': range_len,  # sample total size of all records
+                               'direction': direction}}  # direction in format B:{exch_buy}|S:{exch_sell}|C:{coin} (str)
+            coins.update(upd_data)
+            # print(upd_data)
+            # print()
+
+        return coins
+
+    @try_exc_regular
+    def get_all_target_profits(self):
+        coins = self.get_coins_profit_ranges()
+        target_profits = {}
+        for coin in coins.keys():
+            if 'reversed' in coin:
+                continue
+            direction_one = coins[coin]
+            direction_two = coins[coin + '_reversed']
+            exchange_1 = direction_one['direction'].split(':')[1].split('|')[0]
+            exchange_2 = direction_two['direction'].split(':')[1].split('|')[0]
+            if exchange_1 not in (self.clients_with_names.keys()) or exchange_2 not in (self.clients_with_names.keys()):
+                continue
+            # fees = 0.00021 + 0.000375
+            # print(fees)
+            sum_freq_1 = 0
+            sum_freq_2 = 0
+            fees = self.fees[exchange_1] + self.fees[exchange_2]
+            # print(fees)
+            ### Choosing target profit as particular rate of frequency appearing in whole range of profits
+            i = 0
+            profit_1 = None
+            profit_2 = None
+            # sum_profit = direction_one['range'][i][0] + direction_two['range'][i][0]
+            # print(direction_one['direction'], direction_two['direction'])
+            # print(sum_profit - fees)
+            # print(sum_profit - fees_1)
+            while (direction_one['range'][i][0] + direction_two['range'][i][0]) - 2 * fees >= 0:
+                profit_1 = direction_one['range'][i][0]
+                profit_2 = direction_two['range'][i][0]
+                sum_freq_1 += direction_one['range'][i][1]
+                sum_freq_2 += direction_two['range'][i][1]
+                i += 1
+            if profit_2 != None and profit_1 != None:
+                equalizer = 1
+                while sum_freq_1 > 100 and sum_freq_1 > 2 * sum_freq_2:
+                    profit_1 = direction_one['range'][i - equalizer][0]
+                    sum_freq_1 -= direction_one['range'][i - equalizer + 1][1]
+                    equalizer += 1
+                equalizer = 1
+                while sum_freq_2 > 100 and sum_freq_2 > 2 * sum_freq_1:
+                    profit_2 = direction_two['range'][i - equalizer][0]
+                    sum_freq_2 -= direction_two['range'][i - equalizer + 1][1]
+                    equalizer += 1
+                freq_relative_1 = sum_freq_1 / direction_one['range_len'] * 100
+                freq_relative_2 = sum_freq_2 / direction_two['range_len'] * 100
+                print(F"TARGET PROFIT {direction_one['direction']}:", profit_1, sum_freq_1, f"{freq_relative_1} %")
+                print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", profit_2, sum_freq_2, f"{freq_relative_2} %")
+                print()
+                ### Defining of target profit including exchange fees
+                target_profits.update({direction_one['direction']: profit_1 - fees,
+                                       direction_two['direction']: profit_2 - fees})
+        return target_profits
+
+                # for profit_1, freq_1 in direction_one['range']:
+                #     if sum_freq_1 > direction_one['range_len'] * 0.07:
+                #         target_raw_profit_1 = sum_profit_1 / sum_freq_1
+                #         break
+                #     sum_freq_1 += freq_1
+                #     sum_profit_1 += profit_1 * freq_1
+                # for profit_2, freq_2 in direction_two['range']:
+                #     if sum_freq_2 > direction_two['range_len'] * 0.07:
+                #         target_raw_profit_2 = sum_profit_2 / sum_freq_2
+                #         break
+                #     sum_freq_2 += freq_2
+                #     sum_profit_2 += profit_2 * freq_2
+                # print(F"TARGET PROFIT {direction_one['direction']}:", [target_raw_profit_1, profit_1, sum_freq_1])
+                # print(F"TARGET PROFIT REVERSED {direction_two['direction']}:", [target_raw_profit_2, profit_2, sum_freq_2])
+                # print()
+
+    @try_exc_regular
+    def append_profit(self, profit: float, name: str):
+        profit = round(profit, self.profit_precise)
+        if self.profit_ranges.get(name):
+            if self.profit_ranges[name].get(profit):
+                self.profit_ranges[name][profit] += 1
+            else:
+                self.profit_ranges[name].update({profit: 1})
+        else:
+            self.profit_ranges.update({name: {profit: 1}})
+        now = time.time()
+        if now - self.last_record > 3600:
+            with open('ranges.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.last_record = now
+        if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
+            # self.target_profits = self.get_all_target_profits()
+            with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'w') as file:
+                json.dump(self.profit_ranges, file)
+            self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
+
 
 if __name__ == '__main__':
     pass

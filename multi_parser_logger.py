@@ -184,14 +184,10 @@ class MultiParser:
             # Шаг 0. Тестирование стаканов на новой бирже
             # self.exchange_ob_analize()
             # Шаг 1 (Сбор данных с бирж по рынкам)
-
-            results = self.get_data_for_parser()
-            #
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
             potential_possibilities = self.finder.potential_deals
 
             if potential_possibilities == [] and self.ap_log_filled_flag:
-                dt = time.time()
                 self.close_all_open_possibilities()
             if len(potential_possibilities):
                 self.update_ap_logs_with_new_possibilities(potential_possibilities)
