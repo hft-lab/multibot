@@ -26,7 +26,7 @@ class ArbitrageFinder:
         self.loop = asyncio.new_event_loop()
         self._wst = threading.Thread(target=self._run_finder_forever)
         self.update = False
-        self.coins_to_check = ()
+        self.coins_to_check = {}
         self._wst.daemon = True
         self._wst.start()
         # PROFIT RANGES FE
@@ -53,7 +53,7 @@ class ArbitrageFinder:
             if len(lines):
                 # self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
                 await asyncio.sleep(1)
-                self.coins_to_check = ()
+                self.coins_to_check = {}
                 self.update = False
             if self.update:
                 if self.potential_deals:
@@ -64,7 +64,7 @@ class ArbitrageFinder:
                 for coin in self.coins_to_check:
                     # await self.loop.create_task(self.count_one_coin(coin))
                     asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
-                self.coins_to_check = ()
+                self.coins_to_check = {}
             await asyncio.sleep(0.0001)
 
 
