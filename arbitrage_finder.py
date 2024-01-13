@@ -174,8 +174,8 @@ class ArbitrageFinder:
                             sell_px = ob_2['bids'][0][0]
                             raw_profit = (sell_px - buy_px) / buy_px
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                            if raw_profit - self.fees[ex_1] - self.fees[ex_2] > 0:
-                                print(f"{name}|Profit:{raw_profit - self.fees[ex_1] - self.fees[ex_2]}")
+                            if raw_profit > 0:
+                                print(f"{name}|RAW profit: {raw_profit}")
                             if self.state == 'Bot':
                                 poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
                                 direction = self.get_deal_direction(poses, ex_1, ex_2, buy_mrkt, sell_mrkt)
@@ -246,6 +246,7 @@ class ArbitrageFinder:
                         # else:
                         #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
                         #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
+
 
 if __name__ == '__main__':
     pass
