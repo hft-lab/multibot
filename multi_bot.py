@@ -548,12 +548,12 @@ class MultiBot:
                                  f"api_deal_{id2.replace('-', '')[:20]}")
         self.chosen_deal.ts_orders_sent = time.time()
 
-        orders = [loop.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
-                                                                            'buy',
-                                                                            client_id=cl_id_buy)),
-                  loop.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
-                                                                             'sell',
-                                                                             client_id=cl_id_sell))]
+        orders = [loop.create_task(self.chosen_deal.client_buy.create_fast_order(self.chosen_deal.buy_market,
+                                                                                 'buy',
+                                                                                 client_id=cl_id_buy)),
+                  loop.create_task(self.chosen_deal.client_sell.create_fast_order(self.chosen_deal.sell_market,
+                                                                                  'sell',
+                                                                                  client_id=cl_id_sell))]
         responses = await asyncio.gather(*orders, return_exceptions=True)
         self.chosen_deal.deal_size_amount_target = self.chosen_deal.client_buy.amount
         self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * self.chosen_deal.deal_size_usd_target
