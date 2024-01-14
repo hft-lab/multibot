@@ -124,7 +124,7 @@ class MultiParser:
 
     @try_exc_regular
     def launch(self):
-
+        self.telegram.send_message(f"MULTI PARSER IS WORKING", TG_Groups.MainGroup)
         print('STARTING RUN CLIENTS')
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
@@ -185,8 +185,8 @@ class MultiParser:
             # self.exchange_ob_analize()
             # Шаг 1 (Сбор данных с бирж по рынкам)
             # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-            potential_possibilities = self.finder.potential_deals
-
+            potential_possibilities = self.finder.potential_deals.copy()
+            self.finder.potential_deals = [item for item in self.finder.potential_deals if item not in potential_possibilities]
             if potential_possibilities == [] and self.ap_log_filled_flag:
                 self.close_all_open_possibilities()
             if len(potential_possibilities):
@@ -224,7 +224,7 @@ class MultiParser:
                       f'End: {dt_end}\n' \
                       f'More than one cycle: {ap_log.more_one_cycle_flag}\n'
             print(message)
-            # self.telegram.send_message(message, TG_Groups.Alerts)
+            self.telegram.send_message(message, TG_Groups.Alerts)
             self.ap_active_logs.remove(ap_log)
             logging.info(f'All_AP_gone,{ap_log.coin},{ap_log.buy_exchange},{ap_log.sell_exchange},'
                          f'{ap_log.target_profit},{round(ap_log.profit_rel_parser, 5)},'
@@ -285,7 +285,7 @@ class MultiParser:
                       f'End: {dt_end}\n' \
                       f'More than one cycle: {ap_log.more_one_cycle_flag}\n'
             print(message)
-            # self.telegram.send_message(message, TG_Groups.Alerts)
+            self.telegram.send_message(message, TG_Groups.Alerts)
             self.ap_active_logs.remove(ap_log)
             logging.info(f'New_AP_came,{ap_log.coin},{ap_log.buy_exchange},{ap_log.sell_exchange},'
                          f'{ap_log.target_profit},{round(ap_log.profit_rel_parser, 5)},'

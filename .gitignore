@@ -8,6 +8,7 @@ __pycache__
 *.txt
 *.csv
 *.ini
+test.py
 config.ini
 config_parser.ini
 mp_emulation.py
