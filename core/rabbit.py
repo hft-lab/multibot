@@ -48,20 +48,19 @@ class Rabbit:
             self.telegram.send_message(f"Method '{queue_name}' not found in RabbitMqQueues class", TG_Groups.Alerts)
 
     @try_exc_async
-    async def setup_mq(self, loop) -> None:
-        self.mq = await connect_robust(self.rabbit_url, loop=loop)
-        print(f"SETUP MQ DONE")
+    async def setup_mq(self) -> None:
+        self.mq = await connect_robust(self.rabbit_url, loop=self.loop)
+        # print(f"SETUP MQ DONE")
 
     @try_exc_async
     async def send_messages(self):
-        await self.setup_mq(self.loop)
-        while True:
+        while self.tasks.qsize():
             task = self.tasks.get()
             # print('TASK TO MQ:\n\n',task)
             # self.telegram.send_message('TASK TO MQ:\n\n' + str(task), TG_Groups.DebugDima)
             await self.publish_message(**task)
-            self.tasks.task_done()
-            await asyncio.sleep(0.1)
+        # self.tasks.task_done()
+        # await asyncio.sleep(0.1)
 
     @try_exc_async
     async def publish_message(self, message, routing_key, exchange_name, queue_name):
@@ -78,7 +77,7 @@ class Rabbit:
             return True
         except aiormq.exceptions.AMQPConnectionError as e:
             await asyncio.sleep(1)  # Wait for 5 seconds before retrying
-            await self.setup_mq(self.loop)
+            await self.setup_mq()
             await self.publish_message(message, routing_key, exchange_name, queue_name)
 
 

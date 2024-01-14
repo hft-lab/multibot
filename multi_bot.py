@@ -45,10 +45,11 @@ class MultiBot:
     __slots__ = ['deal_pause', 'cycle_parser_delay', 'max_order_size_usd', 'chosen_deal', 'profit_taker', 'shifts',
                  'rabbit', 'telegram', 'start_time', 'trade_exceptions', 'close_only_exchanges',
                  'available_balances', 'positions', 'session', 'clients', 'exchanges', 'env', 'db', 'tasks',
-                 'loop_1', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
+                 '_loop', 'loop_2', 'loop_3', 'last_orderbooks', 'time_start', 'time_parser', 'bot_launch_id',
                  'base_launch_config', 'instance_markets_amount', 'markets_data',
                  'launch_fields', 'setts', 'rates_file_name', 'markets', 'clients_markets_data', 'finder',
-                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'limit_order_shift']
+                 'clients_with_names', 'max_position_part', 'profit_close', 'potential_deals', 'limit_order_shift',
+                 'deal_done_event', 'new_ap_event', 'new_db_record_event', 'ap_count_event']
 
     def __init__(self):
         self.bot_launch_id = uuid.uuid4()
@@ -85,7 +86,7 @@ class MultiBot:
         # print(self.exchanges)
 
         for exchange in self.exchanges:
-            client = ALL_CLIENTS[exchange](keys=config[exchange], leverage=leverage,
+            client = ALL_CLIENTS[exchange](self, keys=config[exchange], leverage=leverage,
                                            max_pos_part=self.max_position_part,
                                            ob_len=self.limit_order_shift + 1)
             self.clients.append(client)
@@ -108,16 +109,7 @@ class MultiBot:
                                                          self.instance_markets_amount)
         self.markets = self.clients_markets_data.get_instance_markets()
         self.markets_data = self.clients_markets_data.get_clients_data()
-        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
-        # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
-        self.chosen_deal: AP
-        for client in self.clients:
-            client.markets_list = list(self.markets.keys())
-            client.finder = self.finder
-            # client.markets_list = close_markets
-            client.run_updater()
 
-        self.finder.target_profit_exceptions(self.get_data_for_parser())
         self.base_launch_config = {
             "env": self.setts['ENV'],
             "shift_use_flag": 0,
@@ -132,23 +124,75 @@ class MultiBot:
             'updated_flag': 1,
             'datetime_update': str(datetime.utcnow()),
             'ts_update': int(time.time() * 1000)}
-        os.nice(-10)
-        self.loop_1 = asyncio.new_event_loop()
-        self.loop_2 = asyncio.new_event_loop()
-        self.loop_3 = asyncio.new_event_loop()
-        self.rabbit = Rabbit(self.loop_3)
+        # self.new_ap_event = asyncio.Event()
+        # self.new_db_record_event = asyncio.Event()
+        # self.deal_done_event = asyncio.Event()
+        # self.ap_count_event = asyncio.Event()
+        self._loop = asyncio.new_event_loop()
+        self.rabbit = Rabbit(self._loop)
+        # thread = threading.Thread(target=self.run_main_process)
+        # thread.daemon = True
+        # thread.start()
+        self.run_sub_processes()
 
-        t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_1])
-        t2 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_main_cycle, self.loop_2])
-        t3 = threading.Thread(target=self.run_await_in_thread, args=[self.rabbit.send_messages, self.loop_3])
+        # self.loop.create_task(self.__check_order_status())
+        # self.loop.create_task(self.rabbit.send_messages())
+        # # self.loop_2 = asyncio.new_event_loop()
+        # # self.loop_3 = asyncio.new_event_loop()
+        # self.loop.run_until_complete(self.websocket_main_cycle())
+        # t1 = threading.Thread(target=self.run_await_in_thread, args=[self.__check_order_status, self.loop_1])
+        # t2 = threading.Thread(target=self.run_await_in_thread, args=[self.websocket_main_cycle, self.loop_2])
+        # t3 = threading.Thread(target=self.run_await_in_thread, args=[self.rabbit.send_messages, self.loop_3])
+        #
+        # t1.start()
+        # t2.start()
+        # t3.start()
+        #
+        # t1.join()
+        # t2.join()
+        # t3.join()
 
-        t1.start()
-        t2.start()
-        t3.start()
+    @try_exc_regular
+    def run_main_process(self):
+        while True:
+            self._loop.run_until_complete(self.main_process())
 
-        t1.join()
-        t2.join()
-        t3.join()
+    @try_exc_async
+    async def main_process(self):
+        await self.launch()
+        while True:
+            # print(f"CHECK ORDER STATUSES STARTED")
+            await self.rabbit.setup_mq()
+            tasks = [self._loop.create_task(self.__check_order_status()),
+                     self._loop.create_task(self.rabbit.send_messages())]
+            await asyncio.gather(*tasks, return_exceptions=True)
+            # print(data)
+            await asyncio.sleep(5)
+            await self.rabbit.mq.close()
+
+    @try_exc_async
+    async def check_db_and_orders_update_data(self, loop):
+        # print(f"CHECK ORDER STATUSES STARTED")
+        tasks = [loop.create_task(self.__check_order_status()),
+                 loop.create_task(self.rabbit.send_messages())]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # print(data)
+        await asyncio.sleep(3)
+
+    @try_exc_regular
+    def run_sub_processes(self):
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_close)
+        print(f"FINDER DONE")
+        # close_markets = ['ETH', 'RUNE', 'SNX', 'ENJ', 'DOT', 'LINK', 'ETC', 'DASH', 'XLM', 'WAVES']
+        self.chosen_deal: AP
+        for client in self.clients:
+            client.markets_list = list(self.markets.keys())
+            client.finder = self.finder
+            # client.found_event = self.ap_count_event
+            # client.markets_list = close_markets
+            client.run_updater()
+
+        # self.finder.target_profit_exceptions(self.get_data_for_parser())
 
     @staticmethod
     @try_exc_regular
@@ -188,77 +232,77 @@ class MultiBot:
                 await asyncio.sleep(23.5)
 
     @try_exc_async
-    async def websocket_main_cycle(self):
-        await self.launch()
-        async with aiohttp.ClientSession() as session:
-            self.session = session
-            self.session.headers.update({'Connection': 'keep-alive'})
-            # await self.loop_2.create_task(self.session_keep_alive())
-            while True:
-                if not self.finder.potential_deals:
-                    await asyncio.sleep(0.0001)
-                    continue
-                print(f"AP! {len(self.finder.potential_deals)}")
+    async def run_arbitrage(self, deal, loop):
 
-                # await asyncio.sleep(self.cycle_parser_delay)
-                # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
-                #     self.start_time -= 1
-                #     self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
-                #     print('PARSER IS WORKING')
-                #     self.update_all_av_balances()
-                # # Шаг 1 (Сбор данных с бирж по рынкам)
-                # time_start_parsing = time.time()
-                # results = self.get_data_for_parser()
-                # time_end_parsing = time.time()
-                #
-                # # logger_custom.log_rates(iteration, results)
-                #
-                # # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
-                # potential_deals = self.finder.find_arbitrage_possibilities(results)
-                #
-                # # print('Potential deals:', json.dumps(potential_deals, indent=2))
-                time_end_define_potential_deals = time.time()
+        # async with aiohttp.ClientSession() as session:
+        #     self.session = session
+        #     self.session.headers.update({'Connection': 'keep-alive'})
+        #     # await self.loop_2.create_task(self.session_keep_alive())
+        #     while True:
+        #         if not self.finder.potential_deals:
+        #             await asyncio.sleep(0.0001)
+        #             continue
+        print(f"AP! {deal}")
 
-                # if self.potential_deals:
-                # Шаг 3 (Выбор лучшей AP, если их несколько)
-                self.chosen_deal: AP = self.choose_deal(self.finder.potential_deals)
-                # self.finder.potential_deals = []
-                if self.chosen_deal:
-                    # time_end_choose = time.time()
-                    # self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
-                    self.chosen_deal.ts_choose_end = time.time()
-                    # self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
-                    # self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
-                    self.chosen_deal.time_choose = self.chosen_deal.ts_choose_end - time_end_define_potential_deals
-                    # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
-                    # if self.check_prices_still_good():
-                    # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
-                    if self.fit_sizes_and_prices():
-                        # time_end_fit_sizes = time.time()
-                        # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
-                        await self.execute_deal()
-                        # result = await self.execute_deal()
-                        # if result == 'DEPRECATED':
-                        #     continue
-                        # Шаг 7 (Анализ, логирование, нотификация по ордерам
-                        await self.notification_and_logging()
-                        # Удалить обнуление Last Order ID, когда разберусь с ним
-                        for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
-                            client.error_info = None
-                            client.LAST_ORDER_ID = 'default'
-                        await asyncio.sleep(self.deal_pause)
-                        self.update_all_av_balances()
-                        self.finder.potential_deals = []
+        # await asyncio.sleep(self.cycle_parser_delay)
+        # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
+        #     self.start_time -= 1
+        #     self.telegram.send_message(f"PARSER IS WORKING", TG_Groups.MainGroup)
+        #     print('PARSER IS WORKING')
+        #     self.update_all_av_balances()
+        # # Шаг 1 (Сбор данных с бирж по рынкам)
+        # time_start_parsing = time.time()
+        # results = self.get_data_for_parser()
+        # time_end_parsing = time.time()
+        #
+        # # logger_custom.log_rates(iteration, results)
+        #
+        # # Шаг 2 (Анализ маркет данных с бирж и поиск потенциальных AP)
+        # potential_deals = self.finder.find_arbitrage_possibilities(results)
+        #
+        # # print('Potential deals:', json.dumps(potential_deals, indent=2))
+        time_end_define_potential_deals = time.time()
+
+        # if self.potential_deals:
+        # Шаг 3 (Выбор лучшей AP, если их несколько)
+        self.chosen_deal: AP = self.choose_deal(deal)
+        # self.finder.potential_deals = []
+        if self.chosen_deal:
+            # time_end_choose = time.time()
+            # self.chosen_deal.ts_define_potential_deals_end = time_end_define_potential_deals
+            self.chosen_deal.ts_choose_end = time.time()
+            # self.chosen_deal.time_parser = time_end_parsing - time_start_parsing
+            # self.chosen_deal.time_define_potential_deals = time_end_define_potential_deals - time_end_parsing
+            self.chosen_deal.time_choose = self.chosen_deal.ts_choose_end - time_end_define_potential_deals
+            # Шаг 4 (Проверка, что выбранная AP все еще действует, здесь заново запрашиваем OB)
+            # if self.check_prices_still_good():
+            # Шаг 5. Расчет размеров сделки и цен для лимитных ордеров
+            if self.fit_sizes_and_prices():
+                # time_end_fit_sizes = time.time()
+                # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
+
+                await self.execute_deal(loop)
+                # result = await self.execute_deal()
+                # if result == 'DEPRECATED':
+                #     continue
+                # Шаг 7 (Анализ, логирование, нотификация по ордерам
+                await self.notification_and_logging()
+                # Удалить обнуление Last Order ID, когда разберусь с ним
+                for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
+                    client.error_info = None
+                    client.LAST_ORDER_ID = 'default'
+                await asyncio.sleep(self.deal_pause)
+                self.update_all_av_balances()
 
                         # with open('ap_still_active_status.csv', 'a', newline='') as file:
                         #     writer = csv.writer(file)
                         #     row_data = [str(y) for y in chosen_deal.values()] + ['inactive clients-http']
                         #     writer.writerow(row_data)
-
     @try_exc_async
     async def launch(self):
         self.db = DB(self.rabbit)
         await self.db.setup_postgres()
+        # self.new_db_record_event.set()
         self.update_all_av_balances()
         self.update_all_positions_aggregates()
         # Принтим показатели клиентов - справочно
@@ -280,6 +324,7 @@ class MultiBot:
         # print('Positions', json.dumps(self.positions, indent=2))
         #
         self.db.save_launch_balance(self)
+        # self.new_db_record_event.set()
         # while not init_time + 90 > time.time():
         #     await asyncio.sleep(0.1)
         # logger_custom = Logging()
@@ -293,29 +338,21 @@ class MultiBot:
         return data
 
     @try_exc_regular
-    def choose_deal(self, potential_deals: List[AP]) -> AP:
-        max_profit = None
+    def choose_deal(self, deal) -> AP:
         chosen_deal = None
-        for deal in potential_deals:
-            self.finder.potential_deals.remove(deal)
-            if deal_size_usd := self.if_tradable(deal.buy_exchange,
-                                                 deal.sell_exchange,
-                                                 deal.buy_market,
-                                                 deal.sell_market,
-                                                 deal.buy_price_parser,
-                                                 deal.sell_price_parser):
-                deal.deal_size_usd_target = deal_size_usd
-
-            # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
-            #     continue
-            # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):
-            #     continue
-                if not max_profit:
-                    max_profit = deal.profit_rel_parser
-                    chosen_deal = deal
-                if deal.profit_rel_parser > max_profit:
-                    max_profit = deal.profit_rel_parser
-                    chosen_deal = deal
+        # for deal in potential_deals:
+        if deal_size_usd := self.if_tradable(deal.buy_exchange,
+                                             deal.sell_exchange,
+                                             deal.buy_market,
+                                             deal.sell_market,
+                                             deal.buy_price_parser,
+                                             deal.sell_price_parser):
+            deal.deal_size_usd_target = deal_size_usd
+            chosen_deal = deal
+        # if self.trade_exceptions.get(deal.buy_exchange + deal.buy_market + 'buy'):
+        #     continue
+        # if self.trade_exceptions.get(deal.sell_exchange + deal.sell_market + 'sell'):
+        #     continue
         return chosen_deal
 
     @try_exc_regular
@@ -501,7 +538,7 @@ class MultiBot:
         return True
 
     @try_exc_async
-    async def execute_deal(self):
+    async def execute_deal(self, loop):
         # with open('ap_still_active_status.csv', 'a', newline='') as file:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
@@ -510,12 +547,13 @@ class MultiBot:
         cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
                                  f"api_deal_{id2.replace('-', '')[:20]}")
         self.chosen_deal.ts_orders_sent = time.time()
-        orders = [self.loop_2.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
-                                                                                   'buy', self.session,
-                                                                                   client_id=cl_id_buy)),
-                  self.loop_2.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
-                                                                                    'sell', self.session,
-                                                                                    client_id=cl_id_sell))]
+
+        orders = [loop.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
+                                                                            'buy',
+                                                                            client_id=cl_id_buy)),
+                  loop.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
+                                                                             'sell',
+                                                                             client_id=cl_id_sell))]
         responses = await asyncio.gather(*orders, return_exceptions=True)
         self.chosen_deal.deal_size_amount_target = self.chosen_deal.client_buy.amount
         self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * self.chosen_deal.deal_size_usd_target
@@ -625,6 +663,7 @@ class MultiBot:
                            shifted_buy_px, buy_market, self.env)
         self.db.save_order(order_id_sell, sell_exchange_order_id, client_sell, 'sell', ap_id, sell_order_place_time,
                            shifted_sell_px, sell_market, self.env)
+        # self.new_db_record_event.set()
 
         if self.chosen_deal.buy_order_place_status == ResponseStatus.SUCCESS:
             # message = f'запрос инфы по ордеру, см. логи {self.chosen_deal.client_buy.EXCHANGE_NAME=}{buy_market=}{order_id_buy=}'
@@ -660,6 +699,7 @@ class MultiBot:
 
         self.chosen_deal.status = self.get_ap_status()
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
+        # self.new_db_record_event.set()
         self.telegram.send_ap_executed_message(self.chosen_deal, TG_Groups.MainGroup)
 
     @try_exc_regular
@@ -710,16 +750,17 @@ class MultiBot:
     async def __check_order_status(self):
         # Эта функция инициирует обновление данных по ордеру в базе,
         # когда от биржи в клиенте появляется обновление после создания ордера
-        while True:
-            for client in self.clients:
-                orders = client.orders.copy()
+        for client in self.clients:
+            orders = client.orders.copy()
 
-                for order_id, message in orders.items():
-                    self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
-                    client.orders.pop(order_id)
-
-            await asyncio.sleep(3)
+            for order_id, message in orders.items():
+                self.rabbit.add_task_to_queue(message, "UPDATE_ORDERS")
+                client.orders.pop(order_id)
 
 
 if __name__ == '__main__':
-    MultiBot()
+    bot = MultiBot()
+    bot.run_main_process()
+    # asyncio.run(bot.main_process())
+
+

@@ -9,8 +9,7 @@ import threading
 
 class ArbitrageFinder:
 
-    def __init__(self, markets, clients_with_names, profit_taker, profit_close,state='Bot'):
-        # self.multibot = multibot
+    def __init__(self, markets, clients_with_names, profit_taker, profit_close, state='Bot'):
         self.state = state
         self.profit_taker = profit_taker
         self.profit_close = profit_close
@@ -19,13 +18,13 @@ class ArbitrageFinder:
         self.clients_with_names = clients_with_names
         self.fees = {x: y.taker_fee for x, y in self.clients_with_names.items()}
         self.last_record = time.time()
-        self.excepts = dict()
-        self.loop = asyncio.new_event_loop()
-        self._wst = threading.Thread(target=self._run_finder_forever)
-        self.update = False
+        # self.excepts = dict()
+        # self.loop = asyncio.new_event_loop()
+        # self._wst = threading.Thread(target=self._run_finder_forever)
+        # self.loop.create_task(self.check_coins())
         self.coins_to_check = set()
-        self._wst.daemon = True
-        self._wst.start()
+        # self._wst.daemon = True
+        # self._wst.start()
         # PROFIT RANGES FE
         # self.tradable_profits = {x: {} for x in self.coins}  # {coin: {exchange+side: profit_gap}}
         self.profit_precise = 4
@@ -44,25 +43,25 @@ class ArbitrageFinder:
 
     @try_exc_async
     async def check_coins(self):
-        while True:
-            clients = self.clients_with_names.items()
-            lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 50]
-            if len(lines):
-                # self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
-                await asyncio.sleep(1)
-                self.coins_to_check = set()
-                self.update = False
-            if self.update:
-                if self.potential_deals:
-                    await asyncio.sleep(0.5)
-                    continue
-                self.update = False
-                # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
-                for coin in self.coins_to_check.copy():
-                    # await self.loop.create_task(self.count_one_coin(coin))
-                    asyncio.run_coroutine_threadsafe(self.count_one_coin(coin), self.loop)
-                self.coins_to_check = set()
-            await asyncio.sleep(0.0001)
+        clients = self.clients_with_names.items()
+        # while True:
+        lines = [{x: y.message_queue.qsize()} for x, y in clients if y.message_queue.qsize() > 50]
+        if len(lines):
+            # self.multibot.telegram.send_message(f"ALERT! WEBSOCKET LINES ARE HUGE: {lines}")
+            # await asyncio.sleep(1)
+            self.coins_to_check = set()
+            # self.update = False
+        # if self.update:
+        #     if self.potential_deals:
+        #         await asyncio.sleep(0.5)
+        #         continue
+        #     self.update = False
+            # print(f"COUNTING STARTED, COINS: {self.coins_to_check}")
+        for coin in self.coins_to_check.copy():
+            # await self.loop.create_task(self.count_one_coin(coin))
+            await self.loop.create_task(self.count_one_coin(coin))
+        self.coins_to_check = set()
+        # await asyncio.sleep(0.0001)
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -113,7 +112,7 @@ class ArbitrageFinder:
         self.excepts = targets
 
     @try_exc_async
-    async def count_one_coin(self, coin):
+    async def count_one_coin(self, coin, run_arbitrage, loop):
         for ex_1, client_1 in self.clients_with_names.items():
             for ex_2, client_2 in self.clients_with_names.items():
                 if ex_1 == ex_2:
@@ -242,7 +241,9 @@ class ArbitrageFinder:
                                 #     writer = csv.writer(file)
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(f"AP filling time: {time.time() - time_start} sec")
-                                self.potential_deals.append(possibility)
+                                await run_arbitrage(possibility, loop)
+                                # self.potential_deals.append(possibility)
+                                # self.new_ap_event.set()
                         # else:
                         #     self.tradable_profits[coin].pop(ex_1 + '__' + ex_2, None)
                         #     self.tradable_profits[coin].pop(ex_2 + '__' + ex_1, None)
