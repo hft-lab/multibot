@@ -112,7 +112,7 @@ class ArbitrageFinder:
         self.excepts = targets
 
     @try_exc_async
-    async def count_one_coin(self, coin, run_arbitrage, loop):
+    async def count_one_coin(self, coin, run_arbitrage):
         for ex_1, client_1 in self.clients_with_names.items():
             for ex_2, client_2 in self.clients_with_names.items():
                 if ex_1 == ex_2:
@@ -241,7 +241,7 @@ class ArbitrageFinder:
                                 #     writer = csv.writer(file)
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(f"AP filling time: {time.time() - time_start} sec")
-                                await run_arbitrage(possibility, loop)
+                                await run_arbitrage(possibility)
                                 # self.potential_deals.append(possibility)
                                 # self.new_ap_event.set()
                         # else:

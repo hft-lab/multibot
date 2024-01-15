@@ -232,7 +232,7 @@ class MultiBot:
                 await asyncio.sleep(23.5)
 
     @try_exc_async
-    async def run_arbitrage(self, deal, loop):
+    async def run_arbitrage(self, deal):
 
         # async with aiohttp.ClientSession() as session:
         #     self.session = session
@@ -281,7 +281,7 @@ class MultiBot:
                 # time_end_fit_sizes = time.time()
                 # Шаг 6 (Отправка ордеров на исполнение и получение результатов)
 
-                await self.execute_deal(loop)
+                await self.execute_deal()
                 # result = await self.execute_deal()
                 # if result == 'DEPRECATED':
                 #     continue
@@ -538,7 +538,7 @@ class MultiBot:
         return True
 
     @try_exc_async
-    async def execute_deal(self, loop):
+    async def execute_deal(self):
         # with open('ap_still_active_status.csv', 'a', newline='') as file:
         #     writer = csv.writer(file)
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
