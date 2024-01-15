@@ -291,7 +291,7 @@ class MultiBot:
                 for client in [self.chosen_deal.client_buy, self.chosen_deal.client_sell]:
                     client.error_info = None
                     client.LAST_ORDER_ID = 'default'
-                # await asyncio.sleep(self.deal_pause)
+                await asyncio.sleep(self.deal_pause)
                 self.update_all_av_balances()
 
                         # with open('ap_still_active_status.csv', 'a', newline='') as file:
