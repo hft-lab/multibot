@@ -544,17 +544,28 @@ class MultiBot:
         #     row_data = [str(y) for y in chosen_deal.values()] + ['Active']
         #     writer.writerow(row_data)
         id1, id2 = str(uuid.uuid4()), str(uuid.uuid4())
-        cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
-                                 f"api_deal_{id2.replace('-', '')[:20]}")
+        # cl_id_buy, cl_id_sell = (f"api_deal_{id1.replace('-', '')[:20]}",
+        #                          f"api_deal_{id2.replace('-', '')[:20]}")
         self.chosen_deal.ts_orders_sent = time.time()
-        async with aiohttp.ClientSession() as session:
-            orders = [loop.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
-                                                                                     'buy', session,
-                                                                                     client_id=cl_id_buy)),
-                      loop.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
-                                                                                      'sell', session,
-                                                                                      client_id=cl_id_sell))]
-            responses = await asyncio.gather(*orders, return_exceptions=True)
+        self.chosen_deal.client_sell.symbol = self.chosen_deal.sell_market
+        self.chosen_deal.client_sell.side = 'sell'
+        self.chosen_deal.client_buy.symbol = self.chosen_deal.buy_market
+        self.chosen_deal.client_buy.side = 'buy'
+        self.chosen_deal.client_sell.deal = True
+        self.chosen_deal.client_buy.deal = True
+        while not self.chosen_deal.client_buy.response:
+            await asyncio.sleep(0.01)
+        while not self.chosen_deal.client_sell.response:
+            await asyncio.sleep(0.01)
+        responses = [self.chosen_deal.client_buy.response, self.chosen_deal.client_sell.response]
+        # async with aiohttp.ClientSession() as session:
+        #     orders = [loop.create_task(self.chosen_deal.client_buy.create_order(self.chosen_deal.buy_market,
+        #                                                                              'buy', session,
+        #                                                                              client_id=cl_id_buy)),
+        #               loop.create_task(self.chosen_deal.client_sell.create_order(self.chosen_deal.sell_market,
+        #                                                                               'sell', session,
+        #                                                                               client_id=cl_id_sell))]
+        #     responses = await asyncio.gather(*orders, return_exceptions=True)
         self.chosen_deal.deal_size_amount_target = self.chosen_deal.client_buy.amount
         self.chosen_deal.profit_usd_target = self.chosen_deal.profit_rel_target * self.chosen_deal.deal_size_usd_target
         self.chosen_deal.buy_price_fitted = self.chosen_deal.client_buy.price
@@ -577,6 +588,8 @@ class MultiBot:
                   f"Responses:\n{json.dumps(responses, indent=2)}"
         print(message)
         self.send_timings(responses)
+        self.chosen_deal.client_buy.response = None
+        self.chosen_deal.client_sell.response = None
         self.telegram.send_message(message, TG_Groups.DebugDima)
 
     @staticmethod
