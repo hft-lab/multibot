@@ -66,7 +66,8 @@ class MultiParser:
         self.exchanges = self.setts['EXCHANGES'].split(',')
         self.mode = self.setts['MODE']
         self.profits_list = list(map(float, self.setts['TARGET_PROFITS'].split(',')))
-        self.profit_taker = self.profits_list[0]
+        self.profit_open = self.profits_list[0]
+        self.profit_close = self.profits_list[0]
         self.ap_active_logs: List[AP_Log] = []
         self.ap_log_filled_flag: bool = False
         self.ribs_exceptions = []
@@ -94,7 +95,7 @@ class MultiParser:
         self.markets = self.clients_markets_data.get_instance_markets()  # coin:exchange:symbol
         self.markets_data = self.clients_markets_data.get_clients_data()
 
-        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_taker, self.profit_taker,
+        self.finder = ArbitrageFinder(self.markets, self.clients_with_names, self.profit_open, self.profit_close,
                                       state='Parser')
         self.chosen_deal: AP
 
@@ -124,13 +125,14 @@ class MultiParser:
 
     @try_exc_regular
     def launch(self):
-        self.telegram.send_message(f"MULTI PARSER IS WORKING", TG_Groups.MainGroup)
-        print('STARTING RUN CLIENTS')
+        self.telegram.send_message(f"MULTI HAS STARTED", TG_Groups.MainGroup)
+        print(f'TARGET PROFIT: {self.profit_open}')
+        print('STARTING CLIENTS')
         for client in self.clients:
             client.markets_list = list(self.markets.keys())
+            print(f'EXCHANGE: {client.EXCHANGE_NAME}, FEE: {client.taker_fee}')
             client.finder = self.finder
             client.run_updater()
-            time.sleep(1)  # Нужно, чтобы клиенты успели завестись
         print(f'CLIENTS HAVE STARTED. MARKET DATA:\n RIBS: {self.ribs}\n{json.dumps(self.markets_data, indent=2)}')
 
         self.telegram.send_parser_launch_message(self, TG_Groups.MainGroup)

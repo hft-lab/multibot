@@ -9,9 +9,9 @@ import threading
 
 class ArbitrageFinder:
 
-    def __init__(self, markets, clients_with_names, profit_taker, profit_close, state='Bot'):
+    def __init__(self, markets, clients_with_names, profit_open, profit_close, state='Bot'):
         self.state = state
-        self.profit_taker = profit_taker
+        self.profit_taker = profit_open
         self.profit_close = profit_close
         self.markets = markets
         self.coins = [x for x in markets.keys()]
@@ -112,7 +112,7 @@ class ArbitrageFinder:
         self.excepts = targets
 
     @try_exc_async
-    async def count_one_coin(self, coin, run_arbitrage):
+    async def count_one_coin(self, coin, run_arbitrage=None):
         for ex_1, client_1 in self.clients_with_names.items():
             for ex_2, client_2 in self.clients_with_names.items():
                 if ex_1 == ex_2:
@@ -173,7 +173,7 @@ class ArbitrageFinder:
                             sell_px = ob_2['bids'][0][0]
                             raw_profit = (sell_px - buy_px) / buy_px
                             name = f"B:{ex_1}|S:{ex_2}|C:{coin}"
-                            if raw_profit > 0:
+                            if raw_profit > 0.0005:
                                 print(f"{name}|RAW profit: {raw_profit}")
                             if self.state == 'Bot':
                                 poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
@@ -241,7 +241,8 @@ class ArbitrageFinder:
                                 #     writer = csv.writer(file)
                                 #     writer.writerow([str(y) for y in possibility.values()])
                                 # print(f"AP filling time: {time.time() - time_start} sec")
-                                await run_arbitrage(possibility)
+                                if self.state == 'Bot':
+                                    await run_arbitrage(possibility)
                                 # self.potential_deals.append(possibility)
                                 # self.new_ap_event.set()
                         # else:
