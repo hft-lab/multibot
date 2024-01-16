@@ -34,9 +34,9 @@ class ArbitrageFinder:
         # if not self.profit_ranges.get('timestamp_start'):
         #     self.profit_ranges.update({'timestamp_start': time.time()})
         # print(self.profit_ranges)
-        self.target_profits = self.get_all_target_profits()
         self.profit_precise = 4
         self.profit_ranges = self.unpack_ranges()
+        self.target_profits = self.get_all_target_profits()
         print(f"TARGET PROFIT RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
         print(self.target_profits)
 
@@ -331,7 +331,7 @@ class ArbitrageFinder:
                 json.dump(self.profit_ranges, file)
             self.last_record = now
         if now - self.profit_ranges['timestamp_start'] > 3600 * 24:
-            # self.target_profits = self.get_all_target_profits()
+            self.target_profits = self.get_all_target_profits()
             with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'w') as file:
                 json.dump(self.profit_ranges, file)
             self.profit_ranges = {'timestamp': now, 'timestamp_start': now}
