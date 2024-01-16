@@ -34,11 +34,11 @@ class ArbitrageFinder:
         # if not self.profit_ranges.get('timestamp_start'):
         #     self.profit_ranges.update({'timestamp_start': time.time()})
         # print(self.profit_ranges)
-        # self.target_profits = self.get_all_target_profits()
+        self.target_profits = self.get_all_target_profits()
         self.profit_precise = 4
         self.profit_ranges = self.unpack_ranges()
-        # print(f"TARGET PROFIT RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
-        # print(self.target_profits)
+        print(f"TARGET PROFIT RANGES FOR {(time.time() - self.profit_ranges['timestamp_start']) / 3600} HOURS")
+        print(self.target_profits)
 
     @try_exc_regular
     def get_target_profit(self, deal_direction):
@@ -160,8 +160,8 @@ class ArbitrageFinder:
                         #                                     ex_sell+'__'+ex_buy: target_profit - profit})
                         name = f"B:{ex_buy}|S:{ex_sell}|C:{coin}"
                         self.append_profit(profit=raw_profit, name=name)
-                        if raw_profit > 0:
-                            print(f"{name}|RAW profit: {raw_profit}")
+                        # if raw_profit > 0:
+                        #     print(f"{name}|RAW profit: {raw_profit}")
                         if self.state == 'Bot':
                             poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
                             direction = self.get_deal_direction(poses, ex_buy, ex_sell, buy_mrkt, sell_mrkt)
@@ -170,9 +170,11 @@ class ArbitrageFinder:
                         # target_profit = self.excepts.get(buy_mrkt + sell_mrkt, self.get_target_profit(direction))
                         profit = raw_profit - self.fees[ex_buy] - self.fees[ex_sell]
 
-                        # target_profit = self.target_profits.get(name)
-                        # if not target_profit:
-                        target_profit = self.get_target_profit(direction)
+                        target_profit = self.target_profits.get(name, 'Not found')
+                        if target_profit != 'Not found' and target_profit < 0 and direction == 'open':
+                            continue
+                        if target_profit != 'Not found':
+                            target_profit = self.get_target_profit(direction)
                         if profit >= target_profit:
                             print(f"AP! {coin}: S.E: {ex_sell} | B.E: {ex_buy} | Profit: {profit}")
                             buy_sz = ob_buy['asks'][0][1]
