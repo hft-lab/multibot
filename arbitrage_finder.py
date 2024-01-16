@@ -262,7 +262,9 @@ class ArbitrageFinder:
     @try_exc_regular
     def get_all_target_profits(self):
         coins = self.get_coins_profit_ranges()
-        target_profits = {}
+        if not coins:
+            return dict()
+        target_profits = dict()
         for coin in coins.keys():
             if 'reversed' in coin:
                 continue
@@ -340,7 +342,7 @@ class ArbitrageFinder:
 
     @try_exc_regular
     def get_coins_profit_ranges(self):
-        coins = {}
+        coins = dict()
         for direction in self.profit_ranges.keys():
             if 'timestamp' in direction:
                 # Passing the timestamp key in profit_ranges dict
