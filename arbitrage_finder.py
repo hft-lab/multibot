@@ -236,24 +236,13 @@ class ArbitrageFinder:
     @try_exc_regular
     def unpack_ranges() -> dict:
         try:
-            with open('ranges.json', 'r') as file:
-                ranges = json.load(file)
-                # print(json.load(file))
-            if time.time() - ranges['timestamp_start'] < 3600 * 12:
-                try:
-                    with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'r') as file:
-                        return json.load(file)
-                except:
-                    try:
-                        last_date = str(datetime.fromtimestamp(time.time() - (3600 * 24))).split(' ')[0]
-                        with open(f'ranges{last_date}.json', 'r') as file:
-                            return json.load(file)
-                    except:
-                        pass
-            else:
-                return ranges
+            try:
+                with open(f'ranges{str(datetime.now()).split(" ")[0]}.json', 'r') as file:
+                    return json.load(file)
+            except:
+                with open('ranges.json', 'r') as file:
+                    return json.load(file)
         except Exception:
-            traceback.print_exc()
             with open('ranges.json', 'w') as file:
                 new = {'timestamp': time.time(), 'timestamp_start': time.time()}
                 json.dump(new, file)
