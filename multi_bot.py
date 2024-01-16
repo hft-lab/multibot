@@ -707,7 +707,7 @@ class MultiBot:
             self.telegram.send_order_error_message(self.env, sell_market, client_sell, order_id_sell, TG_Groups.Alerts)
         if self.chosen_deal.sell_price_real > 0 and self.chosen_deal.buy_price_real > 0:
             self.chosen_deal.profit_rel_fact = (self.chosen_deal.sell_price_real - self.chosen_deal.buy_price_real) / \
-                                               self.chosen_deal.buy_price_real
+                            self.chosen_deal.buy_price_real - self.chosen_deal.sell_fee - self.chosen_deal.buy_fee
         self.chosen_deal.status = self.get_ap_status()
         self.db.update_balance_trigger('post-deal', ap_id, self.env)
         # self.new_db_record_event.set()
