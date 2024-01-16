@@ -243,7 +243,9 @@ class MultiBot:
         #             await asyncio.sleep(0.0001)
         #             continue
         print(f"AP! {deal}")
-
+        if deal.client_sell.deal or deal.client_buy.deal:
+            print('ONE EXCHANGE IS ALREADY IN DEAL')
+            return
         # await asyncio.sleep(self.cycle_parser_delay)
         # if not round(datetime.utcnow().timestamp() - self.start_time) % 90:
         #     self.start_time -= 1
