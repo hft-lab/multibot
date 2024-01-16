@@ -266,6 +266,8 @@ class ArbitrageFinder:
         for coin in coins.keys():
             if 'reversed' in coin:
                 continue
+            if not coins.get(coin + '_reversed'):
+                continue
             direction_one = coins[coin]
             direction_two = coins[coin + '_reversed']
             exchange_1 = direction_one['direction'].split(':')[1].split('|')[0]
