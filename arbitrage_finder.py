@@ -173,7 +173,7 @@ class ArbitrageFinder:
                         target_profit = self.target_profits.get(name, 'Not found')
                         if target_profit != 'Not found' and target_profit < 0 and direction == 'open':
                             continue
-                        if target_profit != 'Not found':
+                        if target_profit == 'Not found':
                             target_profit = self.get_target_profit(direction)
                         if profit >= target_profit:
                             print(f"AP! {coin}: S.E: {ex_sell} | B.E: {ex_buy} | Profit: {profit}")
