@@ -121,6 +121,7 @@ class Telegram:
         message += f"Deal direction: {ap.deal_direction}\n"
         message += f"Target profit: {ap.target_profit}\n"
         message += f"Expect profit: {ap.profit_rel_parser}\n"
+        message += f"FACT profit: {ap.profit_rel_fact}\n"
         # message += f"B.Parser P.: {str(ap.buy_price_parser)} | S.Parser P.: {str(ap.sell_price_parser)}\n"
         message += f"B.TARGET P.: {str(ap.buy_price_parser)} | S.TARGET P.: {str(ap.sell_price_parser)}\n"
         message += f"B.Shifted P.: {str(ap.buy_price_shifted)} | S.Shifted P.: {str(ap.sell_price_shifted)}\n"

@@ -39,6 +39,7 @@ class AP:
         self.profit_rel_target = None
         self.profit_usd_parser_max = None
         self.profit_usd_target = None
+        self.profit_rel_fact = None
 
 
 
