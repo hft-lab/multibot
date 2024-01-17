@@ -152,12 +152,14 @@ class ArbitrageFinder:
                     is_buy_ping_faster = ts_sell - sell_own_ts_ping > ts_buy - buy_own_ts_ping
                     is_buy_last_ob_update = sell_own_ts_ping > buy_own_ts_ping
                     if is_buy_ping_faster == is_buy_last_ob_update:
-                        if trigger_side == 'buy':
-                            buy_px = ob_buy['asks'][0][0]
-                            sell_px = ob_sell['bids'][2][0]
-                        else:
-                            buy_px = ob_buy['asks'][2][0]
-                            sell_px = ob_sell['bids'][0][0]
+                        buy_px = ob_buy['asks'][0][0]
+                        sell_px = ob_sell['bids'][0][0]
+                        # if trigger_side == 'buy':
+                        #     buy_px = ob_buy['asks'][0][0]
+                        #     sell_px = ob_sell['bids'][2][0]
+                        # else:
+                        #     buy_px = ob_buy['asks'][2][0]
+                        #     sell_px = ob_sell['bids'][0][0]
                         raw_profit = (sell_px - buy_px) / buy_px
                         # name = f"B:{ex_buy}|S:{ex_sell}|C:{coin}"
                         # self.tradable_profits[coin].update({ex_buy+'__'+ex_sell: target_profit - profit,
