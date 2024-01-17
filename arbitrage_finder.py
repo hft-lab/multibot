@@ -160,8 +160,8 @@ class ArbitrageFinder:
                         #                                     ex_sell+'__'+ex_buy: target_profit - profit})
                         name = f"B:{ex_buy}|S:{ex_sell}|C:{coin}"
                         self.append_profit(profit=raw_profit, name=name)
-                        if raw_profit > 0:
-                            print(f"{name}|RAW profit: {raw_profit}")
+                        # if raw_profit > 0:
+                        #     print(f"{name}|RAW profit: {raw_profit}")
                         if self.state == 'Bot':
                             poses = {x: y.get_positions() for x, y in self.clients_with_names.items()}
                             direction = self.get_deal_direction(poses, ex_buy, ex_sell, buy_mrkt, sell_mrkt)
