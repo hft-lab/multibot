@@ -640,8 +640,8 @@ class MultiBot:
         message += f"ORDERS SENDING TIME: {round(orders_sendings, 5)} sec\n"
         ts_1 = responses[0]['timestamp'] - self.chosen_deal.ts_orders_sent
         ts_2 = responses[1]['timestamp'] - self.chosen_deal.ts_orders_sent
-        message += f"{responses[0]['exchange_name']} ORDER TS: {ts_1} sec\n"
-        message += f"{responses[1]['exchange_name']} ORDER TS: {ts_2} sec"
+        message += f"{responses[0]['exchange_name']} ORDER TS: {round(ts_1,5)} sec\n"
+        message += f"{responses[1]['exchange_name']} ORDER TS: {round(ts_2,5)} sec"
         self.telegram.send_message(message, TG_Groups.MainGroup)
 
     @try_exc_regular
