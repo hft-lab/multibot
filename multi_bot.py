@@ -528,7 +528,10 @@ class MultiBot:
         self.chosen_deal.client_sell.fit_sizes(sell_price_shifted, self.chosen_deal.sell_market)
         # Сохраняем значения на объект AP. Именно по ним будет происходить попытка исполнения ордеров
         if not self.chosen_deal.client_buy.amount or not self.chosen_deal.client_sell.amount:
-            self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}')
+            self.telegram.send_message(f'STOP2.{rounded_deal_size_amount=}{deal_size_amount=}{step_size=}'
+                                       f"{self.chosen_deal.client_buy.instruments[self.chosen_deal.buy_market]['step_size']=}"
+                                       f"{self.chosen_deal.client_sell.instruments[self.chosen_deal.sell_market]['step_size']=}"
+                                       f"{self.chosen_deal.deal_size_usd_target=},{self.chosen_deal.ob_buy['asks'][0][0]=}")
             return False
         # По логике округления, amount на клиентах изменяться в fit_sizes не должны, но контрольно проверим
         # if (client_sell.amount != client_buy.amount) or abs(client_buy.amount - rounded_deal_size_amount) > 1e-9:
